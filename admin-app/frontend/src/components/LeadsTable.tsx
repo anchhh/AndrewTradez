@@ -52,7 +52,14 @@ export default function LeadsTable({ leads, onStatusChange, onEdit, onDelete }: 
                 <div className="subtext">{lead.agent_email ?? ''}</div>
               </td>
               <td>
-                <span className="badge">{lead.source}</span>
+                {(lead.sources.length ? lead.sources : [lead.source]).map((s) => (
+                  <span className="badge" key={s}>{s}</span>
+                ))}
+                {lead.times_seen > 1 && (
+                  <div className="subtext" title={`Last seen ${new Date(lead.last_seen_at).toLocaleString()}`}>
+                    seen {lead.times_seen}&times;
+                  </div>
+                )}
               </td>
               <td>
                 <select

@@ -1,15 +1,19 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Lead, LeadFilters, LeadStatus, Stats } from './types';
-import { fetchLeads, fetchStats, createLead, updateLead, deleteLead, importSample, importCsv } from './api';
+import type { IngestStatus, Lead, LeadFilters, LeadStatus, Stats } from './types';
+import { fetchLeads, fetchStats, createLead, updateLead, deleteLead, importSample, importCsv, fetchIngestStatus } from './api';
 import StatsCards from './components/StatsCards';
 import FilterBar from './components/FilterBar';
 import LeadsTable from './components/LeadsTable';
 import LeadModal from './components/LeadModal';
+import IngestionPanel from './components/IngestionPanel';
 import './App.css';
+
+const INGEST_POLL_MS = 30000;
 
 export default function App() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [ingestStatus, setIngestStatus] = useState<IngestStatus | null>(null);
   const [filters, setFilters] = useState<LeadFilters>({});
   const [editingLead, setEditingLead] = useState<Lead | null | 'new'>(null);
   const [loading, setLoading] = useState(false);
@@ -30,9 +34,23 @@ export default function App() {
     }
   }, [filters]);
 
+  const refreshIngestStatus = useCallback(async () => {
+    try {
+      setIngestStatus(await fetchIngestStatus());
+    } catch {
+      // ingestion panel is non-critical; leave last known status in place
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    refreshIngestStatus();
+    const id = setInterval(refreshIngestStatus, INGEST_POLL_MS);
+    return () => clearInterval(id);
+  }, [refreshIngestStatus]);
 
   const handleStatusChange = async (lead: Lead, status: LeadStatus) => {
     await updateLead(lead.id, { status });
@@ -59,8 +77,11 @@ export default function App() {
   const handleGenerateSample = async () => {
     setLoading(true);
     try {
-      await importSample(10);
+      const result = await importSample(10);
       refresh();
+      if (result.updated > 0) {
+        alert(`${result.created} new lead(s), ${result.updated} matched existing leads and were merged (no duplicates).`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate sample leads');
       setLoading(false);
@@ -74,7 +95,7 @@ export default function App() {
     try {
       const result = await importCsv(file);
       setError(null);
-      alert(`Imported ${result.imported} lead(s).`);
+      alert(`${result.created} new lead(s), ${result.updated} matched existing leads and were merged (no duplicates).`);
       refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'CSV import failed');
@@ -82,6 +103,11 @@ export default function App() {
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleIngestionRan = () => {
+    refresh();
+    refreshIngestStatus();
   };
 
   return (
@@ -107,6 +133,7 @@ export default function App() {
 
       {error && <div className="error-banner">{error}</div>}
 
+      <IngestionPanel status={ingestStatus} onRan={handleIngestionRan} />
       <StatsCards stats={stats} />
       <FilterBar filters={filters} onChange={setFilters} />
 

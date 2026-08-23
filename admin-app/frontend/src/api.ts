@@ -1,4 +1,4 @@
-import type { Lead, LeadFilters, Stats } from './types';
+import type { IngestStatus, Lead, LeadFilters, Stats } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -38,14 +38,14 @@ export function deleteLead(id: number): Promise<void> {
   return request<void>(`/api/leads/${id}`, { method: 'DELETE' });
 }
 
-export function importSample(count: number): Promise<Lead[]> {
-  return request<Lead[]>('/api/leads/import/sample', {
+export function importSample(count: number): Promise<{ created: number; updated: number }> {
+  return request('/api/leads/import/sample', {
     method: 'POST',
     body: JSON.stringify({ count }),
   });
 }
 
-export function importCsv(file: File): Promise<{ imported: number; leads: Lead[] }> {
+export function importCsv(file: File): Promise<{ imported: number; created: number; updated: number }> {
   const form = new FormData();
   form.append('file', file);
   return request('/api/leads/import/csv', { method: 'POST', body: form });
@@ -56,4 +56,12 @@ export function triggerOutreach(id: number, channel = 'email'): Promise<unknown>
     method: 'POST',
     body: JSON.stringify({ channel }),
   });
+}
+
+export function fetchIngestStatus(): Promise<IngestStatus> {
+  return request<IngestStatus>('/api/ingest/status');
+}
+
+export function runIngestionNow(): Promise<NonNullable<IngestStatus['last_run']>['results']> {
+  return request('/api/ingest/run', { method: 'POST' });
 }

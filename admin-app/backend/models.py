@@ -20,6 +20,14 @@ class Lead(db.Model):
     external_id = db.Column(db.String(120), nullable=True)
     listing_url = db.Column(db.String(500), nullable=True)
 
+    # Cross-source dedup: one row per physical property, even if seen from
+    # multiple feeds. See services/dedup.py for how this key is built.
+    dedup_key = db.Column(db.String(300), nullable=True, index=True)
+    sources_json = db.Column(db.Text, nullable=False, default="[]")
+    external_ids_json = db.Column(db.Text, nullable=False, default="{}")
+    times_seen = db.Column(db.Integer, nullable=False, default=1)
+    last_seen_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+
     address = db.Column(db.String(255), nullable=False)
     city = db.Column(db.String(120), nullable=True)
     state = db.Column(db.String(40), nullable=True)
@@ -51,12 +59,32 @@ class Lead(db.Model):
     def photo_urls(self, value):
         self.photo_urls_json = json.dumps(value or [])
 
+    @property
+    def sources(self):
+        return json.loads(self.sources_json or "[]")
+
+    @sources.setter
+    def sources(self, value):
+        self.sources_json = json.dumps(value or [])
+
+    @property
+    def external_ids(self):
+        return json.loads(self.external_ids_json or "{}")
+
+    @external_ids.setter
+    def external_ids(self, value):
+        self.external_ids_json = json.dumps(value or {})
+
     def to_dict(self):
         return {
             "id": self.id,
             "source": self.source,
             "external_id": self.external_id,
             "listing_url": self.listing_url,
+            "sources": self.sources,
+            "external_ids": self.external_ids,
+            "times_seen": self.times_seen,
+            "last_seen_at": self.last_seen_at.isoformat(),
             "address": self.address,
             "city": self.city,
             "state": self.state,
@@ -74,4 +102,32 @@ class Lead(db.Model):
             "notes": self.notes,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+        }
+
+
+class IngestionRun(db.Model):
+    """History of automatic/manual ingestion pipeline runs, for the admin
+    dashboard's ingestion panel (see routes/ingestion.py)."""
+
+    __tablename__ = "ingestion_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    started_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    results_json = db.Column(db.Text, nullable=False, default="{}")
+
+    @property
+    def results(self):
+        return json.loads(self.results_json or "{}")
+
+    @results.setter
+    def results(self, value):
+        self.results_json = json.dumps(value or {})
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "started_at": self.started_at.isoformat(),
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "results": self.results,
         }

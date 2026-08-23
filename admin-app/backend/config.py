@@ -8,3 +8,4 @@ class Config:
         "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'leads.db')}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    INGEST_INTERVAL_MINUTES = int(os.environ.get("INGEST_INTERVAL_MINUTES", "15"))

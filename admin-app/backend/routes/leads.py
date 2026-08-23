@@ -2,8 +2,10 @@ from flask import Blueprint, jsonify, request
 
 from extensions import db
 from models import VALID_SOURCES, VALID_STATUSES, Lead
+from services.dedup import compute_dedup_key
 from services.importers import REGISTRY as IMPORTER_REGISTRY
 from services.importers.csv_importer import CsvImportError
+from services.ingestion import upsert_lead
 from services.outreach import OutreachNotConfigured, send_outreach
 
 bp = Blueprint("leads", __name__, url_prefix="/api/leads")
@@ -71,29 +73,34 @@ def create_lead():
     if status not in VALID_STATUSES:
         return jsonify({"error": f"status must be one of {VALID_STATUSES}"}), 400
 
-    lead = Lead(
-        source=data.get("source", "manual"),
-        listing_url=data.get("listing_url"),
-        address=address,
-        city=data.get("city"),
-        state=data.get("state"),
-        zip_code=data.get("zip_code"),
-        price=data.get("price"),
-        beds=data.get("beds"),
-        baths=data.get("baths"),
-        sqft=data.get("sqft"),
-        property_type=data.get("property_type"),
-        agent_name=data.get("agent_name"),
-        agent_email=data.get("agent_email"),
-        agent_phone=data.get("agent_phone"),
-        status=status,
-        notes=data.get("notes"),
-    )
-    lead.photo_urls = data.get("photo_urls", [])
+    row = {
+        "source": data.get("source", "manual"),
+        "listing_url": data.get("listing_url"),
+        "address": address,
+        "city": data.get("city"),
+        "state": data.get("state"),
+        "zip_code": data.get("zip_code"),
+        "price": data.get("price"),
+        "beds": data.get("beds"),
+        "baths": data.get("baths"),
+        "sqft": data.get("sqft"),
+        "property_type": data.get("property_type"),
+        "agent_name": data.get("agent_name"),
+        "agent_email": data.get("agent_email"),
+        "agent_phone": data.get("agent_phone"),
+        "status": status,
+        "notes": data.get("notes"),
+        "photo_urls": data.get("photo_urls", []),
+    }
 
-    db.session.add(lead)
+    created = upsert_lead(row)
     db.session.commit()
-    return jsonify(lead.to_dict()), 201
+
+    dedup_key = compute_dedup_key(address, data.get("zip_code"))
+    lead = Lead.query.filter_by(dedup_key=dedup_key).first()
+    payload = lead.to_dict()
+    payload["_merged"] = not created
+    return jsonify(payload), 201
 
 
 @bp.patch("/<int:lead_id>")
@@ -144,15 +151,15 @@ def import_sample():
         count = 10
 
     rows = IMPORTER_REGISTRY["sample"].run(count=count)
-    created = []
+    created_count = 0
+    updated_count = 0
     for row in rows:
-        photo_urls = row.pop("photo_urls", [])
-        lead = Lead(**row)
-        lead.photo_urls = photo_urls
-        db.session.add(lead)
-        created.append(lead)
+        if upsert_lead(row):
+            created_count += 1
+        else:
+            updated_count += 1
     db.session.commit()
-    return jsonify([lead.to_dict() for lead in created]), 201
+    return jsonify({"created": created_count, "updated": updated_count}), 201
 
 
 @bp.post("/import/csv")
@@ -165,15 +172,19 @@ def import_csv():
     except CsvImportError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    created = []
+    created_count = 0
+    updated_count = 0
     for row in rows:
-        photo_urls = row.pop("photo_urls", [])
-        lead = Lead(**row)
-        lead.photo_urls = photo_urls
-        db.session.add(lead)
-        created.append(lead)
+        if upsert_lead(row):
+            created_count += 1
+        else:
+            updated_count += 1
     db.session.commit()
-    return jsonify({"imported": len(created), "leads": [lead.to_dict() for lead in created]}), 201
+    return jsonify({
+        "imported": len(rows),
+        "created": created_count,
+        "updated": updated_count,
+    }), 201
 
 
 @bp.post("/<int:lead_id>/outreach")

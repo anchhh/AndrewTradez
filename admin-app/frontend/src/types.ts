@@ -9,6 +9,10 @@ export interface Lead {
   source: LeadSource;
   external_id: string | null;
   listing_url: string | null;
+  sources: string[];
+  external_ids: Record<string, string>;
+  times_seen: number;
+  last_seen_at: string;
   address: string;
   city: string | null;
   state: string | null;
@@ -40,4 +44,28 @@ export interface LeadFilters {
   min_price?: string;
   max_price?: string;
   search?: string;
+}
+
+export interface FeedResult {
+  status: 'ok' | 'not_configured' | 'error';
+  fetched: number;
+  created: number;
+  updated: number;
+  message?: string;
+}
+
+export interface IngestionRun {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  results: {
+    feeds: Record<string, FeedResult>;
+    totals: { fetched: number; created: number; updated: number; errors: number };
+  };
+}
+
+export interface IngestStatus {
+  feeds: string[];
+  last_run: IngestionRun | null;
+  history: IngestionRun[];
 }

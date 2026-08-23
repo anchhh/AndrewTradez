@@ -33,23 +33,43 @@ npm run dev
 Open http://localhost:5173. Click **Generate Sample Leads** to populate the
 dashboard with demo data, or **Import CSV** to bulk-load real leads.
 
-## Lead sources
+## Lead sources & auto-ingestion
 
 There's no free/public API for Zillow, Realtor.com, or Airbnb listings, and
 scraping those sites directly breaks their Terms of Service and gets
-IP-blocked quickly. Two real ingestion paths exist today:
+IP-blocked quickly, so this app doesn't do that. Instead there's a proper
+ingestion pipeline (`backend/services/ingestion.py`) that runs
+**automatically in the background every 15 minutes** (`INGEST_INTERVAL_MINUTES`
+env var to change it) and pulls from every registered feed in
+`backend/services/feeds/`:
 
-1. **CSV import** — bulk-load leads from any export (a licensed MLS/IDX
-   feed, ATTOM Data, a spreadsheet of manually-researched agents, etc.).
-   Columns: `address` (required), `city`, `state`, `zip_code`, `price`,
-   `beds`, `baths`, `sqft`, `property_type`, `listing_url`, `agent_name`,
-   `agent_email`, `agent_phone`, `source`.
-2. **Manual entry** — add a lead one at a time from the dashboard.
+- `sample_feed.py` — a working demo feed (fake listings) so the pipeline,
+  scheduler, and dedup logic all have something to run against today.
+- `zillow_feed.py`, `realtor_feed.py`, `airbnb_feed.py` — stubs that raise
+  a clear error instead of scraping, each documenting the legitimate
+  replacement (Bridge Interactive for Zillow's official MLS/IDX partner
+  feed, your MLS's IDX/RESO Web API for Realtor.com-equivalent data, ATTOM
+  Data/RentCast as licensed aggregators, Airbnb's own Hosting/Partner API
+  for listings you manage). Wiring in a real source means implementing
+  `fetch()` in one of these modules — nothing else changes.
 
-`backend/services/importers/` is where a real, licensed data source gets
-wired in later (as a new module implementing the same `run()` interface
-used by `sample_importer.py` and `csv_importer.py`) — no changes needed
-elsewhere in the app when that happens.
+Two manual ingestion paths also exist, useful before a licensed feed is
+in place: **CSV import** (columns: `address` required, plus `city`,
+`state`, `zip_code`, `price`, `beds`, `baths`, `sqft`, `property_type`,
+`listing_url`, `agent_name`, `agent_email`, `agent_phone`, `source`) and
+**manual entry** from the dashboard.
+
+### No duplicates
+
+Every ingestion path (feeds, CSV, manual entry) runs through
+`services/ingestion.py::upsert_lead`, which computes a dedup key from the
+listing's normalized address + zip (`services/dedup.py`) and matches
+against existing leads *regardless of source*. A listing seen again --
+whether re-reported by the same feed or reported by a *different* one --
+updates the existing Lead (bumping `times_seen`/`last_seen_at`, merging
+its `sources` list) instead of creating a second row. The dashboard's
+Auto-Ingestion panel shows per-feed results (fetched/new/merged) and a
+"Run Now" button for an on-demand pass.
 
 ## Outreach automation
 
@@ -71,3 +91,5 @@ what's missing.
 | POST | `/api/leads/import/sample` | Generate demo leads (`{"count": 10}`) |
 | POST | `/api/leads/import/csv` | Bulk import (`multipart/form-data`, field `file`) |
 | POST | `/api/leads/<id>/outreach` | Trigger outreach (not yet implemented, returns 501) |
+| POST | `/api/ingest/run` | Run the ingestion pipeline across all feeds now |
+| GET | `/api/ingest/status` | Feed list + last run + recent run history |

@@ -217,6 +217,90 @@ body {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  margin: 0 4px 4px 0;
+}
+
+.ingest-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+.ingest-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.ingest-header h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.ingest-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.feed-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.feed-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.feed-name {
+  font-weight: 600;
+}
+
+.feed-pill {
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.feed-pill-ok {
+  background: rgba(53, 201, 140, 0.15);
+  color: var(--success);
+}
+
+.feed-pill-off {
+  background: rgba(140, 147, 163, 0.15);
+  color: var(--muted);
+}
+
+.feed-pill-error {
+  background: rgba(239, 89, 102, 0.15);
+  color: var(--danger);
+}
+
+.feed-pill-idle {
+  background: rgba(140, 147, 163, 0.1);
+  color: var(--muted);
+}
+
+.ingest-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .status-select {
