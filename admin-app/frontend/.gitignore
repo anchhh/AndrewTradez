@@ -22,10 +22,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# Python (admin-app/backend)
-__pycache__/
-*.pyc
-.venv/
-*.db
-
