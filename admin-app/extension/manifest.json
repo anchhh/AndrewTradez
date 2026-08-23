@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Estly Lead Clipper",
+  "version": "1.0.0",
+  "description": "Capture the listing you're currently viewing into your Estly lead pipeline. Only runs when you click it — no background activity.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost:5050/*",
+    "http://127.0.0.1:5050/*"
+  ],
+  "options_page": "options.html"
+}

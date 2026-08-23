@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Estly Lead Clipper — Settings</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e7e9ee;
+    max-width: 420px;
+    margin: 40px auto;
+    padding: 0 20px;
+  }
+  h1 { font-size: 1.1rem; }
+  p { color: #8c93a3; font-size: 0.85rem; }
+  label {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #8c93a3;
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #171a21;
+    border: 1px solid #262b36;
+    color: #e7e9ee;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+  button {
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #4f8cff;
+    background: #4f8cff;
+    color: #fff;
+    cursor: pointer;
+  }
+  #status { margin-left: 10px; font-size: 0.82rem; color: #35c98c; }
+</style>
+</head>
+<body>
+  <h1>Estly Lead Clipper — Settings</h1>
+  <p>
+    The base URL of your Estly admin-app backend. Defaults to the local dev
+    server; change this if your backend runs somewhere else.
+  </p>
+  <label for="api-base">Backend API URL</label>
+  <input id="api-base" type="text" placeholder="http://localhost:5050">
+  <div>
+    <button id="save">Save</button>
+    <span id="status"></span>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

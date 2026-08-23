@@ -11,6 +11,7 @@ built separately and will merge with this later.
 admin-app/
   backend/    Flask + SQLite API
   frontend/   Vite + React + TypeScript dashboard
+  extension/  Chrome extension for manually clipping a listing you're viewing
 ```
 
 ## Running locally
@@ -70,6 +71,15 @@ updates the existing Lead (bumping `times_seen`/`last_seen_at`, merging
 its `sources` list) instead of creating a second row. The dashboard's
 Auto-Ingestion panel shows per-feed results (fetched/new/merged) and a
 "Run Now" button for an on-demand pass.
+
+### Manual capture (Chrome extension)
+
+`extension/` is a click-to-capture browser extension: open a listing page
+yourself, click the extension icon, review the auto-filled fields (parsed
+from the page's own schema.org/Open Graph markup), and save straight into
+the same `/api/leads` endpoint -- same dedup, no duplicates. It only acts
+when you click it; see `extension/README.md` for install steps and why
+this is manual rather than automatic.
 
 ## Outreach automation
 
