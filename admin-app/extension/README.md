@@ -109,6 +109,10 @@ Click "Settings" in the side panel (or right-click the extension icon →
 Options) to change the backend API URL (default `http://localhost:5050`)
 or the Lead Pipeline dashboard URL (default `http://localhost:5173`).
 
+If your backend is deployed with `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` set
+(see `admin-app/README.md` → Deploying), enter the same username/password
+in Settings too -- otherwise every request gets a 401.
+
 The panel header shows a live **Backend connected / Backend unreachable**
 indicator -- if Save isn't working, check this first. Unreachable
 usually means the backend (`admin-app/backend`) isn't running, or the API

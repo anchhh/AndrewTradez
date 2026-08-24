@@ -100,6 +100,13 @@ async function getApiBase() {
   return stored.apiBase;
 }
 
+async function getAuthHeaders() {
+  const { authUser, authPass } = await chrome.storage.sync.get({ authUser: "", authPass: "" });
+  if (!authUser && !authPass) return {};
+  const encoded = btoa(unescape(encodeURIComponent(`${authUser}:${authPass}`)));
+  return { Authorization: `Basic ${encoded}` };
+}
+
 async function getDashboardBase() {
   const stored = await chrome.storage.sync.get({ dashboardBase: DEFAULT_DASHBOARD_BASE });
   return stored.dashboardBase;
@@ -162,13 +169,14 @@ async function checkBackend() {
   const el = $("backend-status");
   try {
     const apiBase = await getApiBase();
-    const res = await fetch(`${apiBase}/api/health`);
+    const res = await fetch(`${apiBase}/api/health`, { headers: await getAuthHeaders() });
+    if (res.status === 401) throw new Error("401 unauthorized — check username/password in Settings");
     if (!res.ok) throw new Error(`status ${res.status}`);
     el.textContent = `Backend connected (${apiBase})`;
     el.className = "backend-status ok";
   } catch (err) {
     const apiBase = await getApiBase();
-    el.textContent = `Backend unreachable at ${apiBase} — is it running? (Settings to change the URL)`;
+    el.textContent = `Backend unreachable at ${apiBase}: ${err.message} (Settings to change)`;
     el.className = "backend-status error";
   }
 }
@@ -223,14 +231,15 @@ $("form").addEventListener("submit", async (e) => {
     const apiBase = await getApiBase();
     const res = await fetch(`${apiBase}/api/leads`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
       body: JSON.stringify(payload),
     });
+    if (res.status === 401) throw new Error("401 unauthorized — check username/password in Settings");
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Save failed (${res.status})`);
     results.push(body._merged ? "Backend: merged." : "Backend: saved.");
   } catch (err) {
-    results.push(`Backend: ${err.message} — is it running?`);
+    results.push(`Backend: ${err.message}`);
     anyError = true;
     checkBackend();
   }

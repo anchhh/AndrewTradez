@@ -59,6 +59,17 @@
   <label for="dashboard-base">Lead Pipeline dashboard URL</label>
   <input id="dashboard-base" type="text" placeholder="http://localhost:5173">
 
+  <p>
+    If your backend requires a login (deployed with BASIC_AUTH_USER/PASS
+    set), enter the same credentials here so the extension can save leads.
+    Leave blank for local dev.
+  </p>
+  <label for="auth-user">Backend username</label>
+  <input id="auth-user" type="text" autocomplete="off">
+
+  <label for="auth-pass">Backend password</label>
+  <input id="auth-pass" type="password" autocomplete="off">
+
   <div>
     <button id="save">Save</button>
     <span id="status"></span>

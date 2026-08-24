@@ -81,6 +81,46 @@ the same `/api/leads` endpoint -- same dedup, no duplicates. It only acts
 when you click it; see `extension/README.md` for install steps and why
 this is manual rather than automatic.
 
+## Deploying
+
+`render.yaml` (repo root) + `admin-app/Dockerfile` deploy this as one
+service on [Render](https://render.com)'s free tier: the Dockerfile builds
+the React frontend, then bundles it into the Flask backend image, which
+serves both the API and the built dashboard from a single origin (no
+separate frontend deployment, no cross-origin API URL to configure).
+
+**To deploy:**
+1. Push this repo to GitHub (already done if you're reading this from the PR).
+2. On Render: **New → Blueprint**, connect the repo. Render finds
+   `render.yaml` automatically.
+3. When prompted, set `BASIC_AUTH_USER` and `BASIC_AUTH_PASS` to whatever
+   login you want protecting the deployment (see below) -- pick your own,
+   these aren't in the repo.
+4. Click **Apply**. First deploy takes a few minutes (building both the
+   frontend and the Docker image).
+
+Once deployed, point the extension's Settings (API URL + the same
+username/password) and your browser at the resulting `*.onrender.com`
+URL instead of `localhost`.
+
+**Free tier caveats:** no persistent disk, so the SQLite database resets
+on every redeploy/restart -- fine for trying this out, not for data you
+need to keep. The service also spins down after 15 min idle and takes
+~30s to wake back up on the next request. For durable data, either
+upgrade to a paid plan with a persistent disk, or swap SQLite for a
+hosted Postgres (Render has a free tier for that too -- would need
+`DATABASE_URL` wired into `config.py`, not done yet).
+
+### Keeping it actually private
+
+A deployed URL is still just a URL -- reachable by anyone who has it
+unless something gates it. Setting `BASIC_AUTH_USER`/`BASIC_AUTH_PASS`
+(see `backend/auth.py`) puts the *entire* deployment -- API and dashboard
+alike -- behind an HTTP login prompt; nothing responds without it. This is
+opt-in: unset locally, so local dev is completely unaffected. Don't skip
+setting these on a real deployment -- lead data (names, emails, phone
+numbers) has no other protection once it's reachable from the internet.
+
 ## Outreach automation
 
 Not implemented yet. `backend/services/outreach.py` is the single seam to
