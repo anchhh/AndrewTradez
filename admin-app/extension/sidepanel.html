@@ -30,6 +30,23 @@
     font-size: 0.74rem;
     color: #8c93a3;
   }
+  .backend-status {
+    margin-top: 6px !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .backend-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #8c93a3;
+    flex-shrink: 0;
+  }
+  .backend-status.ok::before { background: #35c98c; }
+  .backend-status.error::before { background: #ef5966; }
+  .backend-status.error { color: #ef5966; }
   .tabs {
     display: flex;
     gap: 4px;
@@ -156,6 +173,7 @@
   <header>
     <h1>Estly Lead Clipper</h1>
     <p>Captures the listing you're viewing when you click the toolbar icon</p>
+    <p class="backend-status" id="backend-status">Checking backend…</p>
   </header>
 
   <div class="tabs">

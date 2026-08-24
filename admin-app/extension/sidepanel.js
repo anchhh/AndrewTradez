@@ -116,10 +116,26 @@ function renderCapture(capture) {
   setStatus("Auto-filled — review before saving.");
 }
 
+async function checkBackend() {
+  const el = $("backend-status");
+  try {
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}/api/health`);
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    el.textContent = `Backend connected (${apiBase})`;
+    el.className = "backend-status ok";
+  } catch (err) {
+    const apiBase = await getApiBase();
+    el.textContent = `Backend unreachable at ${apiBase} — is it running? (Settings to change the URL)`;
+    el.className = "backend-status error";
+  }
+}
+
 async function init() {
   const { lastCapture } = await chrome.storage.session.get("lastCapture");
   renderTabs();
   renderCapture(lastCapture);
+  checkBackend();
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -178,6 +194,7 @@ $("form").addEventListener("submit", async (e) => {
       `${err.message} — check the backend is running and the API URL in Settings.`,
       "error"
     );
+    checkBackend();
   } finally {
     $("btn-save").disabled = false;
   }
@@ -193,3 +210,4 @@ $("btn-pipeline").addEventListener("click", async () => {
 });
 
 init();
+setInterval(checkBackend, 8000);

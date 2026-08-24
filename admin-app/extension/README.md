@@ -31,6 +31,14 @@ saved to Estly without you reviewing and clicking Save yourself.
 3. Click **Load unpacked** and select this `extension/` folder.
 4. Pin the extension for easy access (puzzle-piece icon → pin).
 
+**Updating an already-loaded copy:** click the reload icon (⟳) on the
+extension's card in `chrome://extensions`, *then also refresh any listing
+tabs you already had open*. Chrome only attaches a new/changed content
+script (the auto-update watcher) to pages loaded *after* the reload --
+reloading the extension alone doesn't retroactively inject it into tabs
+that were already sitting open, so auto-update won't work there until you
+refresh them too.
+
 ## Use
 
 1. Make sure the Estly admin backend is running (`admin-app/backend`, see
@@ -100,6 +108,11 @@ separators.
 Click "Settings" in the side panel (or right-click the extension icon →
 Options) to change the backend API URL (default `http://localhost:5050`)
 or the Lead Pipeline dashboard URL (default `http://localhost:5173`).
+
+The panel header shows a live **Backend connected / Backend unreachable**
+indicator -- if Save isn't working, check this first. Unreachable
+usually means the backend (`admin-app/backend`) isn't running, or the API
+URL in Settings doesn't match where it's actually running.
 
 ## Open Pipeline
 

@@ -79,11 +79,13 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 // Live updates from watcher.js as the user navigates between listings in
-// the same tab -- see watcher.js for what it reads and why. Only accept
-// captures from the tab that's actually focused, so a background tab
-// silently loading something doesn't hijack the panel.
+// the same tab -- see watcher.js for what it reads and why. Previously
+// filtered to sender.tab.active only, to stop a background tab from
+// hijacking the panel -- dropped that filter since it made this
+// unreliable in practice (tab.active reporting was inconsistent across
+// real browsing sessions) in favor of just working.
 chrome.runtime.onMessage.addListener((message, sender) => {
-  if (message && message.type === "ESTLY_PAGE_CAPTURE" && sender.tab && sender.tab.active) {
+  if (message && message.type === "ESTLY_PAGE_CAPTURE" && sender.tab) {
     chrome.storage.session.set({ lastCapture: { raw: message.raw, capturedAt: Date.now() } });
   }
 });
