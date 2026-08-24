@@ -9,26 +9,41 @@ const SOURCES = ["zillow", "realtor", "airbnb"];
 // why this needs its own content script instead of a normal fetch().
 const DEMO_URL = "https://claude.ai/code/artifact/5727f6c4-e2cf-4cc4-9741-a31b1fa6e1ae";
 
+function waitForTabComplete(tabId) {
+  return new Promise((resolve) => {
+    function onUpdated(id, info) {
+      if (id === tabId && info.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        resolve();
+      }
+    }
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+}
+
 async function sendToDemoPage(payload) {
-  let tabs = await chrome.tabs.query({ url: DEMO_URL + "*" });
+  const tabs = await chrome.tabs.query({ url: DEMO_URL + "*" });
   let tab = tabs[0];
 
   if (!tab) {
     tab = await chrome.tabs.create({ url: DEMO_URL, active: false });
-    await new Promise((resolve) => {
-      function onUpdated(tabId, info) {
-        if (tabId === tab.id && info.status === "complete") {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-          resolve();
-        }
-      }
-      chrome.tabs.onUpdated.addListener(onUpdated);
-    });
+    await waitForTabComplete(tab.id);
     // brief grace period for the content script to attach after 'complete'
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  return chrome.tabs.sendMessage(tab.id, { type: "ESTLY_DEMO_SAVE_LEAD", lead: payload });
+  try {
+    return await chrome.tabs.sendMessage(tab.id, { type: "ESTLY_DEMO_SAVE_LEAD", lead: payload });
+  } catch (err) {
+    // Most likely: this tab was already open before the extension (or a
+    // reload of it) added demo-bridge.js -- content scripts only attach
+    // to pages loaded after that happens, so this existing tab has no
+    // listener yet. Reload it once and retry, rather than just failing.
+    await chrome.tabs.reload(tab.id);
+    await waitForTabComplete(tab.id);
+    await new Promise((r) => setTimeout(r, 300));
+    return chrome.tabs.sendMessage(tab.id, { type: "ESTLY_DEMO_SAVE_LEAD", lead: payload });
+  }
 }
 
 let currentRaw = null; // last-captured raw page material, cached for instant tab switching
