@@ -50,19 +50,21 @@
 <body>
   <h1>Estly Lead Clipper — Settings</h1>
   <p>
-    The base URL of your Estly admin-app backend. Defaults to the local dev
-    server; change this if your backend runs somewhere else.
+    The base URL of your Estly admin-app backend. Defaults to the deployed
+    site; change this only if you're running the backend locally instead
+    (typically <code>http://localhost:5050</code>).
   </p>
   <label for="api-base">Backend API URL</label>
-  <input id="api-base" type="text" placeholder="http://localhost:5050">
+  <input id="api-base" type="text" placeholder="https://estly-admin.onrender.com">
 
   <label for="dashboard-base">Lead Pipeline dashboard URL</label>
-  <input id="dashboard-base" type="text" placeholder="http://localhost:5173">
+  <input id="dashboard-base" type="text" placeholder="https://estly-admin.onrender.com">
 
   <p>
-    If your backend requires a login (deployed with BASIC_AUTH_USER/PASS
-    set), enter the same credentials here so the extension can save leads.
-    Leave blank for local dev.
+    The deployed site requires a login (BASIC_AUTH_USER/PASS) -- enter the
+    same username/password here so the extension can save leads. Leave
+    blank only if you're pointed at a local backend with no auth
+    configured.
   </p>
   <label for="auth-user">Backend username</label>
   <input id="auth-user" type="text" autocomplete="off">

@@ -79,13 +79,38 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 // Live updates from watcher.js as the user navigates between listings in
-// the same tab -- see watcher.js for what it reads and why. Previously
-// filtered to sender.tab.active only, to stop a background tab from
-// hijacking the panel -- dropped that filter since it made this
-// unreliable in practice (tab.active reporting was inconsistent across
-// real browsing sessions) in favor of just working.
+// the same tab -- see watcher.js for what it reads and why. Re-checks
+// which tab is actually focused at the moment the message arrives
+// (instead of trusting sender.tab.active, a snapshot taken when the
+// message was sent that proved unreliable in practice) so a background
+// tab's own navigation can't silently overwrite the panel.
 chrome.runtime.onMessage.addListener((message, sender) => {
-  if (message && message.type === "ESTLY_PAGE_CAPTURE" && sender.tab) {
-    chrome.storage.session.set({ lastCapture: { raw: message.raw, capturedAt: Date.now() } });
+  if (message && message.type === "ESTLY_PAGE_CAPTURE" && sender.tab && sender.tab.id != null) {
+    const tabId = sender.tab.id;
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].id === tabId) {
+        chrome.storage.session.set({ lastCapture: { raw: message.raw, capturedAt: Date.now() } });
+      }
+    });
   }
+});
+
+// Keeps the panel in sync with whatever tab is actually focused, not just
+// with URL changes inside one tab: switching to an already-open tab (no
+// navigation, so watcher.js's own URL-diffing never fires) or finishing a
+// full page load in the focused tab both ask that tab to push a fresh
+// capture right away. This is what removes the "close and reopen the
+// extension to see the current tab" issue -- neither of these events
+// needs the broader "tabs" permission (tabId alone is enough here).
+function requestCapture(tabId) {
+  chrome.tabs.sendMessage(tabId, { type: "ESTLY_REQUEST_CAPTURE" }).catch(() => {
+    // No content script listening yet (tab still loading, or a page the
+    // extension doesn't run on, e.g. chrome://) -- nothing to do.
+  });
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => requestCapture(tabId));
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.active) requestCapture(tabId);
 });

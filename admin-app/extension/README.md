@@ -41,8 +41,9 @@ refresh them too.
 
 ## Use
 
-1. Make sure the Estly admin backend is running (`admin-app/backend`, see
-   the main README) -- defaults to `http://localhost:5050`.
+1. By default the extension talks to the deployed Estly site
+   (`https://estly-admin.onrender.com`). If you're running the backend
+   locally instead, change the URLs in Settings to `http://localhost:5050`.
 2. Open a listing page in your browser.
 3. Click the extension icon. This opens the side panel (if not already
    open) and captures the current page into it.
@@ -60,19 +61,24 @@ The panel stays open as you browse.
 
 ## Auto-updating between listings
 
-Once the panel is open, clicking from one listing to the next in the same
-tab updates the panel automatically -- no need to click the toolbar icon
-again. This is handled by `watcher.js`, a small content script that runs
-on pages you visit and notices when the URL changes (most listing sites
-give each property its own URL, even when navigating between them feels
-like a single-page app with no full reload). On a change, it re-reads the
-page the same way `background.js` does on a click, and the already-open
-panel updates itself live.
+Once the panel is open, it keeps itself in sync with whatever tab you're
+actually looking at, without re-clicking the toolbar icon:
+
+- **Navigating within the same tab** (clicking a different listing card,
+  even when the site swaps content without a full page reload) --
+  `watcher.js`, a small content script running on the page, notices the
+  URL change and re-reads it.
+- **Switching to a different already-open tab** -- `background.js` asks
+  that tab to push a fresh read the moment it becomes focused, since
+  nothing about its URL changed just from switching to it.
+- **A tab finishing a full page load while it's the focused one** --
+  same mechanism, covers ordinary (non-SPA) navigations too.
 
 The toolbar icon still works the same as before too -- useful for forcing
 an immediate capture, or for a tab that was already open before the
 extension loaded (a content script only attaches to pages loaded *after*
-it's active, not retroactively).
+it's active, not retroactively -- see "Updating an already-loaded copy"
+above).
 
 ## How it reads a page
 
@@ -106,42 +112,19 @@ separators.
 ## Settings
 
 Click "Settings" in the side panel (or right-click the extension icon →
-Options) to change the backend API URL (default `http://localhost:5050`)
-or the Lead Pipeline dashboard URL (default `http://localhost:5173`).
+Options) to change the backend API URL and Lead Pipeline dashboard URL --
+both default to the deployed site (`https://estly-admin.onrender.com`).
+Point them at `http://localhost:5050` instead if you're running the
+backend locally.
 
-If your backend is deployed with `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` set
-(see `admin-app/README.md` → Deploying), enter the same username/password
-in Settings too -- otherwise every request gets a 401.
+The deployed site requires a login (`BASIC_AUTH_USER`/`BASIC_AUTH_PASS`,
+see `admin-app/README.md` → Deploying) -- enter the same username/password
+in Settings too, otherwise every request gets a 401.
 
 The panel header shows a live **Backend connected / Backend unreachable**
 indicator -- if Save isn't working, check this first. Unreachable
 usually means the backend (`admin-app/backend`) isn't running, or the API
 URL in Settings doesn't match where it's actually running.
-
-## Demo page bridge (temporary, not the real backend)
-
-Every Save also tries to push the lead into a specific Claude Artifact
-demo page (`demo-bridge.js`, matched to one hardcoded URL) -- a
-self-contained, localStorage-backed page built to explore the dashboard
-UI without running anything locally. This is a one-off bridge, not how
-the extension is meant to work in general:
-
-- It writes directly into that page's browser storage (via a content
-  script scoped only to that one URL) and tells it to refresh, since a
-  static demo page has no real API to POST to.
-- It runs independently of the real backend save above -- both are
-  attempted on every Save, and the status line reports both outcomes
-  separately (e.g. "Backend: unreachable. Demo page: saved.").
-- If that demo tab isn't already open, the extension opens it
-  (in the background) rather than failing.
-- Data saved this way lives only in that one browser's local storage for
-  that one page -- it's not shared with anyone else who opens the same
-  link, and it's not real lead data anywhere durable.
-
-Once you're running the real backend + dashboard (see the main
-`admin-app/README.md`), that's the actual system this extension is built
-for -- this bridge is scaffolding for trying things out before that's set
-up, not a replacement for it.
 
 ## Open Pipeline
 

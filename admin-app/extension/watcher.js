@@ -58,15 +58,32 @@ function extractRawFromPage() {
 let lastCapturedHref = null;
 let captureTimer = null;
 
-function capture() {
-  if (location.href === lastCapturedHref) return;
-  lastCapturedHref = location.href;
+function pushCapture() {
   try {
     chrome.runtime.sendMessage({ type: "ESTLY_PAGE_CAPTURE", raw: extractRawFromPage() });
   } catch (e) {
     // extension context can go away on reload; nothing to do
   }
 }
+
+function capture() {
+  if (location.href === lastCapturedHref) return;
+  lastCapturedHref = location.href;
+  pushCapture();
+}
+
+// The background script asks for this when the user switches to this tab,
+// or when this tab finishes loading while already focused -- neither of
+// those changes location.href on their own, so capture() above wouldn't
+// otherwise notice. Forces a fresh read even if the URL is unchanged, so
+// the panel reflects whatever tab is actually focused without needing a
+// manual re-click.
+chrome.runtime.onMessage.addListener((message) => {
+  if (message && message.type === "ESTLY_REQUEST_CAPTURE") {
+    lastCapturedHref = location.href;
+    pushCapture();
+  }
+});
 
 function scheduleCapture() {
   clearTimeout(captureTimer);

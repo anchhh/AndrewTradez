@@ -1,50 +1,12 @@
 "use strict";
 
-const DEFAULT_API_BASE = "http://localhost:5050";
-const DEFAULT_DASHBOARD_BASE = "http://localhost:5173";
+// Points at the deployed Estly admin app by default, so a fresh install
+// (or Settings left untouched) saves straight to the real site instead of
+// a local dev server that isn't running. Change this in Settings if
+// you're running the backend locally instead (http://localhost:5050).
+const DEFAULT_API_BASE = "https://estly-admin.onrender.com";
+const DEFAULT_DASHBOARD_BASE = "https://estly-admin.onrender.com";
 const SOURCES = ["zillow", "realtor", "airbnb"];
-
-// One-off bridge to the specific Estly demo Artifact (a self-contained,
-// localStorage-backed page -- not a real backend). See demo-bridge.js for
-// why this needs its own content script instead of a normal fetch().
-const DEMO_URL = "https://claude.ai/code/artifact/5727f6c4-e2cf-4cc4-9741-a31b1fa6e1ae";
-
-function waitForTabComplete(tabId) {
-  return new Promise((resolve) => {
-    function onUpdated(id, info) {
-      if (id === tabId && info.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(onUpdated);
-        resolve();
-      }
-    }
-    chrome.tabs.onUpdated.addListener(onUpdated);
-  });
-}
-
-async function sendToDemoPage(payload) {
-  const tabs = await chrome.tabs.query({ url: DEMO_URL + "*" });
-  let tab = tabs[0];
-
-  if (!tab) {
-    tab = await chrome.tabs.create({ url: DEMO_URL, active: false });
-    await waitForTabComplete(tab.id);
-    // brief grace period for the content script to attach after 'complete'
-    await new Promise((r) => setTimeout(r, 300));
-  }
-
-  try {
-    return await chrome.tabs.sendMessage(tab.id, { type: "ESTLY_DEMO_SAVE_LEAD", lead: payload });
-  } catch (err) {
-    // Most likely: this tab was already open before the extension (or a
-    // reload of it) added demo-bridge.js -- content scripts only attach
-    // to pages loaded after that happens, so this existing tab has no
-    // listener yet. Reload it once and retry, rather than just failing.
-    await chrome.tabs.reload(tab.id);
-    await waitForTabComplete(tab.id);
-    await new Promise((r) => setTimeout(r, 300));
-    return chrome.tabs.sendMessage(tab.id, { type: "ESTLY_DEMO_SAVE_LEAD", lead: payload });
-  }
-}
 
 let currentRaw = null; // last-captured raw page material, cached for instant tab switching
 let selectedSource = "zillow";
@@ -224,9 +186,6 @@ $("form").addEventListener("submit", async (e) => {
   $("btn-save").disabled = true;
   setStatus("Saving…");
 
-  const results = [];
-  let anyError = false;
-
   try {
     const apiBase = await getApiBase();
     const res = await fetch(`${apiBase}/api/leads`, {
@@ -237,23 +196,12 @@ $("form").addEventListener("submit", async (e) => {
     if (res.status === 401) throw new Error("401 unauthorized — check username/password in Settings");
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Save failed (${res.status})`);
-    results.push(body._merged ? "Backend: merged." : "Backend: saved.");
+    setStatus((body._merged ? "Merged into existing lead." : "Saved.") + " Click Open Pipeline to view it.", "ok");
   } catch (err) {
-    results.push(`Backend: ${err.message}`);
-    anyError = true;
+    setStatus(err.message, "error");
     checkBackend();
   }
 
-  try {
-    const demoResult = await sendToDemoPage(payload);
-    if (!demoResult || !demoResult.ok) throw new Error((demoResult && demoResult.error) || "no response");
-    results.push(demoResult.created ? "Demo page: saved." : "Demo page: merged.");
-  } catch (err) {
-    results.push(`Demo page: couldn't reach it (${err.message}).`);
-    anyError = true;
-  }
-
-  setStatus(results.join(" ") + (anyError ? "" : " Click Open Pipeline to view it."), anyError ? "error" : "ok");
   $("btn-save").disabled = false;
 });
 
