@@ -1,10 +1,19 @@
 import type { IngestStatus, Lead, LeadFilters, Stats } from './types';
+import { authHeader, clearStoredCreds, AUTH_REQUIRED_EVENT } from './auth';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
-    headers: options?.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
+    headers: {
+      ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...authHeader(),
+    },
     ...options,
   });
+  if (res.status === 401) {
+    clearStoredCreds();
+    window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+    throw new Error('Session expired — please sign in again.');
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);

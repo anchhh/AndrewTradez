@@ -416,6 +416,66 @@ body {
   color: var(--muted);
 }
 
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.login-card .subtitle {
+  margin: -8px 0 4px;
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.login-card input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.login-error {
+  background: rgba(239, 89, 102, 0.12);
+  border: 1px solid var(--danger);
+  color: #ffb3b8;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.login-card .btn {
+  margin-top: 4px;
+}
+
 @media (max-width: 800px) {
   .stats-row {
     grid-template-columns: repeat(2, 1fr);

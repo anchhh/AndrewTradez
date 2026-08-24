@@ -1,16 +1,72 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { IngestStatus, Lead, LeadFilters, LeadStatus, Stats } from './types';
 import { fetchLeads, fetchStats, createLead, updateLead, deleteLead, importSample, importCsv, fetchIngestStatus } from './api';
+import { isAuthRequired, getStoredCreds, verifyCreds, clearStoredCreds, AUTH_REQUIRED_EVENT } from './auth';
 import StatsCards from './components/StatsCards';
 import FilterBar from './components/FilterBar';
 import LeadsTable from './components/LeadsTable';
 import LeadModal from './components/LeadModal';
 import IngestionPanel from './components/IngestionPanel';
+import Login from './components/Login';
 import './App.css';
 
 const INGEST_POLL_MS = 30000;
 
+type AuthState = 'checking' | 'signed-out' | 'signed-in' | 'not-required';
+
 export default function App() {
+  const [authState, setAuthState] = useState<AuthState>('checking');
+
+  const evaluateAuth = useCallback(async () => {
+    try {
+      if (!(await isAuthRequired())) {
+        setAuthState('not-required');
+        return;
+      }
+      const creds = getStoredCreds();
+      if (creds && (await verifyCreds(creds))) {
+        setAuthState('signed-in');
+      } else {
+        clearStoredCreds();
+        setAuthState('signed-out');
+      }
+    } catch {
+      // Can't reach the server to check -- fall back to whatever the
+      // dashboard's own /api calls turn up once it renders.
+      setAuthState(getStoredCreds() ? 'signed-in' : 'signed-out');
+    }
+  }, []);
+
+  useEffect(() => {
+    evaluateAuth();
+  }, [evaluateAuth]);
+
+  useEffect(() => {
+    const onAuthRequired = () => setAuthState('signed-out');
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+  }, []);
+
+  if (authState === 'checking') {
+    return null;
+  }
+
+  if (authState === 'signed-out') {
+    return <Login onSuccess={() => setAuthState('signed-in')} />;
+  }
+
+  return (
+    <Dashboard
+      showLogout={authState === 'signed-in'}
+      onLogout={() => {
+        clearStoredCreds();
+        setAuthState('signed-out');
+      }}
+    />
+  );
+}
+
+function Dashboard({ showLogout, onLogout }: { showLogout: boolean; onLogout: () => void }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [ingestStatus, setIngestStatus] = useState<IngestStatus | null>(null);
@@ -128,6 +184,11 @@ export default function App() {
           <button className="btn btn-primary" onClick={() => setEditingLead('new')}>
             + Add Lead
           </button>
+          {showLogout && (
+            <button className="btn btn-ghost" onClick={onLogout}>
+              Log out
+            </button>
+          )}
         </div>
       </header>
 
