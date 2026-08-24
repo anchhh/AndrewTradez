@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: estly-admin
+    runtime: docker
+    dockerfilePath: ./admin-app/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: BASIC_AUTH_USER
+        sync: false
+      - key: BASIC_AUTH_PASS
+        sync: false
+      - key: INGEST_INTERVAL_MINUTES
+        value: "15"

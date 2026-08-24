@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Estly Lead Clipper",
+  "version": "1.4.0",
+  "description": "Capture the listing you're viewing into your Estly lead pipeline from a persistent side panel. Auto-updates as you browse between listings.",
+  "action": {
+    "default_title": "Estly Lead Clipper — click to capture this page"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["watcher.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
+  "host_permissions": [
+    "https://estly-admin.onrender.com/*",
+    "http://localhost:5050/*",
+    "http://127.0.0.1:5050/*"
+  ],
+  "options_page": "options.html"
+}
