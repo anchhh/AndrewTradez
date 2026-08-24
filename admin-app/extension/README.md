@@ -114,6 +114,31 @@ indicator -- if Save isn't working, check this first. Unreachable
 usually means the backend (`admin-app/backend`) isn't running, or the API
 URL in Settings doesn't match where it's actually running.
 
+## Demo page bridge (temporary, not the real backend)
+
+Every Save also tries to push the lead into a specific Claude Artifact
+demo page (`demo-bridge.js`, matched to one hardcoded URL) -- a
+self-contained, localStorage-backed page built to explore the dashboard
+UI without running anything locally. This is a one-off bridge, not how
+the extension is meant to work in general:
+
+- It writes directly into that page's browser storage (via a content
+  script scoped only to that one URL) and tells it to refresh, since a
+  static demo page has no real API to POST to.
+- It runs independently of the real backend save above -- both are
+  attempted on every Save, and the status line reports both outcomes
+  separately (e.g. "Backend: unreachable. Demo page: saved.").
+- If that demo tab isn't already open, the extension opens it
+  (in the background) rather than failing.
+- Data saved this way lives only in that one browser's local storage for
+  that one page -- it's not shared with anyone else who opens the same
+  link, and it's not real lead data anywhere durable.
+
+Once you're running the real backend + dashboard (see the main
+`admin-app/README.md`), that's the actual system this extension is built
+for -- this bridge is scaffolding for trying things out before that's set
+up, not a replacement for it.
+
 ## Open Pipeline
 
 The "Open Pipeline" button in the panel footer opens the Estly admin
