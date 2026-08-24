@@ -1,12 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Estly Lead Clipper",
-  "version": "1.0.0",
-  "description": "Capture the listing you're currently viewing into your Estly lead pipeline. Only runs when you click it — no background activity.",
+  "version": "1.1.0",
+  "description": "Capture the listing you're viewing into your Estly lead pipeline from a persistent side panel. Only reads a page when you click the toolbar icon.",
   "action": {
-    "default_popup": "popup.html"
+    "default_title": "Estly Lead Clipper — click to capture this page"
   },
-  "permissions": ["activeTab", "scripting", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "host_permissions": [
     "http://localhost:5050/*",
     "http://127.0.0.1:5050/*"
