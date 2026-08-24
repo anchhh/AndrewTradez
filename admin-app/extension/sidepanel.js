@@ -1,6 +1,10 @@
 "use strict";
 
 const DEFAULT_API_BASE = "http://localhost:5050";
+const SOURCES = ["zillow", "realtor", "airbnb"];
+
+let currentRaw = null; // last-captured raw page material, cached for instant tab switching
+let selectedSource = "zillow";
 
 function $(id) {
   return document.getElementById(id);
@@ -17,11 +21,12 @@ function fillForm(data) {
   $("f-city").value = data.city || "";
   $("f-state").value = data.state || "";
   $("f-zip").value = data.zip_code || "";
-  $("f-price").value = data.price != null ? data.price : "";
+  $("f-price").value = data.price != null ? formatPrice(data.price) : "";
   $("f-beds").value = data.beds != null ? data.beds : "";
   $("f-baths").value = data.baths != null ? data.baths : "";
+  $("f-sqft").value = data.sqft != null ? data.sqft : "";
   $("f-type").value = data.property_type || "";
-  $("f-source").value = data.source || "manual";
+  $("f-source").value = data.source || selectedSource;
   $("f-agent-name").value = data.agent_name || "";
   $("f-agent-email").value = data.agent_email || "";
   $("f-agent-phone").value = data.agent_phone || "";
@@ -34,11 +39,12 @@ function readForm() {
     city: $("f-city").value.trim() || null,
     state: $("f-state").value.trim() || null,
     zip_code: $("f-zip").value.trim() || null,
-    price: $("f-price").value ? Number($("f-price").value) : null,
+    price: parsePriceInput($("f-price").value),
     beds: $("f-beds").value ? Number($("f-beds").value) : null,
     baths: $("f-baths").value ? Number($("f-baths").value) : null,
+    sqft: $("f-sqft").value ? Number($("f-sqft").value) : null,
     property_type: $("f-type").value.trim() || null,
-    source: $("f-source").value.trim() || "manual",
+    source: selectedSource,
     agent_name: $("f-agent-name").value.trim() || null,
     agent_email: $("f-agent-email").value.trim() || null,
     agent_phone: $("f-agent-phone").value.trim() || null,
@@ -51,8 +57,23 @@ async function getApiBase() {
   return stored.apiBase;
 }
 
-function renderExtraction(extraction) {
-  if (!extraction) {
+function renderTabs() {
+  SOURCES.forEach((s) => {
+    $(`tab-${s}`).classList.toggle("active", s === selectedSource);
+  });
+  $("site-note").textContent = SITE_NOTES[selectedSource] || "";
+}
+
+function applyParser() {
+  if (!currentRaw) return;
+  const parser = PARSERS[selectedSource];
+  const parsed = parser(currentRaw);
+  fillForm(parsed);
+}
+
+function renderCapture(capture) {
+  if (!capture) {
+    currentRaw = null;
     $("empty-state").hidden = false;
     $("form").hidden = true;
     $("btn-save").hidden = true;
@@ -60,7 +81,8 @@ function renderExtraction(extraction) {
     return;
   }
 
-  if (extraction.error === "unsupported") {
+  if (capture.error === "unsupported") {
+    currentRaw = null;
     $("empty-state").hidden = false;
     $("form").hidden = true;
     $("btn-save").hidden = true;
@@ -68,30 +90,55 @@ function renderExtraction(extraction) {
     return;
   }
 
-  if (extraction.error) {
+  if (capture.error) {
+    currentRaw = null;
     $("empty-state").hidden = false;
     $("form").hidden = true;
     $("btn-save").hidden = true;
-    setStatus(`Couldn't read that page: ${extraction.error}`, "error");
+    setStatus(`Couldn't read that page: ${capture.error}`, "error");
     return;
   }
 
+  currentRaw = capture.raw;
+  selectedSource = SOURCES.includes(capture.raw.detectedSource) ? capture.raw.detectedSource : "zillow";
+  renderTabs();
+
   $("empty-state").hidden = true;
-  fillForm(extraction.data);
+  applyParser();
   $("form").hidden = false;
   $("btn-save").hidden = false;
   setStatus("Auto-filled — review before saving.");
 }
 
 async function init() {
-  const { lastExtraction } = await chrome.storage.session.get("lastExtraction");
-  renderExtraction(lastExtraction);
+  const { lastCapture } = await chrome.storage.session.get("lastCapture");
+  renderTabs();
+  renderCapture(lastCapture);
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "session" && changes.lastExtraction) {
-    renderExtraction(changes.lastExtraction.newValue);
+  if (area === "session" && changes.lastCapture) {
+    renderCapture(changes.lastCapture.newValue);
   }
+});
+
+SOURCES.forEach((s) => {
+  $(`tab-${s}`).addEventListener("click", () => {
+    if (!currentRaw) {
+      selectedSource = s;
+      renderTabs();
+      return;
+    }
+    selectedSource = s;
+    renderTabs();
+    applyParser();
+    setStatus(`Re-parsed as ${s} — no new page read.`);
+  });
+});
+
+$("f-price").addEventListener("blur", (e) => {
+  const parsed = parsePriceInput(e.target.value);
+  e.target.value = parsed != null ? formatPrice(parsed) : "";
 });
 
 $("form").addEventListener("submit", async (e) => {

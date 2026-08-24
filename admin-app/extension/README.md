@@ -14,10 +14,7 @@ Zillow, Realtor.com, and Airbnb don't offer a public listings API, and
 their Terms of Service prohibit automated/bulk extraction. This tool
 doesn't try to route around that: it only reads the one page you're
 looking at, only when you click the icon, the same as if you'd copied the
-details into a form by hand. It works on any listing site generically
-(not hardcoded to those three) since it relies on standard schema.org/Open
-Graph markup and common contact-link patterns rather than site-specific
-scraping logic.
+details into a form by hand.
 
 ## Install (unpacked, for local dev)
 
@@ -33,9 +30,13 @@ scraping logic.
 2. Open a listing page in your browser.
 3. Click the extension icon. This opens the side panel (if not already
    open) and captures the current page into it.
-4. **Review and correct the fields** -- detection is best-effort and
-   varies by site; nothing is saved until you click Save.
-5. Click **Save to Estly**. If the same address already exists, it merges
+4. The **Zillow / Realtor.com / Airbnb** tab at the top is picked
+   automatically from the site you were on. If it guessed wrong, click a
+   different tab -- it re-parses the same captured page instantly with the
+   other site's rules, no new page read needed.
+5. **Review and correct the fields** -- detection is best-effort and
+   varies by listing; nothing is saved until you click Save.
+6. Click **Save to Estly**. If the same address already exists, it merges
    into that lead instead of creating a duplicate (same dedup logic as
    CSV import and the ingestion pipeline).
 
@@ -45,19 +46,34 @@ new page's data. Simply navigating in the same tab doesn't trigger a new
 capture on its own; the icon click is what grants the one-time page read,
 by design.
 
-## What it looks for, in order
+## How it reads a page
 
-1. **schema.org JSON-LD** (`<script type="application/ld+json">`) -- most
-   reliable when a site includes it: address, price, beds/baths.
-2. **Open Graph meta tags** -- fallback for title/price.
-3. **`tel:`/`mailto:` links** on the page -- often present for an agent's
-   contact info even when nothing else is structured.
-4. **"Listed by: Name 555-123-4567" style text patterns** -- catches agent
-   name/phone that only appears in the visible description text, not in
-   any structured field (this is the common case on Zillow-style listing
-   pages).
-5. A crude last-resort regex scan of the page text for a phone number or
-   price if nothing else matched.
+`background.js` gathers raw material once per icon click -- the page's
+visible text, any `schema.org` JSON-LD blocks, and `tel:`/`mailto:` links
+-- and hands it to the side panel. `parsers.js` then interprets that raw
+material per site (this is what the tabs select between):
+
+- **Zillow / Realtor.com** (structurally similar "for-sale" listings):
+  - Address/city/state/zip from JSON-LD if present, otherwise a regex for
+    the standard `123 Main St, City, ST 12345` line in the visible text
+  - Price from JSON-LD, else the first `$X,XXX+` amount on the page
+  - Beds/baths/sqft from the "N beds / N baths / N,NNN sqft" text
+  - Property type matched against a known vocabulary (Condominium, Single
+    Family, Townhouse, etc.) found in the page text
+  - Agent name + phone from a `tel:` link, or a "Listed by: Name
+    555-123-4567" style text pattern (preferring whichever match actually
+    carries a phone number, since some pages have more than one
+    "Listed by"-shaped block and only the real one has a number attached)
+- **Airbnb** (structurally different -- no reliable street address, since
+  Airbnb hides it until booking, and no listing agent, just a host):
+  - City/state only (no street address in almost all cases -- this is
+    Airbnb's own privacy design, not a detection gap)
+  - Price from the nightly rate ("$142/night"), not a sale price
+  - Host name from "Hosted by Name"
+
+State abbreviations are expanded to full names (`CO` → `Colorado`), and
+price is always displayed/saved formatted with a `$` and thousands
+separators.
 
 ## Settings
 
@@ -70,7 +86,7 @@ Options) to change the backend API URL if it's not running on
 - Field detection quality depends entirely on what the page's markup and
   visible text happen to contain -- some listings will need manual
   correction of most fields.
-- No sqft or listing-photo capture yet (the API supports both; the panel
-  form just doesn't expose them yet).
+- No listing-photo capture yet (the API supports it; the panel form
+  doesn't expose it yet).
 - Only pulls what's visible on the page you click on -- it can't discover
   listings you haven't opened, and it isn't meant to.

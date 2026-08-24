@@ -30,6 +30,42 @@
     font-size: 0.74rem;
     color: #8c93a3;
   }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 16px 0;
+    flex-shrink: 0;
+  }
+  .tab {
+    flex: 1;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 8px 6px;
+    border: 1px solid #262b36;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    background: #171a21;
+    color: #8c93a3;
+    cursor: pointer;
+  }
+  .tab.active {
+    background: #0f1115;
+    color: #e7e9ee;
+    border-color: #4f8cff;
+    box-shadow: inset 0 2px 0 #4f8cff;
+  }
+  .site-note {
+    margin: 10px 16px 0;
+    padding: 8px 10px;
+    background: #171a21;
+    border: 1px solid #262b36;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    color: #8c93a3;
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
   #status {
     padding: 8px 16px;
     font-size: 0.78rem;
@@ -46,13 +82,6 @@
     font-size: 0.82rem;
     color: #8c93a3;
     line-height: 1.5;
-  }
-  #empty-state kbd {
-    background: #171a21;
-    border: 1px solid #262b36;
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-family: inherit;
   }
   main {
     flex: 1;
@@ -123,12 +152,22 @@
     <h1>Estly Lead Clipper</h1>
     <p>Captures the listing you're viewing when you click the toolbar icon</p>
   </header>
+
+  <div class="tabs">
+    <button type="button" class="tab" id="tab-zillow" data-source="zillow">Zillow</button>
+    <button type="button" class="tab" id="tab-realtor" data-source="realtor">Realtor.com</button>
+    <button type="button" class="tab" id="tab-airbnb" data-source="airbnb">Airbnb</button>
+  </div>
+  <p class="site-note" id="site-note"></p>
+
   <div id="status"></div>
 
   <div id="empty-state">
     Open a listing page, then click the <strong>Estly</strong> icon in your
     toolbar to capture it here. This panel stays open — click the icon
-    again on a different listing to load that one instead.
+    again on a different listing to load that one instead. The tab above
+    is picked automatically from the site you captured; switch it manually
+    if it guessed wrong (re-parses instantly, no new page read).
   </div>
 
   <main>
@@ -149,7 +188,7 @@
         <input id="f-zip" type="text">
       </label>
       <label>Price
-        <input id="f-price" type="number">
+        <input id="f-price" type="text" inputmode="decimal">
       </label>
       <label>Beds
         <input id="f-beds" type="number" step="0.5">
@@ -157,13 +196,16 @@
       <label>Baths
         <input id="f-baths" type="number" step="0.5">
       </label>
+      <label>Sqft
+        <input id="f-sqft" type="number">
+      </label>
       <label>Property Type
         <input id="f-type" type="text">
       </label>
       <label>Source
         <input id="f-source" type="text" readonly>
       </label>
-      <label class="span-2">Agent Name
+      <label class="span-2">Agent / Host Name
         <input id="f-agent-name" type="text">
       </label>
       <label>Agent Email
@@ -180,6 +222,7 @@
     <button type="submit" form="form" class="primary" id="btn-save" hidden>Save to Estly</button>
   </footer>
 
+  <script src="parsers.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>
