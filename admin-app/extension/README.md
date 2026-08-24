@@ -4,17 +4,25 @@ A manual capture tool that lives in Chrome's side panel (docked to the
 right of the window, like a persistent sidebar rather than a popup that
 closes when you click away). Click the toolbar icon while viewing a
 listing page, review the auto-filled fields, and save straight into your
-Estly lead pipeline. Every capture is triggered by that click -- no
-background scraping, no scheduled requests, no activity on any page you
-haven't explicitly clicked the icon on.
+Estly lead pipeline.
 
-## Why manual, not automatic
+## Why manual (mostly), not automatic
 
 Zillow, Realtor.com, and Airbnb don't offer a public listings API, and
 their Terms of Service prohibit automated/bulk extraction. This tool
-doesn't try to route around that: it only reads the one page you're
-looking at, only when you click the icon, the same as if you'd copied the
-details into a form by hand.
+doesn't try to route around that: it only reads pages you're actually
+browsing yourself, the same as if you'd copied the details into a form by
+hand -- it never fetches or navigates anywhere on its own.
+
+One nuance worth being upfront about: the panel auto-updates as you click
+from one listing to the next *in the same tab*, without you re-clicking
+the toolbar icon each time (see "Auto-updating between listings" below).
+That's a genuine, small increase in standing access compared to a purely
+click-gated design -- a lightweight script runs on pages you visit to
+notice when the URL changes, so it knows to re-read. It still only reads
+the page's own visible text/markup, still never sends anything anywhere
+except when you click Save, and still only fills the panel -- nothing is
+saved to Estly without you reviewing and clicking Save yourself.
 
 ## Install (unpacked, for local dev)
 
@@ -40,11 +48,23 @@ details into a form by hand.
    into that lead instead of creating a duplicate (same dedup logic as
    CSV import and the ingestion pipeline).
 
-The panel stays open as you browse. To capture a different listing, open
-it and click the toolbar icon again -- the panel updates in place with the
-new page's data. Simply navigating in the same tab doesn't trigger a new
-capture on its own; the icon click is what grants the one-time page read,
-by design.
+The panel stays open as you browse.
+
+## Auto-updating between listings
+
+Once the panel is open, clicking from one listing to the next in the same
+tab updates the panel automatically -- no need to click the toolbar icon
+again. This is handled by `watcher.js`, a small content script that runs
+on pages you visit and notices when the URL changes (most listing sites
+give each property its own URL, even when navigating between them feels
+like a single-page app with no full reload). On a change, it re-reads the
+page the same way `background.js` does on a click, and the already-open
+panel updates itself live.
+
+The toolbar icon still works the same as before too -- useful for forcing
+an immediate capture, or for a tab that was already open before the
+extension loaded (a content script only attaches to pages loaded *after*
+it's active, not retroactively).
 
 ## How it reads a page
 
@@ -78,8 +98,16 @@ separators.
 ## Settings
 
 Click "Settings" in the side panel (or right-click the extension icon →
-Options) to change the backend API URL if it's not running on
-`http://localhost:5050`.
+Options) to change the backend API URL (default `http://localhost:5050`)
+or the Lead Pipeline dashboard URL (default `http://localhost:5173`).
+
+## Open Pipeline
+
+The "Open Pipeline" button in the panel footer opens the Estly admin
+dashboard (`admin-app/frontend`) in a new tab. Saving a lead here and
+viewing it there are already the same thing under the hood -- both talk
+to the same backend/database -- this button just gives you a direct way
+to jump over and see it.
 
 ## Limitations
 

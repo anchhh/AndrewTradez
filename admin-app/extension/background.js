@@ -77,3 +77,13 @@ chrome.action.onClicked.addListener(async (tab) => {
   await chrome.sidePanel.open({ tabId: tab.id });
   await captureActiveTab(tab);
 });
+
+// Live updates from watcher.js as the user navigates between listings in
+// the same tab -- see watcher.js for what it reads and why. Only accept
+// captures from the tab that's actually focused, so a background tab
+// silently loading something doesn't hijack the panel.
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message && message.type === "ESTLY_PAGE_CAPTURE" && sender.tab && sender.tab.active) {
+    chrome.storage.session.set({ lastCapture: { raw: message.raw, capturedAt: Date.now() } });
+  }
+});

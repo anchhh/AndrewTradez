@@ -125,7 +125,12 @@
     border-top: 1px solid #262b36;
     padding: 10px 16px;
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  footer .group {
+    display: flex;
     gap: 8px;
   }
   button {
@@ -218,7 +223,10 @@
   </main>
 
   <footer>
-    <button type="button" id="btn-options">Settings</button>
+    <div class="group">
+      <button type="button" id="btn-options">Settings</button>
+      <button type="button" id="btn-pipeline">Open Pipeline ↗</button>
+    </div>
     <button type="submit" form="form" class="primary" id="btn-save" hidden>Save to Estly</button>
   </footer>
 

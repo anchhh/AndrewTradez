@@ -1,6 +1,7 @@
 "use strict";
 
 const DEFAULT_API_BASE = "http://localhost:5050";
+const DEFAULT_DASHBOARD_BASE = "http://localhost:5173";
 const SOURCES = ["zillow", "realtor", "airbnb"];
 
 let currentRaw = null; // last-captured raw page material, cached for instant tab switching
@@ -55,6 +56,11 @@ function readForm() {
 async function getApiBase() {
   const stored = await chrome.storage.sync.get({ apiBase: DEFAULT_API_BASE });
   return stored.apiBase;
+}
+
+async function getDashboardBase() {
+  const stored = await chrome.storage.sync.get({ dashboardBase: DEFAULT_DASHBOARD_BASE });
+  return stored.dashboardBase;
 }
 
 function renderTabs() {
@@ -162,7 +168,11 @@ $("form").addEventListener("submit", async (e) => {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Save failed (${res.status})`);
 
-    setStatus(body._merged ? "Matched an existing lead — merged, no duplicate created." : "Saved as a new lead.", "ok");
+    setStatus(
+      (body._merged ? "Matched an existing lead — merged, no duplicate created." : "Saved as a new lead.") +
+        " Click Open Pipeline to view it.",
+      "ok"
+    );
   } catch (err) {
     setStatus(
       `${err.message} — check the backend is running and the API URL in Settings.`,
@@ -175,6 +185,11 @@ $("form").addEventListener("submit", async (e) => {
 
 $("btn-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
+});
+
+$("btn-pipeline").addEventListener("click", async () => {
+  const dashboardBase = await getDashboardBase();
+  window.open(dashboardBase, "_blank", "noopener");
 });
 
 init();
