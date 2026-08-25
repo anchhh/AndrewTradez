@@ -58,7 +58,7 @@ const DEFAULT_RESULTS: ResultItem[] = [
 
 const ResultsSlideshow: React.FC = () => {
   const [results, setResults] = useState<ResultItem[]>(() => {
-    const saved = localStorage.getItem('estly_slides') ?? localStorage.getItem('mercury_slides');
+    const saved = localStorage.getItem('mercury_slides');
     return saved ? JSON.parse(saved) : DEFAULT_RESULTS;
   });
   
@@ -78,7 +78,7 @@ const ResultsSlideshow: React.FC = () => {
 
   const saveResults = (newResults: ResultItem[]) => {
     setResults(newResults);
-    localStorage.setItem('estly_slides', JSON.stringify(newResults));
+    localStorage.setItem('mercury_slides', JSON.stringify(newResults));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
