@@ -10,7 +10,7 @@ export const analyzeMarketSignal = async (marketContext: string): Promise<Signal
     model: 'gemini-3-flash-preview',
     contents: `Analyze this market context for a trading signal: "${marketContext}"`,
     config: {
-      systemInstruction: `You are MERCURY AI, an institutional-grade trading mentor. 
+      systemInstruction: `You are ESTLY STUDIO AI, an institutional-grade trading mentor. 
       Analyze the provided market context and return a structured trading signal.
       Be concise, brutally honest, and focused on risk management.
       The output must be JSON.`,
@@ -39,7 +39,7 @@ export const analyzeMarketSignal = async (marketContext: string): Promise<Signal
   // response.text is a property getter, not a function. Accessing it directly.
   const text = response.text;
   if (!text) {
-    throw new Error("MERCURY_AI: Failed to generate signal text.");
+    throw new Error("ESTLY_STUDIO_AI: Failed to generate signal text.");
   }
   return JSON.parse(text);
 };
@@ -48,7 +48,7 @@ export const chatWithMentor = async (history: {role: string, parts: {text: strin
   const chat = ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
-      systemInstruction: "You are the head mentor at MERCURY, an elite trading circle. You speak in a clinical, sharp, and high-status tone. You focus on liquidity, order flow, and psychology. Keep answers brief and professional."
+      systemInstruction: "You are the head mentor at ESTLY STUDIO, an elite trading circle. You speak in a clinical, sharp, and high-status tone. You focus on liquidity, order flow, and psychology. Keep answers brief and professional."
     }
   });
 

@@ -38,7 +38,7 @@ const DEFAULT_VIDEOS: VideoItem[] = [
 
 const VideoSlideshow: React.FC = () => {
   const [videos, setVideos] = useState<VideoItem[]>(() => {
-    const saved = localStorage.getItem('mercury_videos');
+    const saved = localStorage.getItem('estly_videos') ?? localStorage.getItem('mercury_videos');
     return saved ? JSON.parse(saved) : DEFAULT_VIDEOS;
   });
   
@@ -59,7 +59,7 @@ const VideoSlideshow: React.FC = () => {
 
   const saveVideos = (newVideos: VideoItem[]) => {
     setVideos(newVideos);
-    localStorage.setItem('mercury_videos', JSON.stringify(newVideos));
+    localStorage.setItem('estly_videos', JSON.stringify(newVideos));
   };
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

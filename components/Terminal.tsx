@@ -32,7 +32,7 @@ const Terminal: React.FC = () => {
     <div className="w-full max-w-4xl mx-auto p-5 md:p-8 glass-card rounded-none border-l-2 md:border-l-4 border-l-accent shadow-2xl bg-black/40">
       <div className="flex items-center gap-3 mb-6 font-mono text-[9px] md:text-xs tracking-widest text-accent uppercase">
         <TerminalIcon size={14} className="text-accent/60" />
-        <span className="opacity-50">MERCURY_AI_TERMINAL_V.2.5</span>
+        <span className="opacity-50">ESTLY_STUDIO_AI_TERMINAL_V.1.1</span>
       </div>
 
       <div ref={terminalRef} className="space-y-6 md:space-y-8 font-mono text-xs md:text-sm">
