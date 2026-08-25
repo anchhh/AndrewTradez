@@ -17,7 +17,58 @@
     </div>
   </header>
 
+  <div class="lm-filters">
+    <label class="lm-filter">
+      <span class="lm-filter-label">Qualification</span>
+      <select id="filter-qualified">
+        <option value="all">All leads</option>
+        <option value="false">Not qualified</option>
+        <option value="true">Qualified</option>
+      </select>
+    </label>
+    <label class="lm-filter">
+      <span class="lm-filter-label">Status</span>
+      <select id="filter-status">
+        <option value="all">Any status</option>
+        <option value="new">New</option>
+        <option value="contacted">Contacted</option>
+        <option value="responded">Responded</option>
+        <option value="converted">Converted</option>
+        <option value="dead">Dead</option>
+      </select>
+    </label>
+    <label class="lm-filter">
+      <span class="lm-filter-label">Source</span>
+      <select id="filter-source">
+        <option value="all">Any source</option>
+        <option value="zillow">Zillow</option>
+        <option value="realtor">Realtor.com</option>
+        <option value="redfin">Redfin</option>
+        <option value="homes">Homes.com</option>
+        <option value="manual">Manual</option>
+        <option value="csv">CSV</option>
+      </select>
+    </label>
+    <label class="lm-filter">
+      <span class="lm-filter-label">Outreach</span>
+      <select id="filter-outreach">
+        <option value="all">Any</option>
+        <option value="none">Nothing done</option>
+        <option value="email">Email sent</option>
+        <option value="phone">Phone called</option>
+        <option value="video">Video made</option>
+        <option value="incomplete">Not finished</option>
+      </select>
+    </label>
+    <label class="lm-filter lm-filter-grow">
+      <span class="lm-filter-label">Search</span>
+      <input type="search" id="filter-search" placeholder="Address, city, agent…">
+    </label>
+    <button type="button" id="filter-reset" class="btn-secondary btn-tiny">Reset</button>
+  </div>
+
   <div id="leads-status" class="status"></div>
+  <div id="lm-count" class="lm-count"></div>
 
   <div class="table-wrap">
     <table id="lmg-table" class="lm-table hidden">
@@ -36,6 +87,7 @@
   </div>
   <p id="lmg-empty" class="empty-note hidden">No leads yet — capture one with the Chrome extension.</p>
 </div>
+<script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='leads_manager.js') }}"></script>
 </body>
 </html>

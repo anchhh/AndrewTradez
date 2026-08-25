@@ -1,31 +1,14 @@
-const LEAD_STATUSES = ["new", "contacted", "responded", "converted", "dead"];
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v)$/i;
-const isVideoUrl = (url) => VIDEO_EXT.test(url);
-
-const OUTREACH_KEY = { email: "outreach_email_sent", phone: "outreach_phone_called", video: "outreach_video_sent" };
 const OUTREACH_LABELS = [["email", "Email sent"], ["phone", "Phone called"], ["video", "Video made"]];
-const SOURCE_DOMAINS = { zillow: "zillow.com", realtor: "realtor.com", redfin: "redfin.com", homes: "homes.com" };
 
 const LEAD_ID = window.LEAD_ID;
 let lead = null;
 
 const el = (id) => document.getElementById(id);
 
-async function fetchJSON(url, opts) {
-  const res = await fetch(url, opts);
-  return res.json();
-}
-
 function setStatus(message, cls) {
   const node = el("lead-status");
   node.textContent = message || "";
   node.className = "status" + (cls ? ` ${cls}` : "");
-}
-
-function escapeHtml(value) {
-  return String(value == null ? "" : value).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
-  );
 }
 
 /* ---------- pictures ---------- */
@@ -111,12 +94,7 @@ async function pullPhotos(force) {
 
 function renderChecklist() {
   const box = el("lp-checklist");
-  box.innerHTML = OUTREACH_LABELS.map(([field, label]) => {
-    const checked = !!lead[OUTREACH_KEY[field]];
-    return `<button type="button" class="lm-check-toggle ${checked ? "checked" : "unchecked"}" data-field="${field}">
-      <span class="lm-check-icon">${checked ? "✔" : "✕"}</span>${label}
-    </button>`;
-  }).join("");
+  box.innerHTML = OUTREACH_LABELS.map(([field, label]) => checklistToggleHtml(lead, field, label)).join("");
 
   box.querySelectorAll(".lm-check-toggle").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -133,51 +111,10 @@ function renderChecklist() {
 
 /* ---------- notes ---------- */
 
-// Debounced so typing doesn't fire a request per keystroke, and flushed on
-// blur/unload so a note is never lost by navigating away mid-pause.
 function wireNotes() {
   const box = el("lp-notes");
-  const state = el("lp-notes-state");
   box.value = lead.notes || "";
-
-  let timer = null;
-  let lastSaved = box.value;
-
-  const save = async () => {
-    const value = box.value;
-    if (value === lastSaved) return;
-    state.textContent = "Saving…";
-    try {
-      await fetch(`/studio/api/leads/${LEAD_ID}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: value }),
-      });
-      lastSaved = value;
-      lead.notes = value;
-      state.textContent = "Saved";
-    } catch (err) {
-      state.textContent = "Couldn't save — your text is still here, try again.";
-    }
-  };
-
-  box.addEventListener("input", () => {
-    state.textContent = "";
-    clearTimeout(timer);
-    timer = setTimeout(save, 700);
-  });
-  box.addEventListener("blur", () => {
-    clearTimeout(timer);
-    save();
-  });
-  window.addEventListener("beforeunload", () => {
-    if (box.value !== lastSaved) {
-      navigator.sendBeacon?.(
-        `/studio/api/leads/${LEAD_ID}`,
-        new Blob([JSON.stringify({ notes: box.value })], { type: "application/json" })
-      );
-    }
-  });
+  attachNotes(box, LEAD_ID, el("lp-notes-state"));
 }
 
 /* ---------- video panel ---------- */
@@ -201,15 +138,9 @@ function renderVideo(project) {
 /* ---------- header ---------- */
 
 function renderLead() {
-  const cityStateZip = [[lead.city, lead.state].filter(Boolean).join(", "), lead.zip_code].filter(Boolean).join(" ");
-  el("lp-address").textContent = (lead.address || "—") + (cityStateZip ? `, ${cityStateZip}` : "");
-
-  el("lp-contact").textContent = [lead.agent_name, lead.agent_phone, lead.agent_email].filter(Boolean).join(" | ");
-  el("lp-facts").textContent = [
-    lead.beds != null ? `${lead.beds} bd` : null,
-    lead.baths != null ? `${lead.baths} ba` : null,
-    lead.sqft != null ? `${lead.sqft.toLocaleString()} sqft` : null,
-  ].filter(Boolean).join(" • ");
+  el("lp-address").textContent = addressLine(lead);
+  el("lp-contact").textContent = contactLine(lead);
+  el("lp-facts").textContent = factsLine(lead);
 
   const url = el("lp-url");
   if (lead.listing_url) {
@@ -220,10 +151,7 @@ function renderLead() {
     url.classList.add("hidden");
   }
 
-  const domain = SOURCE_DOMAINS[lead.source];
-  el("lp-source").innerHTML = `<span class="badge badge-source">${
-    domain ? `<img class="source-icon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="">` : ""
-  }${escapeHtml(lead.source || "—")}</span>`;
+  el("lp-source").innerHTML = sourceBadgeHtml(lead.source);
 
   const select = el("lp-status-select");
   select.innerHTML = LEAD_STATUSES.map(

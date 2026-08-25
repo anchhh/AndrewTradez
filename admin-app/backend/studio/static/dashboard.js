@@ -1,38 +1,7 @@
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v)$/i;
-const isVideoUrl = (url) => VIDEO_EXT.test(url);
-
-const OUTREACH_KEY = { email: "outreach_email_sent", phone: "outreach_phone_called", video: "outreach_video_sent" };
-const SOURCE_DOMAINS = { zillow: "zillow.com", realtor: "realtor.com", redfin: "redfin.com", homes: "homes.com" };
-
-// Order matters: this is the display order of the status groups on the
-// page, most-actionable first. Any status not listed here (there
-// shouldn't be any) falls back into "new".
-const STATUS_GROUPS = {
-  responded: { icon: "🔥", label: "Hot Lead", className: "group-hot" },
-  new: { icon: "🆕", label: "New Lead", className: "group-new" },
-  contacted: { icon: "📨", label: "Contacted", className: "group-contacted" },
-  converted: { icon: "✅", label: "Converted", className: "group-converted" },
-  dead: { icon: "📦", label: "Cold Lead", className: "group-cold" },
-};
-const GROUP_ORDER = ["responded", "new", "contacted", "converted", "dead"];
-
-function sourceBadgeHtml(source) {
-  const domain = SOURCE_DOMAINS[source];
-  const icon = domain ? `<img class="source-icon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="">` : "";
-  return `<span class="badge badge-source">${icon}${source || "—"}</span>`;
-}
-
-function checklistToggleHtml(lead, field, label) {
-  const checked = !!lead[OUTREACH_KEY[field]];
-  return `<button type="button" class="lm-check-toggle ${checked ? "checked" : "unchecked"}" data-field="${field}">
-    <span class="lm-check-icon">${checked ? "✔" : "✕"}</span>${label}
-  </button>`;
-}
-
-async function fetchJSON(url, opts) {
-  const res = await fetch(url, opts);
-  return res.json();
-}
+/* Dashboard: qualified leads only. Each lead is its own card -- its own
+   status header, its own row, its own notes box -- rather than several
+   leads sharing one group header, so a lead reads as a single unit. Cards
+   stay ordered by status priority (hot first). */
 
 function setStatus(message, cls) {
   const el = document.getElementById("leads-status");
@@ -40,44 +9,44 @@ function setStatus(message, cls) {
   el.className = "status" + (cls ? ` ${cls}` : "");
 }
 
-function renderLeadRow(lead, project) {
-  const row = document.createElement("div");
-  row.className = "lm-row";
+function renderLeadCard(lead, project) {
+  const meta = STATUS_GROUPS[groupKeyFor(lead)];
 
-  const photo = (project && (project.photos || [])[0]) || (lead.photo_urls || [])[0] || null;
-  const thumbHtml = photo
-    ? (isVideoUrl(photo) ? `<video src="${photo}" muted></video>` : `<img src="${photo}" alt="">`)
-    : `<div class="lm-thumb-empty">No photo</div>`;
-
-  const cityStateZip = [[lead.city, lead.state].filter(Boolean).join(", "), lead.zip_code].filter(Boolean).join(" ");
-  const contactBits = [lead.agent_name, lead.agent_phone, lead.agent_email].filter(Boolean).join(" | ");
-  const factsBits = [
-    lead.beds != null ? `${lead.beds} bd` : null,
-    lead.baths != null ? `${lead.baths} ba` : null,
-    lead.sqft != null ? `${lead.sqft.toLocaleString()} sqft` : null,
-  ].filter(Boolean).join(" • ");
-
-  row.innerHTML = `
-    <div class="lm-row-thumb">${thumbHtml}</div>
-    <div class="lm-row-info">
-      <div class="lm-row-address">${lead.address || "—"}${cityStateZip ? `, ${cityStateZip}` : ""}</div>
-      ${contactBits ? `<div class="lm-row-contact">${contactBits}</div>` : ""}
-      ${factsBits ? `<div class="lm-row-facts">${factsBits}</div>` : ""}
-      ${lead.listing_url ? `<a class="lm-row-url" href="${lead.listing_url}" target="_blank" rel="noopener noreferrer">${lead.listing_url}</a>` : ""}
+  const card = document.createElement("section");
+  card.className = `lm-group lm-card ${meta.className}`;
+  card.innerHTML = `
+    <div class="lm-group-header">${meta.icon} ${meta.label.toUpperCase()}</div>
+    <div class="lm-group-rows">
+      <div class="lm-row">
+        <div class="lm-row-thumb">${thumbHtml((project && (project.photos || [])[0]) || (lead.photo_urls || [])[0] || null)}</div>
+        <div class="lm-row-info">
+          <div class="lm-row-address">${escapeHtml(addressLine(lead))}</div>
+          ${contactLine(lead) ? `<div class="lm-row-contact">${escapeHtml(contactLine(lead))}</div>` : ""}
+          ${factsLine(lead) ? `<div class="lm-row-facts">${factsLine(lead)}</div>` : ""}
+          ${lead.listing_url ? `<a class="lm-row-url" href="${escapeHtml(lead.listing_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(lead.listing_url)}</a>` : ""}
+        </div>
+        <div class="lm-row-source">${sourceBadgeHtml(lead.source)}</div>
+        <div class="lm-row-checklist">
+          ${checklistToggleHtml(lead, "email", "Email sent")}
+          ${checklistToggleHtml(lead, "phone", "Phone called")}
+          ${checklistToggleHtml(lead, "video", "made/sent video")}
+        </div>
+        <div class="lm-row-actions">
+          <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
+          <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>
+        </div>
+      </div>
     </div>
-    <div class="lm-row-source">${sourceBadgeHtml(lead.source)}</div>
-    <div class="lm-row-checklist">
-      ${checklistToggleHtml(lead, "email", "Email sent")}
-      ${checklistToggleHtml(lead, "phone", "Phone called")}
-      ${checklistToggleHtml(lead, "video", "made/sent video")}
-    </div>
-    <div class="lm-row-actions">
-      <a class="link-btn" href="/studio/create?lead_id=${lead.id}" target="_blank" rel="noopener noreferrer">${project ? "Open Video" : "Create Video"}</a>
-      <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>
+    <div class="lm-card-notes">
+      <textarea class="lm-notes-input" rows="2" placeholder="notes"></textarea>
+      <div class="lm-notes-state"></div>
     </div>
   `;
 
-  row.querySelectorAll(".lm-check-toggle").forEach((el) => {
+  const row = card.querySelector(".lm-row");
+  makeRowOpenProfile(row, lead.id);
+
+  card.querySelectorAll(".lm-check-toggle").forEach((el) => {
     el.addEventListener("click", async () => {
       const field = el.dataset.field;
       const updated = await fetchJSON(`/studio/api/leads/${lead.id}/outreach`, {
@@ -93,17 +62,21 @@ function renderLeadRow(lead, project) {
     });
   });
 
-  row.querySelector(".lm-delete-btn").addEventListener("click", async () => {
+  card.querySelector(".lm-delete-btn").addEventListener("click", async () => {
     if (!confirm(`Delete the lead at ${lead.address || "this address"}?`)) return;
     await fetch(`/studio/api/leads/${lead.id}`, { method: "DELETE" });
     loadDashboard();
   });
 
-  return row;
+  const notes = card.querySelector(".lm-notes-input");
+  notes.value = lead.notes || "";
+  attachNotes(notes, lead.id, card.querySelector(".lm-notes-state"));
+
+  return card;
 }
 
 async function loadDashboard() {
-  const groupsContainer = document.getElementById("lm-groups");
+  const container = document.getElementById("lm-groups");
   const empty = document.getElementById("lm-empty");
 
   let leads = [];
@@ -130,7 +103,7 @@ async function loadDashboard() {
   document.getElementById("stat-projects-todo").textContent =
     (leads || []).filter((l) => !projectByLeadId.has(l.id)).length;
 
-  groupsContainer.innerHTML = "";
+  container.innerHTML = "";
 
   if (!leads.length) {
     empty.classList.remove("hidden");
@@ -138,28 +111,12 @@ async function loadDashboard() {
   }
   empty.classList.add("hidden");
 
-  const byStatus = {};
-  leads.forEach((lead) => {
-    const key = STATUS_GROUPS[lead.status] ? lead.status : "new";
-    (byStatus[key] = byStatus[key] || []).push(lead);
-  });
-
-  GROUP_ORDER.forEach((statusKey) => {
-    const group = byStatus[statusKey];
-    if (!group || !group.length) return;
-    const meta = STATUS_GROUPS[statusKey];
-
-    const section = document.createElement("section");
-    section.className = `lm-group ${meta.className}`;
-    section.innerHTML = `<div class="lm-group-header">${meta.icon} ${meta.label.toUpperCase()}</div>`;
-
-    const rowsWrap = document.createElement("div");
-    rowsWrap.className = "lm-group-rows";
-    group.forEach((lead) => rowsWrap.appendChild(renderLeadRow(lead, projectByLeadId.get(lead.id) || null)));
-    section.appendChild(rowsWrap);
-
-    groupsContainer.appendChild(section);
-  });
+  const sorted = [...leads].sort(
+    (a, b) => GROUP_ORDER.indexOf(groupKeyFor(a)) - GROUP_ORDER.indexOf(groupKeyFor(b))
+  );
+  sorted.forEach((lead) =>
+    container.appendChild(renderLeadCard(lead, projectByLeadId.get(lead.id) || null))
+  );
 }
 
 async function loadDailyChecklist() {
@@ -178,7 +135,9 @@ async function loadDailyChecklist() {
     { key: "videos", label: "Videos", done: data.videos_done, target: data.videos_target },
   ];
 
-  container.innerHTML = rows.map((r) => `
+  container.innerHTML = rows
+    .map(
+      (r) => `
     <div class="daily-checklist-item">
       <div class="daily-checklist-label">${r.label}</div>
       <div class="daily-checklist-progress">
@@ -187,7 +146,9 @@ async function loadDailyChecklist() {
         <input type="number" min="0" class="daily-checklist-target" data-key="${r.key}" value="${r.target}">
       </div>
     </div>
-  `).join("");
+  `
+    )
+    .join("");
 
   container.querySelectorAll(".daily-checklist-target").forEach((input) => {
     input.addEventListener("change", async (e) => {
