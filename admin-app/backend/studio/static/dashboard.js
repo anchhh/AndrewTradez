@@ -1,78 +1,11 @@
-/* Dashboard: qualified leads only. Each lead is its own card -- its own
-   status header, its own row, its own notes box -- rather than several
-   leads sharing one group header, so a lead reads as a single unit. Cards
-   stay ordered by status priority (hot first). */
+/* Dashboard: qualified leads only, one card each, ordered by status
+   priority (hot first). The card itself lives in leads_shared.js so this
+   page and the Lead Manager present a lead identically. */
 
 function setStatus(message, cls) {
   const el = document.getElementById("leads-status");
   el.textContent = message || "";
   el.className = "status" + (cls ? ` ${cls}` : "");
-}
-
-function renderLeadCard(lead, project) {
-  const meta = STATUS_GROUPS[groupKeyFor(lead)];
-
-  const card = document.createElement("section");
-  card.className = `lm-group lm-card ${meta.className}`;
-  card.innerHTML = `
-    <div class="lm-group-header">${meta.icon} ${meta.label.toUpperCase()}</div>
-    <div class="lm-group-rows">
-      <div class="lm-row">
-        <div class="lm-row-thumb">${thumbHtml((project && (project.photos || [])[0]) || (lead.photo_urls || [])[0] || null)}</div>
-        <div class="lm-row-info">
-          <div class="lm-row-address">${escapeHtml(addressLine(lead))}</div>
-          ${contactLine(lead) ? `<div class="lm-row-contact">${escapeHtml(contactLine(lead))}</div>` : ""}
-          ${factsLine(lead) ? `<div class="lm-row-facts">${factsLine(lead)}</div>` : ""}
-          ${lead.listing_url ? `<a class="lm-row-url" href="${escapeHtml(lead.listing_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(lead.listing_url)}</a>` : ""}
-        </div>
-        <div class="lm-row-source">${sourceBadgeHtml(lead.source)}</div>
-        <div class="lm-row-checklist">
-          ${checklistToggleHtml(lead, "email", "Email sent")}
-          ${checklistToggleHtml(lead, "phone", "Phone called")}
-          ${checklistToggleHtml(lead, "video", "made/sent video")}
-        </div>
-        <div class="lm-row-actions">
-          <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
-          <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>
-        </div>
-      </div>
-    </div>
-    <div class="lm-card-notes">
-      <textarea class="lm-notes-input" rows="2" placeholder="notes"></textarea>
-      <div class="lm-notes-state"></div>
-    </div>
-  `;
-
-  const row = card.querySelector(".lm-row");
-  makeRowOpenProfile(row, lead.id);
-
-  card.querySelectorAll(".lm-check-toggle").forEach((el) => {
-    el.addEventListener("click", async () => {
-      const field = el.dataset.field;
-      const updated = await fetchJSON(`/studio/api/leads/${lead.id}/outreach`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field }),
-      });
-      const checked = !!updated[OUTREACH_KEY[field]];
-      el.classList.toggle("checked", checked);
-      el.classList.toggle("unchecked", !checked);
-      el.querySelector(".lm-check-icon").textContent = checked ? "✔" : "✕";
-      loadDailyChecklist();
-    });
-  });
-
-  card.querySelector(".lm-delete-btn").addEventListener("click", async () => {
-    if (!confirm(`Delete the lead at ${lead.address || "this address"}?`)) return;
-    await fetch(`/studio/api/leads/${lead.id}`, { method: "DELETE" });
-    loadDashboard();
-  });
-
-  const notes = card.querySelector(".lm-notes-input");
-  notes.value = lead.notes || "";
-  attachNotes(notes, lead.id, card.querySelector(".lm-notes-state"));
-
-  return card;
 }
 
 async function loadDashboard() {
@@ -114,9 +47,16 @@ async function loadDashboard() {
   const sorted = [...leads].sort(
     (a, b) => GROUP_ORDER.indexOf(groupKeyFor(a)) - GROUP_ORDER.indexOf(groupKeyFor(b))
   );
-  sorted.forEach((lead) =>
-    container.appendChild(renderLeadCard(lead, projectByLeadId.get(lead.id) || null))
-  );
+
+  sorted.forEach((lead) => {
+    container.appendChild(
+      buildLeadCard(
+        lead,
+        { showNotes: true, project: projectByLeadId.get(lead.id) || null },
+        { onChanged: loadDailyChecklist, onDeleted: loadDashboard }
+      )
+    );
+  });
 }
 
 async function loadDailyChecklist() {

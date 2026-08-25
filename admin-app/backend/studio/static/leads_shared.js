@@ -167,3 +167,137 @@ function attachNotes(textarea, leadId, stateEl) {
     }
   });
 }
+
+/* ---------------------------------------------------------------
+   Lead card -- the single presentation of a lead, shared by the
+   Dashboard and the Lead Manager so the two pages can't drift apart.
+
+   opts:
+     showStatusSelect  status dropdown in the actions column
+     showQualify       Mark Qualified button
+     showNotes         notes box in the card footer
+     project           linked project, if any (changes the video label)
+   --------------------------------------------------------------- */
+
+function leadCardHtml(lead, opts = {}) {
+  const meta = STATUS_GROUPS[groupKeyFor(lead)];
+  const project = opts.project || null;
+  const photo = (project && (project.photos || [])[0]) || (lead.photo_urls || [])[0] || null;
+
+  const statusSelect = opts.showStatusSelect
+    ? `<select class="lead-status-select" aria-label="Lead status">${LEAD_STATUSES.map(
+        (s) => `<option value="${s}" ${s === lead.status ? "selected" : ""}>${s}</option>`
+      ).join("")}</select>`
+    : "";
+
+  const qualify = opts.showQualify
+    ? `<button type="button" class="btn-secondary btn-tiny lm-qualify-btn ${lead.qualified ? "is-qualified" : ""}">
+         ${lead.qualified ? "Qualified ✓" : "Mark Qualified"}
+       </button>`
+    : "";
+
+  const notes = opts.showNotes
+    ? `<footer class="lead-card-notes">
+         <textarea class="lm-notes-input" rows="2" placeholder="notes"></textarea>
+         <div class="lm-notes-state"></div>
+       </footer>`
+    : "";
+
+  return `
+    <article class="lead-card ${meta.className}">
+      <header class="lead-card-head">
+        <span class="lead-card-status">${meta.icon} ${meta.label.toUpperCase()}</span>
+        ${sourceBadgeHtml(lead.source)}
+      </header>
+      <div class="lead-card-body">
+        <div class="lead-card-media">${thumbHtml(photo)}</div>
+        <div class="lead-card-info">
+          <h3 class="lead-card-address">${escapeHtml(addressLine(lead))}</h3>
+          ${contactLine(lead) ? `<div class="lead-card-contact">${escapeHtml(contactLine(lead))}</div>` : ""}
+          ${factsLine(lead) ? `<div class="lead-card-facts">${factsLine(lead)}</div>` : ""}
+          ${lead.listing_url ? `<a class="lead-card-url" href="${escapeHtml(lead.listing_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(lead.listing_url)}</a>` : ""}
+        </div>
+        <div class="lead-card-checklist">
+          ${checklistToggleHtml(lead, "email", "Email sent")}
+          ${checklistToggleHtml(lead, "phone", "Phone called")}
+          ${checklistToggleHtml(lead, "video", "Video made")}
+        </div>
+        <div class="lead-card-actions">
+          ${statusSelect}
+          ${qualify}
+          <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
+          <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>
+        </div>
+      </div>
+      ${notes}
+    </article>`;
+}
+
+/* Wires a rendered card. `handlers` may supply onChanged (called after any
+   update, so a filtered list can re-evaluate) and onDeleted. */
+function wireLeadCard(card, lead, handlers = {}) {
+  const changed = () => handlers.onChanged && handlers.onChanged(lead);
+
+  makeRowOpenProfile(card.querySelector(".lead-card-body"), lead.id);
+
+  card.querySelectorAll(".lm-check-toggle").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const field = el.dataset.field;
+      const updated = await fetchJSON(`/studio/api/leads/${lead.id}/outreach`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field }),
+      });
+      Object.assign(lead, updated);
+      const checked = !!updated[OUTREACH_KEY[field]];
+      el.classList.toggle("checked", checked);
+      el.classList.toggle("unchecked", !checked);
+      el.querySelector(".lm-check-icon").textContent = checked ? "✔" : "✕";
+      changed();
+    });
+  });
+
+  const select = card.querySelector(".lead-status-select");
+  if (select) {
+    select.addEventListener("change", async (e) => {
+      const updated = await fetchJSON(`/studio/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: e.target.value }),
+      });
+      Object.assign(lead, updated);
+      changed();
+    });
+  }
+
+  const qualify = card.querySelector(".lm-qualify-btn");
+  if (qualify) {
+    qualify.addEventListener("click", async () => {
+      const updated = await fetchJSON(`/studio/api/leads/${lead.id}/qualify`, { method: "PATCH" });
+      Object.assign(lead, updated);
+      qualify.textContent = updated.qualified ? "Qualified ✓" : "Mark Qualified";
+      qualify.classList.toggle("is-qualified", !!updated.qualified);
+      changed();
+    });
+  }
+
+  card.querySelector(".lm-delete-btn").addEventListener("click", async () => {
+    if (!confirm(`Delete the lead at ${lead.address || "this address"}?`)) return;
+    await fetch(`/studio/api/leads/${lead.id}`, { method: "DELETE" });
+    if (handlers.onDeleted) handlers.onDeleted(lead);
+  });
+
+  const notes = card.querySelector(".lm-notes-input");
+  if (notes) {
+    notes.value = lead.notes || "";
+    attachNotes(notes, lead.id, card.querySelector(".lm-notes-state"));
+  }
+}
+
+function buildLeadCard(lead, opts = {}, handlers = {}) {
+  const host = document.createElement("div");
+  host.innerHTML = leadCardHtml(lead, opts);
+  const card = host.firstElementChild;
+  wireLeadCard(card, lead, handlers);
+  return card;
+}
