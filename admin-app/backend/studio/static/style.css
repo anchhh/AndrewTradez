@@ -1568,11 +1568,17 @@ gmp-map-3d {
 
 .lead-card-list .lead-card { margin-bottom: 0; }
 
+/* This is a <header>, and the global `header` rule sets flex-direction:
+   column and margin-bottom: 40px for page headers. Both leak in here and
+   would stack the status chip above the source badge with a 40px gap
+   below, so reset them explicitly rather than relying on the cascade. */
 .lead-card-head {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin: 0;
   padding: 9px 16px;
   background: var(--line);
 }
