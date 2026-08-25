@@ -1,12 +1,11 @@
 "use strict";
 
-// Points at the deployed Estly admin app by default, so a fresh install
-// (or Settings left untouched) saves straight to the real site instead of
-// a local dev server that isn't running. Change this in Settings if
-// you're running the backend locally instead (http://localhost:5050).
-const DEFAULT_API_BASE = "https://estly-admin.onrender.com";
-const DEFAULT_DASHBOARD_BASE = "https://estly-admin.onrender.com";
-const SOURCES = ["zillow", "realtor", "airbnb"];
+// Points at the local dev backend by default. Change this in Settings if
+// you're capturing leads into the deployed site instead
+// (https://estly-admin.onrender.com).
+const DEFAULT_API_BASE = "http://127.0.0.1:5051";
+const DEFAULT_DASHBOARD_BASE = "http://127.0.0.1:5051/studio/dashboard";
+const SOURCES = ["zillow", "realtor", "redfin", "homes"];
 
 let currentRaw = null; // last-captured raw page material, cached for instant tab switching
 let selectedSource = "zillow";
@@ -26,7 +25,6 @@ function fillForm(data) {
   $("f-city").value = data.city || "";
   $("f-state").value = data.state || "";
   $("f-zip").value = data.zip_code || "";
-  $("f-price").value = data.price != null ? formatPrice(data.price) : "";
   $("f-beds").value = data.beds != null ? data.beds : "";
   $("f-baths").value = data.baths != null ? data.baths : "";
   $("f-sqft").value = data.sqft != null ? data.sqft : "";
@@ -35,7 +33,7 @@ function fillForm(data) {
   $("f-agent-name").value = data.agent_name || "";
   $("f-agent-email").value = data.agent_email || "";
   $("f-agent-phone").value = data.agent_phone || "";
-  $("form").dataset.listingUrl = data.listing_url || "";
+  $("f-listing-url").value = data.listing_url || "";
 }
 
 function readForm() {
@@ -44,7 +42,6 @@ function readForm() {
     city: $("f-city").value.trim() || null,
     state: $("f-state").value.trim() || null,
     zip_code: $("f-zip").value.trim() || null,
-    price: parsePriceInput($("f-price").value),
     beds: $("f-beds").value ? Number($("f-beds").value) : null,
     baths: $("f-baths").value ? Number($("f-baths").value) : null,
     sqft: $("f-sqft").value ? Number($("f-sqft").value) : null,
@@ -53,7 +50,7 @@ function readForm() {
     agent_name: $("f-agent-name").value.trim() || null,
     agent_email: $("f-agent-email").value.trim() || null,
     agent_phone: $("f-agent-phone").value.trim() || null,
-    listing_url: $("form").dataset.listingUrl || null,
+    listing_url: $("f-listing-url").value.trim() || null,
   };
 }
 
@@ -152,6 +149,7 @@ async function init() {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "session" && changes.lastCapture) {
+    console.log("[Estly] sidepanel: lastCapture changed", changes.lastCapture.newValue);
     renderCapture(changes.lastCapture.newValue);
   }
 });
@@ -170,9 +168,13 @@ SOURCES.forEach((s) => {
   });
 });
 
-$("f-price").addEventListener("blur", (e) => {
-  const parsed = parsePriceInput(e.target.value);
-  e.target.value = parsed != null ? formatPrice(parsed) : "";
+// Pressing Enter in any text field submits an HTML form by default --
+// without this, correcting a field and hitting Enter (an easy habit while
+// reviewing the auto-filled data) would save the lead immediately,
+// without ever clicking "Save to Estly". Saving should only ever happen
+// from that explicit click.
+$("form").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") e.preventDefault();
 });
 
 $("form").addEventListener("submit", async (e) => {

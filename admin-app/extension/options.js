@@ -1,7 +1,7 @@
 "use strict";
 
-const DEFAULT_API_BASE = "https://estly-admin.onrender.com";
-const DEFAULT_DASHBOARD_BASE = "https://estly-admin.onrender.com";
+const DEFAULT_API_BASE = "http://127.0.0.1:5051";
+const DEFAULT_DASHBOARD_BASE = "http://127.0.0.1:5051/studio/dashboard";
 
 async function load() {
   const { apiBase, dashboardBase, authUser, authPass } = await chrome.storage.sync.get({

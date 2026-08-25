@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio — Create Video</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23efe8dd'/%3E%3Ctext x='16' y='42' font-family='Arial' font-weight='800' font-size='30' fill='%2317130f'%3Ee%3C/text%3E%3Crect x='42' y='16' width='7' height='16' fill='%23ef5a2b' transform='skewX(-18)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Create Video</h1>
+      <p class="sub">Pull in a listing, gather its photos and videos. Choose a video style next.</p>
+    </div>
+    <button id="save-top-btn" class="cta-btn cta-btn-sm">Save</button>
+  </header>
+
+  <section class="card">
+    <h2>1. Add photos for this listing</h2>
+    <p class="hint">Choose how to bring in photos. Either way, you'll review and confirm which ones to keep before saving.</p>
+
+    <div class="option-tabs">
+      <button class="tab-btn active" data-tab="link">
+        <span class="opt-num">Option 1</span>
+        Paste a link — auto-extract images
+      </button>
+      <button class="tab-btn" data-tab="upload">
+        <span class="opt-num">Option 2</span>
+        Upload images manually
+      </button>
+    </div>
+
+    <div id="tab-link" class="tab-panel active">
+      <p class="hint">Works with Zillow, Airbnb, Redfin, VRBO, Realtor.com, or any URL. We read the page's public HTML (image tags, structured data, preview metadata) — the same kind of access a search engine or link-unfurl uses. We don't bypass bot-detection, so some sites may return few or no images; upload manually as a fallback.</p>
+      <div class="row">
+        <input id="listing-url" type="text" placeholder="https://www.zillow.com/homedetails/..." />
+        <button id="fetch-btn">Extract images</button>
+      </div>
+      <div id="fetch-status" class="status"></div>
+      <div id="preview-card" class="preview-card hidden">
+        <img id="preview-img" src="" alt="">
+        <div class="preview-body">
+          <span id="preview-source" class="badge"></span>
+          <h3 id="preview-title"></h3>
+          <p id="preview-address" class="address"></p>
+          <p id="preview-desc"></p>
+        </div>
+      </div>
+      <div id="pick-wrap" class="hidden">
+        <p class="hint" id="pick-count"></p>
+        <div id="pick-grid" class="pick-grid"></div>
+        <button id="add-selected-btn">Add selected photos</button>
+      </div>
+
+      <div class="subsection">
+        <h3>Add more photos or videos</h3>
+        <p class="hint">Auto-extract only pulls images from the page. Drop in any additional photos or video clips for this listing here.</p>
+        <div id="dropzone-link" class="dropzone">
+          <p>Drag photos/videos here, or click to browse</p>
+          <input id="file-input-link" type="file" accept="image/*,video/*" multiple hidden>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-upload" class="tab-panel">
+      <p class="hint">Drag &amp; drop the photos or video clips you have for this listing (saved from the listing page, your own shoot, whatever).</p>
+      <div id="dropzone-upload" class="dropzone">
+        <p>Drag photos/videos here, or click to browse</p>
+        <input id="file-input-upload" type="file" accept="image/*,video/*" multiple hidden>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. Overhead / satellite view</h2>
+    <p class="hint">Reference context for drone-style and aerial video generation. Auto-fetched from the listing's address (Option 1) — or provide one manually if you used manual upload.</p>
+    <div id="satellite-preview" class="satellite-preview hidden">
+      <img id="satellite-img" src="" alt="Overhead satellite view — click to explore">
+      <div class="satellite-explore-hint">Click to explore &#128269;</div>
+      <button id="satellite-remove-btn" class="remove" title="Remove">&times;</button>
+    </div>
+    <div id="satellite-form-wrap">
+      <div class="row">
+        <input id="satellite-address" type="text" placeholder="123 Main St, City, ST 12345" />
+        <button id="satellite-fetch-btn">Get satellite view</button>
+      </div>
+      <div id="satellite-status" class="status"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Your photos & videos for this listing</h2>
+    <p class="hint">These are the assets that will drive the generated videos.</p>
+    <div id="photo-grid" class="photo-grid"></div>
+    <p id="photo-empty" class="empty-note">No photos or videos added yet.</p>
+    <div id="save-status" class="status"></div>
+    <div class="row action-row">
+      <button id="back-btn" class="btn-secondary">Back</button>
+      <button id="next-btn">Next</button>
+    </div>
+  </section>
+</div>
+
+{% include "_leave_modal.html" %}
+
+<div id="map-modal" class="modal-overlay hidden">
+  <div class="modal-box map-modal-box">
+    <button id="map-modal-close-btn" class="modal-close" title="Close">&times;</button>
+
+    <div class="map-modal-header">
+      <div>
+        <h3 id="map-modal-title">Explore the property</h3>
+        <p class="hint" id="map-modal-hint">Drag to pan, scroll or pinch to zoom. Satellite imagery via Esri.</p>
+      </div>
+    </div>
+
+    <div id="map-toolbar" class="map-toolbar">
+      <label class="map-toolbar-toggle"><input type="checkbox" id="labels-toggle" checked> Street labels</label>
+      <button id="map-fullscreen-btn" class="btn-secondary btn-tiny" type="button">Fullscreen</button>
+    </div>
+
+    <div id="leaflet-map" class="map-view active"></div>
+  </div>
+</div>
+
+<script>
+  window.__PROJECT__ = {{ project | tojson }};
+  window.__PREFILL__ = {{ prefill | tojson }};
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('studio.static', filename='create.js') }}"></script>
+</body>
+</html>

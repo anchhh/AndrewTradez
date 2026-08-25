@@ -1,7 +1,7 @@
 export const STATUSES = ['new', 'contacted', 'responded', 'converted', 'dead'] as const;
 export type LeadStatus = (typeof STATUSES)[number];
 
-export const SOURCES = ['zillow', 'realtor', 'airbnb', 'manual', 'csv', 'sample'] as const;
+export const SOURCES = ['zillow', 'realtor', 'redfin', 'homes', 'airbnb', 'manual', 'csv'] as const;
 export type LeadSource = (typeof SOURCES)[number];
 
 export interface Lead {
@@ -44,28 +44,4 @@ export interface LeadFilters {
   min_price?: string;
   max_price?: string;
   search?: string;
-}
-
-export interface FeedResult {
-  status: 'ok' | 'not_configured' | 'error';
-  fetched: number;
-  created: number;
-  updated: number;
-  message?: string;
-}
-
-export interface IngestionRun {
-  id: number;
-  started_at: string;
-  finished_at: string | null;
-  results: {
-    feeds: Record<string, FeedResult>;
-    totals: { fetched: number; created: number; updated: number; errors: number };
-  };
-}
-
-export interface IngestStatus {
-  feeds: string[];
-  last_run: IngestionRun | null;
-  history: IngestionRun[];
 }

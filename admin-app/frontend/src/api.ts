@@ -1,4 +1,4 @@
-import type { IngestStatus, Lead, LeadFilters, Stats } from './types';
+import type { Lead, LeadFilters, Stats } from './types';
 import { authHeader, clearStoredCreds, AUTH_REQUIRED_EVENT } from './auth';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -47,13 +47,6 @@ export function deleteLead(id: number): Promise<void> {
   return request<void>(`/api/leads/${id}`, { method: 'DELETE' });
 }
 
-export function importSample(count: number): Promise<{ created: number; updated: number }> {
-  return request('/api/leads/import/sample', {
-    method: 'POST',
-    body: JSON.stringify({ count }),
-  });
-}
-
 export function importCsv(file: File): Promise<{ imported: number; created: number; updated: number }> {
   const form = new FormData();
   form.append('file', file);
@@ -65,12 +58,4 @@ export function triggerOutreach(id: number, channel = 'email'): Promise<unknown>
     method: 'POST',
     body: JSON.stringify({ channel }),
   });
-}
-
-export function fetchIngestStatus(): Promise<IngestStatus> {
-  return request<IngestStatus>('/api/ingest/status');
-}
-
-export function runIngestionNow(): Promise<NonNullable<IngestStatus['last_run']>['results']> {
-  return request('/api/ingest/run', { method: 'POST' });
 }

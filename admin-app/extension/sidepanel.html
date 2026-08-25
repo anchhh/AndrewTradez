@@ -2,15 +2,23 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Estly Lead Clipper</title>
+<title>estly Studio — Lead Clipper</title>
 <style>
+  :root {
+    --cream: #efe8dd;
+    --cream-soft: #f6f2ea;
+    --ink: #17130f;
+    --ink-soft: #4a453e;
+    --accent: #ef5a2b;
+    --line: #ddd3c2;
+  }
   * { box-sizing: border-box; }
   html, body {
     height: 100%;
     margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: #0f1115;
-    color: #e7e9ee;
+    font-family: 'Poppins', 'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
   }
   body {
     display: flex;
@@ -18,17 +26,38 @@
   }
   header {
     padding: 14px 16px 12px;
-    border-bottom: 1px solid #262b36;
+    border-bottom: 1px solid var(--line);
     flex-shrink: 0;
+    background: var(--cream-soft);
   }
-  header h1 {
-    font-size: 1rem;
-    margin: 0 0 2px;
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .logo-text {
+    font-weight: 800;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    text-transform: lowercase;
+    display: inline-flex;
+    align-items: baseline;
+  }
+  .logo-accent {
+    display: inline-block;
+    width: 5px;
+    height: 11px;
+    background: var(--accent);
+    transform: skewX(-18deg);
+    margin-left: 2px;
+    border-radius: 1px;
   }
   header p {
     margin: 0;
     font-size: 0.74rem;
-    color: #8c93a3;
+    color: var(--ink-soft);
   }
   .backend-status {
     margin-top: 6px !important;
@@ -41,63 +70,74 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #8c93a3;
+    background: var(--ink-soft);
     flex-shrink: 0;
   }
-  .backend-status.ok::before { background: #35c98c; }
-  .backend-status.error::before { background: #ef5966; }
-  .backend-status.error { color: #ef5966; }
+  .backend-status.ok::before { background: #2f7a4f; }
+  .backend-status.error::before { background: var(--accent); }
+  .backend-status.error { color: var(--accent); }
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     padding: 10px 16px 0;
     flex-shrink: 0;
   }
   .tab {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
-    padding: 8px 6px;
-    border: 1px solid #262b36;
+    padding: 7px 5px;
+    border: 1px solid var(--line);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
-    background: #171a21;
-    color: #8c93a3;
+    background: var(--cream-soft);
+    color: var(--ink-soft);
     cursor: pointer;
   }
+  .tab-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
   .tab.active {
-    background: #0f1115;
-    color: #e7e9ee;
-    border-color: #4f8cff;
-    box-shadow: inset 0 2px 0 #4f8cff;
+    background: var(--cream);
+    color: var(--ink);
+    border-color: var(--accent);
+    box-shadow: inset 0 2px 0 var(--accent);
   }
   .site-note {
     margin: 10px 16px 0;
     padding: 8px 10px;
-    background: #171a21;
-    border: 1px solid #262b36;
+    background: var(--cream-soft);
+    border: 1px solid var(--line);
     border-radius: 6px;
     font-size: 0.72rem;
-    color: #8c93a3;
+    color: var(--ink-soft);
     line-height: 1.4;
     flex-shrink: 0;
   }
   #status {
     padding: 8px 16px;
     font-size: 0.78rem;
-    color: #8c93a3;
+    color: var(--ink-soft);
     flex-shrink: 0;
   }
-  #status.error { color: #ef5966; }
-  #status.ok { color: #35c98c; }
+  #status.error { color: var(--accent); }
+  #status.ok { color: #2f7a4f; }
   #empty-state {
     margin: 20px 16px;
     padding: 16px;
-    border: 1px dashed #262b36;
+    border: 1px dashed var(--line);
     border-radius: 8px;
     font-size: 0.82rem;
-    color: #8c93a3;
+    color: var(--ink-soft);
     line-height: 1.5;
   }
   main {
@@ -116,35 +156,36 @@
     flex-direction: column;
     gap: 3px;
     font-size: 0.68rem;
-    color: #8c93a3;
+    color: var(--ink-soft);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
   input, select {
-    background: #171a21;
-    border: 1px solid #262b36;
-    color: #e7e9ee;
+    background: #fff;
+    border: 1px solid var(--line);
+    color: var(--ink);
     padding: 7px 8px;
     border-radius: 6px;
     font-size: 0.85rem;
     font-family: inherit;
     width: 100%;
   }
-  input:focus, select:focus { outline: none; border-color: #4f8cff; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
   .hint {
     grid-column: span 2;
     font-size: 0.7rem;
-    color: #8c93a3;
+    color: var(--ink-soft);
     margin: -2px 0 2px;
   }
   footer {
     flex-shrink: 0;
-    border-top: 1px solid #262b36;
+    border-top: 1px solid var(--line);
     padding: 10px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 8px;
+    background: var(--cream-soft);
   }
   footer .group {
     display: flex;
@@ -153,44 +194,57 @@
   button {
     font-family: inherit;
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 700;
     padding: 8px 14px;
-    border-radius: 6px;
-    border: 1px solid #262b36;
-    background: #171a21;
-    color: #e7e9ee;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
     cursor: pointer;
   }
   button.primary {
-    background: #4f8cff;
-    border-color: #4f8cff;
-    color: #fff;
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--cream);
   }
+  button.primary:hover { background: var(--accent); border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
   <header>
-    <h1>Estly Lead Clipper</h1>
-    <p>Captures the listing you're viewing when you click the toolbar icon</p>
+    <div class="brand">
+      <span class="logo-text">estly<span class="logo-accent"></span></span>
+    </div>
+    <p>Lead Clipper — captures the listing you're viewing when you click the toolbar icon</p>
     <p class="backend-status" id="backend-status">Checking backend…</p>
   </header>
 
   <div class="tabs">
-    <button type="button" class="tab" id="tab-zillow" data-source="zillow">Zillow</button>
-    <button type="button" class="tab" id="tab-realtor" data-source="realtor">Realtor.com</button>
-    <button type="button" class="tab" id="tab-airbnb" data-source="airbnb">Airbnb</button>
+    <button type="button" class="tab" id="tab-zillow" data-source="zillow">
+      <img class="tab-icon" src="https://www.google.com/s2/favicons?domain=zillow.com&sz=32" alt="">Zillow
+    </button>
+    <button type="button" class="tab" id="tab-realtor" data-source="realtor">
+      <img class="tab-icon" src="https://www.google.com/s2/favicons?domain=realtor.com&sz=32" alt="">Realtor.com
+    </button>
+    <button type="button" class="tab" id="tab-redfin" data-source="redfin">
+      <img class="tab-icon" src="https://www.google.com/s2/favicons?domain=redfin.com&sz=32" alt="">Redfin
+    </button>
+    <button type="button" class="tab" id="tab-homes" data-source="homes">
+      <img class="tab-icon" src="https://www.google.com/s2/favicons?domain=homes.com&sz=32" alt="">Homes.com
+    </button>
   </div>
   <p class="site-note" id="site-note"></p>
 
   <div id="status"></div>
 
   <div id="empty-state">
-    Open a listing page, then click the <strong>Estly</strong> icon in your
-    toolbar to capture it here. This panel stays open — click the icon
-    again on a different listing to load that one instead. The tab above
-    is picked automatically from the site you captured; switch it manually
-    if it guessed wrong (re-parses instantly, no new page read).
+    Open a listing page and it'll load here automatically — no need to
+    click the toolbar icon again. Navigate away from a listing (back to
+    search results, a map view, etc.) and this panel clears itself until
+    you land on another one. The tab above is picked automatically from
+    the site you're on; switch it manually if it guessed wrong (re-parses
+    instantly, no new page read).
   </div>
 
   <main>
@@ -209,9 +263,6 @@
       </label>
       <label>Zip
         <input id="f-zip" type="text">
-      </label>
-      <label>Price
-        <input id="f-price" type="text" inputmode="decimal">
       </label>
       <label>Beds
         <input id="f-beds" type="number" step="0.5">
@@ -236,6 +287,9 @@
       </label>
       <label>Agent Phone
         <input id="f-agent-phone" type="text">
+      </label>
+      <label class="span-2">Listing URL
+        <input id="f-listing-url" type="text" readonly>
       </label>
     </form>
   </main>

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from extensions import db
 
 VALID_STATUSES = ("new", "contacted", "responded", "converted", "dead")
-VALID_SOURCES = ("zillow", "realtor", "airbnb", "manual", "csv", "sample")
+VALID_SOURCES = ("zillow", "realtor", "redfin", "homes", "airbnb", "manual", "csv")
 
 
 def _utcnow():
@@ -47,6 +47,19 @@ class Lead(db.Model):
 
     status = db.Column(db.String(20), nullable=False, default="new")
     notes = db.Column(db.Text, nullable=True)
+
+    # Every lead captured (e.g. via the Chrome extension) lands on the
+    # Lead Manager page first for sorting; only leads explicitly marked
+    # qualified here surface on the polished Dashboard view.
+    qualified = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Outreach checklist (Lead manager dashboard) -- a timestamp rather
+    # than a plain boolean so "done today" can be computed for the daily
+    # activity counters without a separate log table. None = not done;
+    # toggling sets/clears it (see api_toggle_outreach).
+    outreach_email_sent_at = db.Column(db.DateTime, nullable=True)
+    outreach_phone_called_at = db.Column(db.DateTime, nullable=True)
+    outreach_video_sent_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
@@ -100,34 +113,29 @@ class Lead(db.Model):
             "agent_phone": self.agent_phone,
             "status": self.status,
             "notes": self.notes,
+            "qualified": self.qualified,
+            "outreach_email_sent": self.outreach_email_sent_at is not None,
+            "outreach_phone_called": self.outreach_phone_called_at is not None,
+            "outreach_video_sent": self.outreach_video_sent_at is not None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
 
 
-class IngestionRun(db.Model):
-    """History of automatic/manual ingestion pipeline runs, for the admin
-    dashboard's ingestion panel (see routes/ingestion.py)."""
+class DailyGoal(db.Model):
+    """Single-row table (id is always 1) holding the user's daily outreach
+    targets shown in the Lead manager dashboard's sidebar checklist."""
 
-    __tablename__ = "ingestion_runs"
+    __tablename__ = "daily_goals"
 
     id = db.Column(db.Integer, primary_key=True)
-    started_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
-    finished_at = db.Column(db.DateTime, nullable=True)
-    results_json = db.Column(db.Text, nullable=False, default="{}")
-
-    @property
-    def results(self):
-        return json.loads(self.results_json or "{}")
-
-    @results.setter
-    def results(self, value):
-        self.results_json = json.dumps(value or {})
+    calls_target = db.Column(db.Integer, nullable=False, default=0)
+    emails_target = db.Column(db.Integer, nullable=False, default=0)
+    videos_target = db.Column(db.Integer, nullable=False, default=0)
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "started_at": self.started_at.isoformat(),
-            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
-            "results": self.results,
+            "calls_target": self.calls_target,
+            "emails_target": self.emails_target,
+            "videos_target": self.videos_target,
         }

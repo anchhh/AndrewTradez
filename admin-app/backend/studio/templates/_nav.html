@@ -1,0 +1,16 @@
+<nav class="topnav">
+  <a href="/studio/" class="topnav-brand">
+    <span class="logo-text logo-sm">estly<span class="logo-accent logo-accent-sm"></span></span>
+  </a>
+  <div class="topnav-links">
+    <a href="/studio/dashboard" class="topnav-link {{ 'active' if request.path == '/studio/dashboard' else '' }}">Dashboard</a>
+    <a href="/studio/leads" class="topnav-link {{ 'active' if request.path == '/studio/leads' else '' }}">Lead Manager</a>
+    <a href="/studio/create" class="topnav-link {{ 'active' if request.path == '/studio/create' else '' }}">Create Video</a>
+    {% if user %}
+      <span class="topnav-user">{{ user.email }}</span>
+      <form action="/studio/logout" method="post" class="topnav-logout-form">
+        <button type="submit" class="topnav-link topnav-logout">Log out</button>
+      </form>
+    {% endif %}
+  </div>
+</nav>

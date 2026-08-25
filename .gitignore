@@ -29,3 +29,13 @@ __pycache__/
 .venv/
 *.db
 
+# estly Studio (admin-app/backend/studio) -- this repo is public, so secrets
+# and user data never get committed regardless of what's in source control.
+admin-app/backend/studio/.secret_key
+admin-app/backend/studio/google_oauth.json
+admin-app/backend/studio/google_maps.json
+admin-app/backend/studio/cesium_ion.json
+admin-app/backend/studio/users.json
+admin-app/backend/studio/projects.json
+admin-app/backend/studio/static/uploads/
+

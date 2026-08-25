@@ -1,15 +1,13 @@
 """
-Ingestion pipeline: pulls listings from every registered feed (see
-services/feeds/) and upserts them into the Lead table, collapsing repeats
--- whether the exact same source re-reports a listing, or a *different*
-source reports the same physical property -- into a single row instead of
-creating duplicates. This is what "auto-pull new listings, no duplicates"
-actually resolves to once you plug in a real, licensed data source.
+Shared upsert logic for bringing a raw listing row -- from a manual add,
+CSV import, or the Chrome extension -- into the Lead table, collapsing
+repeats (the same property re-added, or reported under a different
+source) into a single row instead of creating duplicates.
 """
 from datetime import datetime, timezone
 
 from extensions import db
-from models import IngestionRun, Lead
+from models import Lead
 from services.dedup import compute_dedup_key
 
 
@@ -19,8 +17,8 @@ def _utcnow():
 
 def upsert_lead(row):
     """
-    Create or merge a single raw listing row (as produced by a feed's
-    fetch(), the CSV importer, or a manual add) into the Lead table.
+    Create or merge a single raw listing row (as produced by a manual add,
+    the CSV importer, or the Chrome extension) into the Lead table.
     Returns True if a new Lead was created, False if an existing one
     (matched by dedup_key) was updated instead.
     """
@@ -85,54 +83,3 @@ def upsert_lead(row):
     lead.external_ids = {source: external_id} if external_id else {}
     db.session.add(lead)
     return True
-
-
-def run_ingestion(feed_names=None):
-    """Fetch from every registered feed (or a subset via feed_names) and
-    upsert everything found. Persists a run record and returns its results
-    dict: {"feeds": {name: {...}}, "totals": {...}}."""
-    from services.feeds import FEEDS
-
-    started_at = _utcnow()
-    results = {
-        "feeds": {},
-        "totals": {"fetched": 0, "created": 0, "updated": 0, "errors": 0},
-    }
-
-    for name, feed in FEEDS.items():
-        if feed_names and name not in feed_names:
-            continue
-
-        feed_result = {"status": "ok", "fetched": 0, "created": 0, "updated": 0}
-        try:
-            rows = feed.fetch()
-        except NotImplementedError as exc:
-            feed_result["status"] = "not_configured"
-            feed_result["message"] = str(exc)
-            results["feeds"][name] = feed_result
-            continue
-        except Exception as exc:  # a feed's fetch() failing shouldn't kill the run
-            feed_result["status"] = "error"
-            feed_result["message"] = str(exc)
-            results["totals"]["errors"] += 1
-            results["feeds"][name] = feed_result
-            continue
-
-        feed_result["fetched"] = len(rows)
-        for row in rows:
-            created = upsert_lead(row)
-            feed_result["created" if created else "updated"] += 1
-
-        results["feeds"][name] = feed_result
-        results["totals"]["fetched"] += feed_result["fetched"]
-        results["totals"]["created"] += feed_result["created"]
-        results["totals"]["updated"] += feed_result["updated"]
-
-    db.session.commit()
-
-    run = IngestionRun(started_at=started_at, finished_at=_utcnow())
-    run.results = results
-    db.session.add(run)
-    db.session.commit()
-
-    return results

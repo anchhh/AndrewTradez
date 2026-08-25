@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23efe8dd'/%3E%3Ctext x='16' y='42' font-family='Arial' font-weight='800' font-size='30' fill='%2317130f'%3Ee%3C/text%3E%3Crect x='42' y='16' width='7' height='16' fill='%23ef5a2b' transform='skewX(-18)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+  <div class="splash">
+    <div class="splash-logo">
+      <div class="brand brand-xl">
+        <span class="logo-text">estly<span class="logo-accent"></span></span>
+        <span class="logo-sub">Studio</span>
+      </div>
+      <p class="splash-tagline">Real estate &amp; short-stay videography, generated.</p>
+    </div>
+    <a href="/studio/create" class="cta-btn">Create Video</a>
+    <a href="/studio/dashboard" class="splash-dashboard-link">Go to Dashboard</a>
+  </div>
+</body>
+</html>

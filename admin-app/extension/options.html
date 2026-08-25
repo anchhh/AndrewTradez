@@ -2,69 +2,120 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Estly Lead Clipper — Settings</title>
+<title>estly Studio — Lead Clipper Settings</title>
 <style>
+  :root {
+    --cream: #efe8dd;
+    --cream-soft: #f6f2ea;
+    --ink: #17130f;
+    --ink-soft: #4a453e;
+    --accent: #ef5a2b;
+    --line: #ddd3c2;
+  }
+  * { box-sizing: border-box; }
   body {
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: #0f1115;
-    color: #e7e9ee;
+    font-family: 'Poppins', 'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
     max-width: 420px;
     margin: 40px auto;
-    padding: 0 20px;
+    padding: 0 20px 20px;
   }
-  h1 { font-size: 1.1rem; }
-  p { color: #8c93a3; font-size: 0.85rem; }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .logo-text {
+    font-weight: 800;
+    font-size: 1.6rem;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    text-transform: lowercase;
+    display: inline-flex;
+    align-items: baseline;
+  }
+  .logo-accent {
+    display: inline-block;
+    width: 6px;
+    height: 14px;
+    background: var(--accent);
+    transform: skewX(-18deg);
+    margin-left: 3px;
+    border-radius: 1px;
+  }
+  h1 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+  }
+  p { color: var(--ink-soft); font-size: 0.85rem; }
+  code {
+    background: var(--cream-soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
   label {
     display: block;
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #8c93a3;
+    color: var(--ink-soft);
     margin-bottom: 6px;
+    font-weight: 600;
   }
   input {
     width: 100%;
     box-sizing: border-box;
-    background: #171a21;
-    border: 1px solid #262b36;
-    color: #e7e9ee;
+    background: #fff;
+    border: 1px solid var(--line);
+    color: var(--ink);
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 0.9rem;
+    font-family: inherit;
     margin-bottom: 12px;
   }
+  input:focus { outline: none; border-color: var(--accent); }
   button {
     font-family: inherit;
     font-size: 0.85rem;
-    font-weight: 600;
-    padding: 8px 16px;
-    border-radius: 6px;
-    border: 1px solid #4f8cff;
-    background: #4f8cff;
-    color: #fff;
+    font-weight: 700;
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    background: var(--ink);
+    color: var(--cream);
     cursor: pointer;
   }
-  #status { margin-left: 10px; font-size: 0.82rem; color: #35c98c; }
+  button:hover { background: var(--accent); }
+  #status { margin-left: 10px; font-size: 0.82rem; color: #2f7a4f; }
 </style>
 </head>
 <body>
-  <h1>Estly Lead Clipper — Settings</h1>
+  <div class="brand">
+    <span class="logo-text">estly<span class="logo-accent"></span></span>
+  </div>
+  <h1>Lead Clipper — Settings</h1>
   <p>
-    The base URL of your Estly admin-app backend. Defaults to the deployed
-    site; change this only if you're running the backend locally instead
-    (typically <code>http://localhost:5050</code>).
+    The base URL of your Estly admin-app backend. Defaults to your local
+    dev server; change this only if you want to save leads straight to the
+    deployed site instead (<code>https://estly-admin.onrender.com</code>).
   </p>
   <label for="api-base">Backend API URL</label>
-  <input id="api-base" type="text" placeholder="https://estly-admin.onrender.com">
+  <input id="api-base" type="text" placeholder="http://127.0.0.1:5051">
 
   <label for="dashboard-base">Lead Pipeline dashboard URL</label>
-  <input id="dashboard-base" type="text" placeholder="https://estly-admin.onrender.com">
+  <input id="dashboard-base" type="text" placeholder="http://127.0.0.1:5051/studio/dashboard">
 
   <p>
     The deployed site requires a login (BASIC_AUTH_USER/PASS) -- enter the
     same username/password here so the extension can save leads. Leave
-    blank only if you're pointed at a local backend with no auth
-    configured.
+    blank if you're pointed at a local backend with no auth configured
+    (the default).
   </p>
   <label for="auth-user">Backend username</label>
   <input id="auth-user" type="text" autocomplete="off">

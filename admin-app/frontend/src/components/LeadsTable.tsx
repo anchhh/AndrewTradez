@@ -75,6 +75,14 @@ export default function LeadsTable({ leads, onStatusChange, onEdit, onDelete }: 
                 </select>
               </td>
               <td>
+                <a
+                  className="link-btn"
+                  href={`/studio/create?lead_id=${lead.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Create Video
+                </a>
                 <button className="icon-btn" title="Delete" onClick={() => onDelete(lead)}>
                   ✕
                 </button>

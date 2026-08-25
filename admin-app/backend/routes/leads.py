@@ -141,27 +141,6 @@ def delete_lead(lead_id):
     return "", 204
 
 
-@bp.post("/import/sample")
-def import_sample():
-    data = request.get_json(force=True, silent=True) or {}
-    count = data.get("count", 10)
-    try:
-        count = max(1, min(int(count), 200))
-    except (TypeError, ValueError):
-        count = 10
-
-    rows = IMPORTER_REGISTRY["sample"].run(count=count)
-    created_count = 0
-    updated_count = 0
-    for row in rows:
-        if upsert_lead(row):
-            created_count += 1
-        else:
-            updated_count += 1
-    db.session.commit()
-    return jsonify({"created": created_count, "updated": updated_count}), 201
-
-
 @bp.post("/import/csv")
 def import_csv():
     if "file" not in request.files:

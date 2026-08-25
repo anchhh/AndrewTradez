@@ -1,10 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Estly Lead Clipper",
-  "version": "1.4.0",
+  "version": "2.9.2",
   "description": "Capture the listing you're viewing into your Estly lead pipeline from a persistent side panel. Auto-updates as you browse between listings.",
   "action": {
-    "default_title": "Estly Lead Clipper — click to capture this page"
+    "default_title": "Estly Lead Clipper — click to capture this page",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "background": {
     "service_worker": "background.js"
@@ -12,18 +24,17 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "content_scripts": [
-    {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["watcher.js"],
-      "run_at": "document_idle"
-    }
-  ],
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "host_permissions": [
     "https://estly-admin.onrender.com/*",
     "http://localhost:5050/*",
-    "http://127.0.0.1:5050/*"
+    "http://127.0.0.1:5050/*",
+    "http://localhost:5051/*",
+    "http://127.0.0.1:5051/*",
+    "*://*.zillow.com/*",
+    "*://*.realtor.com/*",
+    "*://*.redfin.com/*",
+    "*://*.homes.com/*"
   ],
   "options_page": "options.html"
 }
