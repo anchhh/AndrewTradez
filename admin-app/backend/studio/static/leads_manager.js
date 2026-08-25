@@ -4,6 +4,8 @@
    fetched, so changing a filter is instant and never re-requests. */
 
 let allLeads = [];
+let shownLeads = [];
+let bulkRefresh = null;
 
 const filters = {
   qualified: "all",
@@ -75,6 +77,8 @@ function render() {
   const count = document.getElementById("lm-count");
 
   const shown = visibleLeads();
+  shownLeads = shown;
+  pruneSelection(shown);
 
   list.innerHTML = "";
   shown.forEach((lead) => {
@@ -90,10 +94,13 @@ function render() {
             else updateCount(shown.length);
           },
           onDeleted: loadLeads,
+          onSelectionChange: () => bulkRefresh && bulkRefresh(),
         }
       )
     );
   });
+
+  if (bulkRefresh) bulkRefresh();
 
   updateCount(shown.length);
   empty.classList.toggle("hidden", shown.length !== 0);
@@ -152,4 +159,10 @@ async function loadLeads() {
 }
 
 wireFilters();
+
+bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
+  getVisibleLeads: () => shownLeads,
+  reload: () => loadLeads(),
+});
+
 loadLeads();

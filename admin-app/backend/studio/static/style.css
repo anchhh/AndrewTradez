@@ -1451,8 +1451,9 @@ gmp-map-3d {
 .lp-notes-state {
   font-size: 0.74rem;
   color: var(--ink-soft);
-  min-height: 1.1em;
 }
+
+.lp-notes-state:empty { display: none; }
 
 /* ============================================================
    Lead Manager filters
@@ -1524,6 +1525,7 @@ gmp-map-3d {
    ============================================================ */
 
 .lm-notes-input {
+  display: block;
   width: 100%;
   resize: vertical;
   min-height: 44px;
@@ -1544,8 +1546,13 @@ gmp-map-3d {
 .lm-notes-state {
   font-size: 0.72rem;
   color: var(--ink-soft);
-  min-height: 1em;
   margin-top: 4px;
+}
+
+/* Reserved a blank line under every notes box even with nothing to say.
+   Collapse it when empty; it only appears while saving. */
+.lm-notes-state:empty {
+  display: none;
 }
 
 /* ============================================================
@@ -1670,7 +1677,7 @@ gmp-map-3d {
 .lead-card-actions .icon-btn { align-self: flex-end; }
 
 .lead-card-notes {
-  padding: 10px 16px 12px;
+  padding: 10px 16px;
   border-top: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.035);
 }
@@ -1699,3 +1706,94 @@ gmp-map-3d {
     grid-template-areas: "media" "info" "checklist" "actions";
   }
 }
+
+/* ============================================================
+   Bulk selection
+   ============================================================ */
+
+.lead-card-select {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.lead-select-box,
+.bulk-all-box {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+
+.lead-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* Present but quiet until something is ticked, so "Select all" is always
+   reachable without the toolbar shouting. */
+.bulk-bar:not(.has-selection) .bulk-actions { opacity: 0.45; }
+
+.bulk-bar.has-selection {
+  border-color: var(--accent);
+  background: #fbf1ec;
+}
+
+.bulk-all {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.bulk-count {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.bulk-status {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.bulk-actions button:disabled,
+.bulk-status:disabled { cursor: not-allowed; }
+
+.bulk-delete:not(:disabled) {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.bulk-state {
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+
+.bulk-state:empty { display: none; }

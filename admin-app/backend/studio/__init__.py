@@ -1286,6 +1286,60 @@ def api_lead_photos(lead_id):
     })
 
 
+@studio_bp.route("/api/leads/bulk", methods=["POST"])
+@login_required
+def api_bulk_leads():
+    """Apply one action to a set of leads in a single request, so selecting
+    twenty leads and deleting them isn't twenty round trips.
+
+    {"ids": [1,2,3], "action": "delete" | "status" | "qualify",
+     "value": <status string> | <bool>}
+
+    Unknown ids are ignored rather than failing the whole batch -- a stale
+    tab can easily hold an id someone else already deleted. The response
+    reports how many rows were actually touched.
+    """
+    try:
+        from extensions import db
+        from models import VALID_STATUSES, Lead
+    except ImportError:
+        return jsonify({"error": "Lead pipeline isn't available."}), 501
+
+    data = request.get_json(force=True, silent=True) or {}
+    ids = data.get("ids")
+    action = data.get("action")
+
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "No leads selected."}), 400
+    try:
+        ids = [int(i) for i in ids]
+    except (TypeError, ValueError):
+        return jsonify({"error": "Lead ids must be numbers."}), 400
+
+    leads = Lead.query.filter(Lead.id.in_(ids)).all()
+    if not leads:
+        return jsonify({"affected": 0, "missing": len(ids)})
+
+    if action == "delete":
+        for lead in leads:
+            db.session.delete(lead)
+    elif action == "status":
+        value = data.get("value")
+        if value not in VALID_STATUSES:
+            return jsonify({"error": f"status must be one of {VALID_STATUSES}"}), 400
+        for lead in leads:
+            lead.status = value
+    elif action == "qualify":
+        value = bool(data.get("value"))
+        for lead in leads:
+            lead.qualified = value
+    else:
+        return jsonify({"error": "action must be delete, status or qualify."}), 400
+
+    db.session.commit()
+    return jsonify({"affected": len(leads), "missing": len(ids) - len(leads), "action": action})
+
+
 @studio_bp.route("/api/leads/<int:lead_id>", methods=["DELETE"])
 @login_required
 def api_delete_lead(lead_id):

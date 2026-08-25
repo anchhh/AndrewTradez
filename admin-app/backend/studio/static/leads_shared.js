@@ -206,6 +206,9 @@ function leadCardHtml(lead, opts = {}) {
   return `
     <article class="lead-card ${meta.className}">
       <header class="lead-card-head">
+        <label class="lead-card-select" title="Select this lead">
+          <input type="checkbox" class="lead-select-box" ${selectedLeadIds.has(lead.id) ? "checked" : ""}>
+        </label>
         <span class="lead-card-status">${meta.icon} ${meta.label.toUpperCase()}</span>
         ${sourceBadgeHtml(lead.source)}
       </header>
@@ -239,6 +242,17 @@ function wireLeadCard(card, lead, handlers = {}) {
   const changed = () => handlers.onChanged && handlers.onChanged(lead);
 
   makeRowOpenProfile(card.querySelector(".lead-card-body"), lead.id);
+
+  const box = card.querySelector(".lead-select-box");
+  if (box) {
+    card.classList.toggle("is-selected", selectedLeadIds.has(lead.id));
+    box.addEventListener("change", () => {
+      if (box.checked) selectedLeadIds.add(lead.id);
+      else selectedLeadIds.delete(lead.id);
+      card.classList.toggle("is-selected", box.checked);
+      if (handlers.onSelectionChange) handlers.onSelectionChange();
+    });
+  }
 
   card.querySelectorAll(".lm-check-toggle").forEach((el) => {
     el.addEventListener("click", async () => {
@@ -300,4 +314,123 @@ function buildLeadCard(lead, opts = {}, handlers = {}) {
   const card = host.firstElementChild;
   wireLeadCard(card, lead, handlers);
   return card;
+}
+
+
+/* ---------------------------------------------------------------
+   Bulk selection
+
+   selectedLeadIds is module state so a re-render (a filter change, a
+   status edit) can restore the ticks it just threw away. It is pruned to
+   the leads actually on screen on every render -- selecting a lead, then
+   filtering it out of view, then hitting Delete should not delete
+   something the user can no longer see.
+   --------------------------------------------------------------- */
+
+const selectedLeadIds = new Set();
+
+function pruneSelection(visibleLeads) {
+  const visible = new Set(visibleLeads.map((l) => l.id));
+  [...selectedLeadIds].forEach((id) => {
+    if (!visible.has(id)) selectedLeadIds.delete(id);
+  });
+}
+
+async function bulkAction(action, value) {
+  return fetchJSON("/studio/api/leads/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: [...selectedLeadIds], action, value }),
+  });
+}
+
+/* Renders the bulk toolbar into `host` and returns a refresh() to call
+   whenever the selection or the visible list changes. `reload` re-fetches
+   the page's data after an action lands. */
+function initBulkBar(host, { getVisibleLeads, reload }) {
+  host.innerHTML = `
+    <div class="bulk-bar hidden">
+      <label class="bulk-all">
+        <input type="checkbox" class="bulk-all-box">
+        <span class="bulk-all-label">Select all</span>
+      </label>
+      <span class="bulk-count"></span>
+      <div class="bulk-actions">
+        <select class="bulk-status" aria-label="Move selected to status">
+          <option value="">Move to…</option>
+          ${LEAD_STATUSES.map((s) => `<option value="${s}">${s}</option>`).join("")}
+        </select>
+        <button type="button" class="btn-secondary btn-tiny bulk-qualify">Mark qualified</button>
+        <button type="button" class="btn-secondary btn-tiny bulk-unqualify">Unqualify</button>
+        <button type="button" class="btn-secondary btn-tiny bulk-delete">Delete</button>
+        <button type="button" class="btn-secondary btn-tiny bulk-clear">Clear</button>
+      </div>
+      <span class="bulk-state"></span>
+    </div>`;
+
+  const bar = host.querySelector(".bulk-bar");
+  const allBox = host.querySelector(".bulk-all-box");
+  const count = host.querySelector(".bulk-count");
+  const state = host.querySelector(".bulk-state");
+  const statusSelect = host.querySelector(".bulk-status");
+
+  const refresh = () => {
+    const visible = getVisibleLeads();
+    const n = selectedLeadIds.size;
+    bar.classList.toggle("has-selection", n > 0);
+    bar.classList.toggle("hidden", visible.length === 0);
+    count.textContent = n ? `${n} selected` : "";
+    allBox.checked = n > 0 && n === visible.length;
+    allBox.indeterminate = n > 0 && n < visible.length;
+    host.querySelectorAll(".bulk-actions button, .bulk-status").forEach((el) => {
+      el.disabled = n === 0;
+    });
+  };
+
+  const run = async (label, fn) => {
+    state.textContent = label;
+    try {
+      const res = await fn();
+      state.textContent = res && res.error ? res.error : "";
+      selectedLeadIds.clear();
+      await reload();
+    } catch (err) {
+      state.textContent = "That didn't go through — nothing was changed.";
+    }
+  };
+
+  allBox.addEventListener("change", () => {
+    const visible = getVisibleLeads();
+    selectedLeadIds.clear();
+    if (allBox.checked) visible.forEach((l) => selectedLeadIds.add(l.id));
+    reload({ keepSelection: true });
+  });
+
+  statusSelect.addEventListener("change", async () => {
+    const value = statusSelect.value;
+    if (!value) return;
+    statusSelect.value = "";
+    await run(`Moving ${selectedLeadIds.size}…`, () => bulkAction("status", value));
+  });
+
+  host.querySelector(".bulk-qualify").addEventListener("click", () =>
+    run(`Qualifying ${selectedLeadIds.size}…`, () => bulkAction("qualify", true))
+  );
+  host.querySelector(".bulk-unqualify").addEventListener("click", () =>
+    run(`Unqualifying ${selectedLeadIds.size}…`, () => bulkAction("qualify", false))
+  );
+
+  host.querySelector(".bulk-delete").addEventListener("click", async () => {
+    const n = selectedLeadIds.size;
+    if (!n) return;
+    if (!confirm(`Delete ${n} lead${n === 1 ? "" : "s"}? This can't be undone.`)) return;
+    await run(`Deleting ${n}…`, () => bulkAction("delete"));
+  });
+
+  host.querySelector(".bulk-clear").addEventListener("click", () => {
+    selectedLeadIds.clear();
+    reload({ keepSelection: true });
+  });
+
+  return refresh;
 }

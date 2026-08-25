@@ -2,6 +2,9 @@
    priority (hot first). The card itself lives in leads_shared.js so this
    page and the Lead Manager present a lead identically. */
 
+let bulkRefresh = null;
+let dashboardLeads = [];
+
 function setStatus(message, cls) {
   const el = document.getElementById("leads-status");
   el.textContent = message || "";
@@ -48,15 +51,24 @@ async function loadDashboard() {
     (a, b) => GROUP_ORDER.indexOf(groupKeyFor(a)) - GROUP_ORDER.indexOf(groupKeyFor(b))
   );
 
+  dashboardLeads = sorted;
+  pruneSelection(sorted);
+
   sorted.forEach((lead) => {
     container.appendChild(
       buildLeadCard(
         lead,
         { showNotes: true, project: projectByLeadId.get(lead.id) || null },
-        { onChanged: loadDailyChecklist, onDeleted: loadDashboard }
+        {
+          onChanged: loadDailyChecklist,
+          onDeleted: loadDashboard,
+          onSelectionChange: () => bulkRefresh && bulkRefresh(),
+        }
       )
     );
   });
+
+  if (bulkRefresh) bulkRefresh();
 }
 
 async function loadDailyChecklist() {
@@ -103,6 +115,11 @@ async function loadDailyChecklist() {
     });
   });
 }
+
+bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
+  getVisibleLeads: () => dashboardLeads,
+  reload: () => loadDashboard(),
+});
 
 loadDashboard();
 loadDailyChecklist();
