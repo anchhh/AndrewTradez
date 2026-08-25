@@ -26,6 +26,15 @@ body {
   padding: 40px 24px 80px;
 }
 
+/* Data-table pages (Lead Manager) need the full window: the six-column
+   table doesn't fit in the 880px reading measure above and was forcing a
+   horizontal scrollbar, hiding the Qualify/Create Video actions entirely. */
+.wrap.wrap-wide {
+  max-width: 1500px;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
 header {
   display: flex;
   flex-direction: column;
@@ -702,7 +711,17 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   padding: 4px;
 }
 
-.lm-info-cell { min-width: 220px; }
+.lm-info-cell { min-width: 220px; width: 100%; }
+
+.lm-table th:nth-child(3),
+.lm-table td:nth-child(3) { width: 1%; }
+
+.lm-table th:nth-child(4),
+.lm-table td:nth-child(4),
+.lm-checklist-cell { width: 1%; white-space: nowrap; }
+
+.lm-table th:nth-child(6),
+.lm-table td:nth-child(6) { width: 1%; }
 
 .lm-address {
   font-weight: 700;
@@ -732,13 +751,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--accent);
   text-decoration: none;
   margin-top: 4px;
-  max-width: 360px;
+  max-width: 340px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .lm-listing-url:hover { text-decoration: underline; }
+
+/* The URL is the only thing in the Lead column wide enough to dictate the
+   table's minimum width, and it's ellipsised anyway -- tighten the cap on
+   smaller windows so the whole table keeps fitting without a scrollbar. */
+@media (max-width: 1250px) {
+  .lm-listing-url { max-width: 240px; }
+}
 
 .lm-status-row { margin-top: 8px; }
 
