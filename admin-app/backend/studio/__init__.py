@@ -898,6 +898,12 @@ def dashboard():
     return render_template("dashboard.html")
 
 
+@studio_bp.route("/leads/<int:lead_id>")
+@login_required
+def lead_profile(lead_id):
+    return render_template("lead_profile.html", lead_id=lead_id)
+
+
 @studio_bp.route("/leads")
 @login_required
 def leads_manager():
@@ -961,20 +967,13 @@ def api_upload():
     return jsonify({"photos": saved, "duplicates": duplicates})
 
 
-@studio_bp.route("/api/import-images", methods=["POST"])
-@login_required
-def api_import_images():
-    """Download a user-picked set of image URLs (found via /api/extract, or
-    handed over from a Lead's photo_urls) and save local copies, exactly
-    like a manual upload. We fetch each URL with a plain GET the same way a
-    browser loading that <img> tag would -- no bot-detection bypass, just
-    retrieving images the page already serves publicly."""
-    data = request.get_json(force=True, silent=True) or {}
-    urls = data.get("images") or []
-    if not isinstance(urls, list) or not urls:
-        return jsonify({"error": "No image URLs provided."}), 400
-
-    known_hashes = hash_existing_photos(data.get("existing_photos") or [])
+def download_image_urls(urls, existing_photos=None):
+    """Download image URLs and save local copies, exactly like a manual
+    upload. We fetch each URL with a plain GET the same way a browser
+    loading that <img> tag would -- no bot-detection bypass, just retrieving
+    images the page already serves publicly. Shared by /api/import-images
+    (user-picked, from Create Video) and the lead profile's automatic pull."""
+    known_hashes = hash_existing_photos(existing_photos or [])
 
     saved = []
     failed = []
@@ -1008,7 +1007,17 @@ def api_import_images():
         except requests.RequestException:
             failed.append(img_url)
 
-    return jsonify({"photos": saved, "failed": failed, "duplicates": duplicates})
+    return {"photos": saved, "failed": failed, "duplicates": duplicates}
+
+
+@studio_bp.route("/api/import-images", methods=["POST"])
+@login_required
+def api_import_images():
+    data = request.get_json(force=True, silent=True) or {}
+    urls = data.get("images") or []
+    if not isinstance(urls, list) or not urls:
+        return jsonify({"error": "No image URLs provided."}), 400
+    return jsonify(download_image_urls(urls, data.get("existing_photos") or []))
 
 
 @studio_bp.route("/api/satellite", methods=["POST"])
@@ -1178,13 +1187,103 @@ def api_update_lead_status(lead_id):
         return jsonify({"error": "Lead not found."}), 404
 
     data = request.get_json(force=True, silent=True) or {}
-    status = data.get("status")
-    if status not in VALID_STATUSES:
-        return jsonify({"error": f"status must be one of {VALID_STATUSES}"}), 400
+    if "status" not in data and "notes" not in data:
+        return jsonify({"error": "Nothing to update: send status and/or notes."}), 400
 
-    lead.status = status
+    if "status" in data:
+        if data["status"] not in VALID_STATUSES:
+            return jsonify({"error": f"status must be one of {VALID_STATUSES}"}), 400
+        lead.status = data["status"]
+
+    if "notes" in data:
+        notes = data["notes"]
+        # Empty string clears the note rather than storing a blank line.
+        lead.notes = (notes or "").strip() or None
+
     db.session.commit()
     return jsonify(lead.to_dict())
+
+
+@studio_bp.route("/api/leads/<int:lead_id>", methods=["GET"])
+@login_required
+def api_get_lead(lead_id):
+    try:
+        from extensions import db
+        from models import Lead
+    except ImportError:
+        return jsonify({"error": "Lead pipeline isn't available."}), 501
+
+    lead = db.session.get(Lead, lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+    return jsonify(lead.to_dict())
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/photos", methods=["POST"])
+@login_required
+def api_lead_photos(lead_id):
+    """Pull the listing's photos into the lead the same way Create Video
+    pulls them from a pasted URL, so a lead profile already has its images
+    without the user going and fetching them.
+
+    Cached: once a lead has photos we return them untouched, because this
+    fires automatically on every profile open. Pass {"force": true} to
+    re-pull (the profile's "Re-fetch photos" button), which starts from an
+    empty set so removed listing photos actually disappear.
+    """
+    try:
+        from extensions import db
+        from models import Lead
+    except ImportError:
+        return jsonify({"error": "Lead pipeline isn't available."}), 501
+
+    lead = db.session.get(Lead, lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    force = bool((request.get_json(force=True, silent=True) or {}).get("force"))
+
+    existing = lead.photo_urls
+    if existing and not force:
+        return jsonify({"photos": existing, "cached": True})
+
+    if not lead.listing_url:
+        return jsonify({"photos": existing, "error": "This lead has no listing URL to pull photos from."})
+
+    meta = extract_meta(lead.listing_url)
+    candidates = list(meta.get("images") or [])
+    hero = meta.get("image")
+    if hero and hero not in candidates:
+        candidates.insert(0, hero)
+
+    if not candidates:
+        return jsonify({
+            "photos": existing,
+            "blocked": bool(meta.get("blocked")),
+            "error": meta.get("error") or "No photos found on that listing page.",
+        })
+
+    keep = [] if force else existing
+    result = download_image_urls(candidates, keep)
+    photos = keep + result["photos"]
+
+    # Only fill facts the lead is actually missing -- whatever the extension
+    # parsed off the real page beats anything scraped from preview metadata.
+    for field in ("beds", "baths", "sqft", "property_type"):
+        if getattr(lead, field, None) is None and meta.get(field) is not None:
+            setattr(lead, field, meta[field])
+
+    lead.photo_urls = photos
+    db.session.commit()
+
+    return jsonify({
+        "photos": photos,
+        "added": len(result["photos"]),
+        "failed": len(result["failed"]),
+        "duplicates": result["duplicates"],
+        "blocked": bool(meta.get("blocked")),
+        "error": meta.get("error") if not result["photos"] else None,
+    })
 
 
 @studio_bp.route("/api/leads/<int:lead_id>", methods=["DELETE"])

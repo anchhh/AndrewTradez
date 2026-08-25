@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio — Lead</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23efe8dd'/%3E%3Ctext x='16' y='42' font-family='Arial' font-weight='800' font-size='30' fill='%2317130f'%3Ee%3C/text%3E%3Crect x='42' y='16' width='7' height='16' fill='%23ef5a2b' transform='skewX(-18)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+
+  <div class="lp-breadcrumb">
+    <a href="/studio/leads">&larr; Lead Manager</a>
+  </div>
+
+  <div id="lead-status" class="status"></div>
+
+  <div id="lp-body" class="lp-layout hidden">
+
+    <section class="lp-pictures">
+      <div class="lp-panel-head">
+        <h2>Pictures</h2>
+        <button type="button" id="lp-refetch" class="btn-secondary btn-tiny">Re-fetch</button>
+      </div>
+      <div id="lp-photo-status" class="lp-photo-status"></div>
+      <div id="lp-hero" class="lp-hero"></div>
+      <div id="lp-thumbs" class="lp-thumbs"></div>
+    </section>
+
+    <section class="lp-main">
+      <h1 id="lp-address" class="lp-address"></h1>
+      <div id="lp-contact" class="lp-contact"></div>
+      <div id="lp-facts" class="lp-facts"></div>
+      <a id="lp-url" class="lp-url" target="_blank" rel="noopener noreferrer"></a>
+
+      <div class="lp-meta-row">
+        <label class="lp-field">
+          <span class="lp-field-label">Status</span>
+          <select id="lp-status-select" class="lead-status-select"></select>
+        </label>
+        <button type="button" id="lp-qualify" class="btn-secondary btn-tiny lm-qualify-btn"></button>
+        <span id="lp-source"></span>
+      </div>
+
+      <div id="lp-video" class="lp-video"></div>
+    </section>
+
+    <aside class="lp-side">
+      <div class="lp-panel">
+        <div id="lp-checklist" class="lp-checklist"></div>
+      </div>
+      <div class="lp-panel lp-notes-panel">
+        <h2>Notes</h2>
+        <textarea id="lp-notes" class="lp-notes" placeholder="Anything worth remembering about this lead…"></textarea>
+        <div id="lp-notes-state" class="lp-notes-state"></div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+<script>window.LEAD_ID = {{ lead_id }};</script>
+<script src="{{ url_for('studio.static', filename='lead_profile.js') }}"></script>
+</body>
+</html>
