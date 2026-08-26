@@ -49,7 +49,7 @@ def create_app():
         # Snapshot on every boot, so there is always a recent copy of the
         # lead database to fall back on. See services/backup.py.
         from services.backup import snapshot
-        snapshot(app, "startup")
+        snapshot(app, "startup", skip_if_unchanged=True)
 
     return app
 

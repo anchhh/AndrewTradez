@@ -38,16 +38,31 @@ def backup_dir(app):
     return Path(os.path.dirname(os.path.abspath(app.root_path))) / "backend" / BACKUP_DIR_NAME
 
 
-def snapshot(app, reason="manual"):
+def snapshot(app, reason="manual", skip_if_unchanged=False):
     """Copy the database aside, labelled with why. Returns the new path, or
     None when there's nothing to snapshot. Never raises: a failed backup must
-    not take down the request that triggered it."""
+    not take down the request that triggered it.
+
+    skip_if_unchanged exists for the startup snapshot. The dev server's
+    reloader restarts on every file edit, so a working session would
+    otherwise fill all KEEP slots with identical copies within minutes and
+    prune away genuinely older ones. If the database hasn't been written
+    since the newest snapshot, there is nothing new to save.
+    """
     try:
         source = _sqlite_path(app)
         if source is None:
             return None
 
         target_dir = source.parent / BACKUP_DIR_NAME
+
+        if skip_if_unchanged and target_dir.is_dir():
+            newest = max(
+                (p.stat().st_mtime for p in target_dir.glob("leads-*.db")),
+                default=None,
+            )
+            if newest is not None and source.stat().st_mtime <= newest:
+                return None
         target_dir.mkdir(parents=True, exist_ok=True)
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
