@@ -119,10 +119,33 @@ async function advanceCarousel(matchText) {
       el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || "";
     return ((el.getAttribute("aria-label") || "") + " " + cls + " " + (el.title || "")).toLowerCase();
   };
-  const candidates = Array.prototype.slice
+  const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+
+  // The control is not necessarily a button. On homes.com it is an <i> with
+  // class "res-icon chevron-right-bold-icon" and aria-hidden="true" -- no
+  // role, no label, invisible to assistive tech and to a search for buttons.
+  // So match on the icon vocabulary sites actually use, whatever the tag,
+  // as well as anything button-like that reads as "next".
+  const byClass = Array.prototype.slice.call(
+    document.querySelectorAll(
+      '[class*="chevron-right" i], [class*="chevronright" i], [class*="arrow-right" i],' +
+        '[class*="arrowright" i], [class*="next" i], [class*="forward" i]'
+    )
+  );
+  const byRole = Array.prototype.slice
     .call(document.querySelectorAll('button, [role="button"], a'))
-    .filter((el) => /next|forward|right|arrow/.test(labelOf(el)))
-    .slice(0, 6);
+    .filter((el) => /next|forward|right|arrow/.test(labelOf(el)));
+
+  // A click on the icon bubbles to whichever ancestor carries the handler,
+  // which is how a real click works too -- but prefer the ancestor when there
+  // is an obvious one, since some carousels bind to the button element.
+  const candidates = [];
+  byClass.concat(byRole).forEach((el) => {
+    if (!visible(el)) return;
+    const target = el.closest('button, [role="button"], a') || el;
+    if (candidates.indexOf(target) === -1) candidates.push(target);
+  });
+  candidates.length = Math.min(candidates.length, 8);
 
   for (const control of candidates) {
     let idle = 0;
