@@ -94,14 +94,13 @@ async function readListingSource() {
     /* handled below */
   }
 
-  // Degraded mode. If the re-fetch failed we must NOT fall back to
-  // document.documentElement: on a single-page app it holds photos from every
-  // listing visited in this tab, and on Zillow those are indistinguishable
-  // from the current one's. Measured on two real pages concatenated, that
-  // leaks 25 of another listing's photos. The rendered <img> tags belong to
-  // the listing actually on screen, so they're fewer but never wrong.
+  // The rendered <img> tags, always collected. They belong to the listing
+  // actually on screen, so they are safe to use where the fetched source
+  // falls short -- but never as a substitute for it on a single-page app,
+  // where document.documentElement also holds every listing visited earlier
+  // in this tab. See how `material` is chosen in capturePhotos().
   let domUrls = [];
-  if (!html) {
+  {
     const seen = new Set();
     document.querySelectorAll("img, source").forEach((el) => {
       [el.currentSrc, el.getAttribute("src"), el.getAttribute("data-src")].forEach((u) => {
@@ -194,7 +193,21 @@ async function capturePhotos(onProgress) {
     // Per-site rules live in extractors.js so changing one site can't affect
     // another. In degraded mode the rendered image URLs stand in for the page
     // source, so the same per-site filter still applies to them.
-    const material = page.fresh ? page.html : page.domUrls.join("\n");
+    // homes.com withholds most of its gallery from the HTML: measured on a
+    // 30-photo listing the served page carried 6 of them while the rendered
+    // page carried 11. Merging both gets what is actually reachable. Safe
+    // here specifically because the homes rule filters on the address slug
+    // from the current URL, so an image left over from another listing
+    // cannot survive it -- untrue of Zillow, whose live DOM holds
+    // indistinguishable photos from every listing visited in the tab.
+    const host = (() => { try { return new URL(page.href).host; } catch (e) { return ""; } })();
+    const mergeDom = host.indexOf("homes.com") !== -1;
+
+    const material = page.fresh
+      ? mergeDom
+        ? page.html + "\n" + page.domUrls.join("\n")
+        : page.html
+      : page.domUrls.join("\n");
     if (!material) return [];
     const { source, photos } = pickListingPhotos(material, page.href, page.og, 60);
     console.log(
