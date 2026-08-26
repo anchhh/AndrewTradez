@@ -204,11 +204,25 @@ async function capturePhotos(onProgress) {
     if (!photos.length) return [];
 
     if (onProgress) onProgress(photos.length);
-    const [{ result: results }] = await chrome.scripting.executeScript({
+
+    // homes.com serves its photos from images.homes.com with no
+    // Access-Control-Allow-Origin, so a read from the page is refused every
+    // time -- confirmed in a real console: "net::ERR_FAILED 200 (OK)", the CDN
+    // answered and the browser blocked it. Going straight to the extension
+    // skips thirty guaranteed failures and thirty console errors. Zillow and
+    // Redfin allow the page read, so they keep it.
+    if (source === "homes") {
+      const direct = await fetchFromExtension(photos);
+      console.log(`[Estly] homes: read ${direct.length} of ${photos.length} images from the extension`);
+      return direct;
+    }
+
+    const scripted = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: fetchImagesAsDataUrls,
       args: [photos],
     });
+    const results = scripted && scripted[0] ? scripted[0].result : null;
 
     const collected = (results || []).filter((r) => r && r.data).map((r) => r.data);
     const blocked = (results || []).filter((r) => r && !r.data).map((r) => r.url);
