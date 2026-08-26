@@ -82,6 +82,67 @@ function readForm() {
  *
  * Must be fully self-contained: it's serialised and injected on demand.
  */
+/**
+ * Advances a listing's photo carousel so its images actually load.
+ *
+ * homes.com keeps most of a gallery out of both the served HTML and the DOM:
+ * a 30-photo listing had 6 in its source and 11 rendered. The photos are in a
+ * carousel on the page, and they load as ordinary <img> tags once you page
+ * through it -- but the carousel is JavaScript-driven, not natively
+ * scrollable, so setting scrollLeft only breaks its rendering (measured: 10
+ * photos before, 10 after, and the strip went blank). Clicking its next
+ * control is what actually advances it.
+ *
+ * The control is found by role rather than by a brittle site-specific
+ * selector: anything button-like whose label, class or title reads as
+ * "next"/"forward"/"right". Whichever candidate actually yields new photos is
+ * the real one. Runs only for homes.com; Zillow and Redfin give up their
+ * galleries in the page source and never need this.
+ *
+ * Injected, so it must be fully self-contained.
+ */
+async function advanceCarousel(matchText) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const found = new Set();
+  const collect = () => {
+    document.querySelectorAll("img").forEach((img) => {
+      const src = img.currentSrc || img.src;
+      if (src && src.indexOf("data:") !== 0 && src.toLowerCase().indexOf(matchText) !== -1) {
+        found.add(src);
+      }
+    });
+  };
+  collect();
+
+  const labelOf = (el) => {
+    const cls =
+      el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || "";
+    return ((el.getAttribute("aria-label") || "") + " " + cls + " " + (el.title || "")).toLowerCase();
+  };
+  const candidates = Array.prototype.slice
+    .call(document.querySelectorAll('button, [role="button"], a'))
+    .filter((el) => /next|forward|right|arrow/.test(labelOf(el)))
+    .slice(0, 6);
+
+  for (const control of candidates) {
+    let idle = 0;
+    for (let i = 0; i < 40 && idle < 4; i++) {
+      const before = found.size;
+      try {
+        control.click();
+      } catch (e) {
+        break;
+      }
+      await sleep(150);
+      collect();
+      // Stop early once clicking stops producing anything new: either the
+      // carousel has wrapped around or this control was the wrong one.
+      idle = found.size > before ? 0 : idle + 1;
+    }
+  }
+  return Array.from(found);
+}
+
 async function readListingSource() {
   const ogTag = document.querySelector('meta[property="og:image"]');
   const og = ogTag ? ogTag.getAttribute("content") : null;
@@ -184,6 +245,24 @@ async function capturePhotos(onProgress) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return [];
 
+    // homes.com hides most of its gallery until the carousel is paged
+    // through, so advance it first -- as a separate injection, because an
+    // injected function is serialised on its own and cannot call another.
+    let carouselUrls = [];
+    const tabUrl = tab.url || "";
+    if (/homes\.com/i.test(tabUrl)) {
+      const slugMatch = tabUrl.match(/\/property\/([^/?#]+)/i);
+      if (slugMatch) {
+        const paged = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: advanceCarousel,
+          args: [slugMatch[1].toLowerCase()],
+        });
+        carouselUrls = (paged && paged[0] && paged[0].result) || [];
+        console.log(`[Estly] homes: carousel yielded ${carouselUrls.length} photos`);
+      }
+    }
+
     const [{ result: page }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: readListingSource,
@@ -205,9 +284,9 @@ async function capturePhotos(onProgress) {
 
     const material = page.fresh
       ? mergeDom
-        ? page.html + "\n" + page.domUrls.join("\n")
+        ? page.html + "\n" + page.domUrls.concat(carouselUrls).join("\n")
         : page.html
-      : page.domUrls.join("\n");
+      : page.domUrls.concat(carouselUrls).join("\n");
     if (!material) return [];
     const { source, photos } = pickListingPhotos(material, page.href, page.og, 60);
     console.log(
