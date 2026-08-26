@@ -385,9 +385,16 @@ $("form").addEventListener("submit", async (e) => {
 
   $("btn-save").disabled = true;
   setStatus("Reading photos from the listing…");
-  const photosBase64 = await capturePhotos((n) => setStatus(`Downloading ${n} photos…`));
+  // `found` is what the site's gallery holds; photosBase64 is what we managed
+  // to read. Reporting both in the panel means diagnosing a bad capture never
+  // requires opening DevTools on the side panel.
+  let found = 0;
+  const photosBase64 = await capturePhotos((n) => {
+    found = n;
+    setStatus(`Downloading ${n} photos…`);
+  });
   if (photosBase64.length) payload.photos_base64 = photosBase64;
-  setStatus(photosBase64.length ? `Saving with ${photosBase64.length} photos…` : "Saving…");
+  setStatus(found ? `Saving ${photosBase64.length} of ${found} photos…` : "Saving…");
 
   try {
     const apiBase = await getApiBase();
@@ -401,7 +408,15 @@ $("form").addEventListener("submit", async (e) => {
     }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Save failed (${res.status})`);
-    setStatus((body._merged ? "Merged into existing lead." : "Saved.") + " Click Open Pipeline to view it.", "ok");
+    const photoNote = found
+      ? ` ${photosBase64.length} of ${found} photos.`
+      : " No photos found on this page.";
+    setStatus(
+      (body._merged ? "Merged into existing lead." : "Saved.") +
+        photoNote +
+        " Click Open Pipeline to view it.",
+      photosBase64.length === found ? "ok" : "warn"
+    );
   } catch (err) {
     setStatus(err.message, "error");
     checkBackend();
