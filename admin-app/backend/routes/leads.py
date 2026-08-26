@@ -12,14 +12,23 @@ bp = Blueprint("leads", __name__, url_prefix="/api/leads")
 
 
 def _owner_from_api_key():
-    """The Chrome extension posts here with a single shared Basic Auth
-    credential, which identifies the deployment but not the person. The
-    X-Estly-Key header carries a per-account key so a captured lead can be
-    attributed to whoever clipped it. Imported lazily to keep this blueprint
-    independent of the studio package at import time."""
-    from studio import user_id_for_api_key
+    """Which account a captured lead belongs to.
 
-    return user_id_for_api_key(request.headers.get("X-Estly-Key"))
+    The X-Estly-Key header carries a per-account key when the extension has
+    signed in. When it hasn't, and this install has exactly one account,
+    that account is unambiguous -- so a single-user setup doesn't have to
+    sign in at all. The moment a second account exists the guess stops being
+    safe, the fallback switches itself off, and signing in is required
+    again. Imported lazily to keep this blueprint independent of the studio
+    package at import time."""
+    from studio import load_users, user_id_for_api_key
+
+    owner = user_id_for_api_key(request.headers.get("X-Estly-Key"))
+    if owner:
+        return owner
+
+    users = load_users()
+    return users[0]["id"] if len(users) == 1 else None
 
 
 @bp.get("")

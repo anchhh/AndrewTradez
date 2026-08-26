@@ -210,58 +210,17 @@
   button.primary:hover { background: var(--accent); border-color: var(--accent); }
   button:disabled { opacity: 0.5; cursor: default; }
 
-  #signin { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  #signin input {
-    width: 100%;
-    padding: 7px 9px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    font: inherit;
-    background: #fff;
-    color: var(--ink);
-  }
-  #signin input:focus { outline: none; border-color: var(--accent); }
-  #signin label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
-  .signin-note { margin: 0 0 4px; font-size: 0.8rem; color: var(--ink-soft); }
-  .signin-error { margin: 4px 0 0; font-size: 0.78rem; color: var(--accent); min-height: 1em; }
-  .signin-error:empty { display: none; }
-  .signed-in {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    margin: 0 0 12px; font-size: 0.8rem; color: var(--ink-soft);
-  }
-  .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .icon-signout {
-    padding: 2px 7px;
-    font-size: 0.95rem;
-    line-height: 1.2;
-    border-radius: 8px;
-  }
+
 </style>
 </head>
 <body>
   <header>
     <div class="brand">
       <span class="logo-text">estly<span class="logo-accent"></span></span>
-      <button type="button" id="btn-signout" class="icon-signout" title="Sign out" aria-label="Sign out" hidden>⎋</button>
     </div>
     <p>Lead Clipper — captures the listing you're viewing when you click the toolbar icon</p>
     <p class="backend-status" id="backend-status">Checking backend…</p>
   </header>
-
-  <!-- Signed-out: the panel can't capture until it knows whose lead it is. -->
-  <form id="signin" hidden>
-    <p class="signin-note">Sign in with your estly Studio account. Leads you capture are saved to it.</p>
-    <label for="signin-email">Email</label>
-    <input id="signin-email" type="email" autocomplete="username" required>
-    <label for="signin-password">Password</label>
-    <input id="signin-password" type="password" autocomplete="current-password" required>
-    <button type="submit" class="primary" id="signin-submit">Sign in</button>
-    <p class="signin-error" id="signin-error"></p>
-  </form>
-
-  <p class="signed-in" id="signed-in" hidden>
-    Signed in as <strong id="signed-in-email"></strong>
-  </p>
 
   <div class="tabs">
     <button type="button" class="tab" id="tab-zillow" data-source="zillow">

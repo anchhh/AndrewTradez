@@ -42,11 +42,16 @@ _API_KEY_ROUTES = {
 
 
 def _has_valid_api_key():
+    """A valid extension key, or a single-account install where the extension
+    hasn't signed in -- matching routes/leads.py's attribution rule, so the
+    gate and the ownership logic can't disagree about who is allowed in."""
     try:
-        from studio import user_id_for_api_key
+        from studio import load_users, user_id_for_api_key
     except ImportError:
         return False
-    return bool(user_id_for_api_key(request.headers.get("X-Estly-Key")))
+    if user_id_for_api_key(request.headers.get("X-Estly-Key")):
+        return True
+    return len(load_users()) == 1
 
 
 def _check_credentials(header):
