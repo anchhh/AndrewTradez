@@ -229,13 +229,20 @@
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     margin: 0 0 12px; font-size: 0.8rem; color: var(--ink-soft);
   }
-  .signed-in button { padding: 3px 8px; font-size: 0.74rem; }
+  .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .icon-signout {
+    padding: 2px 7px;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    border-radius: 8px;
+  }
 </style>
 </head>
 <body>
   <header>
     <div class="brand">
       <span class="logo-text">estly<span class="logo-accent"></span></span>
+      <button type="button" id="btn-signout" class="icon-signout" title="Sign out" aria-label="Sign out" hidden>⎋</button>
     </div>
     <p>Lead Clipper — captures the listing you're viewing when you click the toolbar icon</p>
     <p class="backend-status" id="backend-status">Checking backend…</p>
@@ -254,7 +261,6 @@
 
   <p class="signed-in" id="signed-in" hidden>
     Signed in as <strong id="signed-in-email"></strong>
-    <button type="button" id="btn-signout">Sign out</button>
   </p>
 
   <div class="tabs">

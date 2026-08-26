@@ -67,7 +67,7 @@ function readForm() {
  * Must be fully self-contained: it's serialised and injected on demand.
  */
 async function collectPhotosFromPage() {
-  const MAX = 24;
+  const MAX = 60;  // a large listing runs to 50-60 photos
 
   const ogTag = document.querySelector('meta[property="og:image"]');
   const og = ogTag ? ogTag.getAttribute("content") : null;
@@ -83,21 +83,34 @@ async function collectPhotosFromPage() {
 
   let list = Array.from(urls).filter((u) => !/\.svg(\?|$)/i.test(u));
 
-  // Narrow to this listing's own photos. Two shapes, both confirmed against
-  // real pages: Redfin puts the subject's gallery in one numbered media
-  // bundle that og:image points into, while everything from its "similar
-  // homes" rails sits elsewhere; homes.com puts the address slug from the
-  // page URL into every real photo's filename and into none of its chrome.
-  const bundle = og && og.match(/\/system_files\/media\/(\d+)_/);
-  if (bundle) {
-    const own = list.filter((u) => u.indexOf("/media/" + bundle[1] + "_") !== -1);
+  // Narrow to this listing's own photos. Every rule below was derived by
+  // counting a real page against the photo count the site itself displays.
+  //
+  //  Zillow  gallery photos come in "cc_ft" renditions; other listings on the
+  //          page appear only as "sr_" (search-result) ones. On a 35-photo
+  //          listing this leaves exactly 35.
+  //  Redfin  og:image carries the subject's photo id, in one of two URL
+  //          shapes, and its own photos are the ones sharing it.
+  //  homes   every real photo repeats the address slug from the page URL;
+  //          the logo and banners don't.
+  if (og && og.indexOf("zillowstatic.com") !== -1) {
+    const own = list.filter((u) => u.indexOf("-cc_ft_") !== -1);
     if (own.length) list = own;
   } else {
-    const slugMatch = location.pathname.match(/\/(?:property|homedetails)\/([^/]+)/i);
-    const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
-    if (slug) {
-      const own = list.filter((u) => u.toLowerCase().indexOf(slug) !== -1);
+    const redfin = og && og.match(/\/system_files\/media\/(\d+)_|genMid\.(\d+)_/i);
+    if (redfin) {
+      const id = redfin[1] || redfin[2];
+      const own = list.filter(
+        (u) => u.indexOf("/media/" + id + "_") !== -1 || u.toLowerCase().indexOf("genmid." + id + "_") !== -1
+      );
       if (own.length) list = own;
+    } else {
+      const slugMatch = location.pathname.match(/\/(?:property|homedetails)\/([^/]+)/i);
+      const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
+      if (slug) {
+        const own = list.filter((u) => u.toLowerCase().indexOf(slug) !== -1);
+        if (own.length) list = own;
+      }
     }
   }
 
@@ -171,6 +184,7 @@ function renderAuth(email) {
   $("signin").hidden = signedIn;
   $("signed-in").hidden = !signedIn;
   if (signedIn) $("signed-in-email").textContent = email;
+  $("btn-signout").hidden = !signedIn;
   // Nothing is capturable until we know whose lead it would be.
   const save = $("btn-save");
   if (save) save.disabled = !signedIn;

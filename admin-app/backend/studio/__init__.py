@@ -210,33 +210,91 @@ FORMAT_RANK = {"jpg": 0, "jpeg": 0, "png": 1, "webp": 2, "gif": 3}
 # photos. Measured on a real listing: 22 photos were arriving as 66.
 REDFIN_RENDITION_RE = re.compile(r"/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=/)", re.I)
 
-# The subject listing's own photos live under one numeric media bundle, which
-# og:image always points into. Everything Redfin renders from the "similar
-# homes" rails sits under /photo/<n>/mbphoto/ or /bcsphoto/ with unrelated ids.
-REDFIN_BUNDLE_RE = re.compile(r"/system_files/media/(\d+)_[A-Za-z0-9]+/", re.I)
+# The other Redfin shape varies only by a size directory --
+# /photo/158/{mbpaddedwide,mbphotov3,midphoto}/538/genMid.1890538_14_1.jpg is
+# one photo in three renditions. Same problem, same fix: collapse the segment
+# so they key alike.
+REDFIN_SIZE_DIR_RE = re.compile(r"(/photo/\d+/)[a-z0-9]+(/\d+/)", re.I)
+
+# --- Isolating the listing you're on from everything else on the page -----
+#
+# These pages embed carousels of *other* homes, and a scan of the HTML can't
+# tell them apart by itself. Each rule below was derived by counting real
+# pages against the photo count the site itself displays, not assumed.
+
+# Zillow: gallery photos are served in "cc_ft" (content) renditions; photos of
+# other listings appear only as "sr_" (search-result) renditions. On
+# 6127 W 16th St: 58 distinct photo hashes in the HTML, exactly 35 with a
+# cc_ft variant, and the page reads "See all 35 photos". Zero overlap between
+# the two sets.
+ZILLOW_GALLERY_MARKER = "-cc_ft_"
+
+# Redfin uses two different URL shapes depending on the listing, and og:image
+# points into whichever one the subject uses -- either a numbered media bundle
+# (/system_files/media/1242747_JPG/item_47.jpg) or a photo id
+# (/photo/158/mbpaddedwide/538/genMid.1890538_0.jpg). Both carry an id that
+# the subject's photos share and other listings' don't.
+REDFIN_PHOTO_ID_RE = re.compile(r"/system_files/media/(\d+)_|genMid\.(\d+)_", re.I)
+
+# Redfin serves each gallery photo from three sibling paths under the same
+# media bundle -- ".../<bundle>/item_47.jpg", ".../genLdpUgcMediaBrowserUrl/
+# item_47.jpg" and ".../genLdpUgcMediaBrowserUrlComp/item_47.jpg". They differ
+# by directory, not filename, so the suffix-based key below saw three separate
+# photos. Measured on a real listing: 22 photos were arriving as 66.
+REDFIN_RENDITION_RE = re.compile(r"/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=/)", re.I)
+
+# The other Redfin shape varies only by a size directory --
+# /photo/158/{mbpaddedwide,mbphotov3,midphoto}/538/genMid.1890538_14_1.jpg is
+# one photo in three renditions. Same problem, same fix: collapse the segment
+# so they key alike.
+REDFIN_SIZE_DIR_RE = re.compile(r"(/photo/\d+/)[a-z0-9]+(/\d+/)", re.I)
 
 
-def subject_photos_only(urls: list[str], og_image: str | None) -> list[str]:
-    """Drop images that belong to *other* listings on the same page.
+def _listing_slug(page_url):
+    """The address slug a site puts in its own URL. homes.com repeats it in
+    every real photo's filename and in none of its chrome."""
+    match = re.search(r"/(?:property|homedetails)/([^/]+)", page_url or "", re.I)
+    return match.group(1).lower() if match else None
+
+
+def subject_photos_only(urls: list[str], og_image: str | None, page_url: str | None = None) -> list[str]:
+    """Drop images belonging to *other* listings shown on the same page.
 
     Anchors on og:image, which is always a photo of the listing you're
-    actually looking at. Only Redfin needs this today -- its page embeds
-    whole carousels of nearby homes, and a plain scan of the HTML can't tell
-    them apart. Returns the input unchanged when there's nothing to anchor
-    on, and never returns an empty list.
+    actually looking at. Returns the input unchanged when no rule applies,
+    and never returns an empty list -- a filter that matched nothing means
+    the assumption was wrong, and some photos beat none.
     """
-    match = REDFIN_BUNDLE_RE.search(og_image or "")
-    if not match:
+    if not urls:
         return urls
-    prefix = f"/system_files/media/{match.group(1)}_"
-    kept = [u for u in urls if prefix in u]
-    return kept or urls
+    og = og_image or ""
+
+    if "zillowstatic.com" in og:
+        kept = [u for u in urls if ZILLOW_GALLERY_MARKER in u]
+        return kept or urls
+
+    redfin = REDFIN_PHOTO_ID_RE.search(og)
+    if redfin:
+        photo_id = redfin.group(1) or redfin.group(2)
+        kept = [
+            u for u in urls
+            if f"/media/{photo_id}_" in u or f"genMid.{photo_id}_" in u.lower().replace("genmid", "genMid")
+        ]
+        return kept or urls
+
+    slug = _listing_slug(page_url)
+    if slug:
+        kept = [u for u in urls if slug in u.lower()]
+        return kept or urls
+
+    return urls
 
 
 def normalize_photo_key(url: str) -> str:
     """Collapse different size/format variants of the same photo to one key."""
     path = url.split("?")[0].split("#")[0]
     path = REDFIN_RENDITION_RE.sub("", path)
+    path = REDFIN_SIZE_DIR_RE.sub(r"", path)
     if "." in path.rsplit("/", 1)[-1]:
         base, ext = path.rsplit(".", 1)
     else:
@@ -627,7 +685,9 @@ def collect_image_urls(soup: BeautifulSoup, base_url: str, raw_html: str) -> lis
     # The scan above finds every size/format variant of each photo (a single
     # real-estate photo commonly appears as 10-20 near-duplicate URLs); group
     # and keep just the best one per photo before this ever reaches the user.
-    return dedupe_photo_variants(subject_photos_only(found, og_image))[:MAX_IMAGE_CANDIDATES]
+    return dedupe_photo_variants(
+        subject_photos_only(found, og_image, base_url)
+    )[:MAX_IMAGE_CANDIDATES]
 
 
 def guess_source(url: str) -> str:
@@ -640,6 +700,8 @@ def guess_source(url: str) -> str:
         return "redfin"
     if "realtor.com" in host:
         return "realtor"
+    if "homes.com" in host:
+        return "homes"
     if "vrbo." in host:
         return "vrbo"
     return "other"
@@ -679,10 +741,21 @@ def extract_meta(url: str) -> dict:
 
     if resp.status_code in (403, 429):
         result["blocked"] = True
-        result["error"] = (
-            f"{source.capitalize()} returned status {resp.status_code} "
-            "(likely bot-detection). Enter the details manually and upload photos below."
-        )
+        if source == "homes":
+            # Not transient and not fixable here: homes.com refuses this
+            # server for both the page and its image CDN, whatever headers
+            # are sent. The extension reads the photos in the browser instead.
+            result["error"] = (
+                "Homes.com blocks servers from reading its pages, so photos can't be "
+                "fetched here. Capture the listing with the Estly extension and its "
+                "photos come across automatically."
+            )
+        else:
+            result["error"] = (
+                f"{source.capitalize()} returned status {resp.status_code} "
+                f"({'rate limiting' if resp.status_code == 429 else 'bot detection'}). "
+                "Capturing with the Estly extension avoids this, or add the details manually."
+            )
         return result
 
     if resp.status_code != 200:
@@ -1242,6 +1315,10 @@ def api_create_project():
         "title": data.get("title"),
         "description": data.get("description"),
         "photos": data.get("photos", []),
+        # Which of those photos the video should actually use. Kept separate
+        # from `photos` so deselecting one doesn't throw the file away -- the
+        # user can change their mind without re-importing.
+        "selected_photos": data.get("selected_photos"),
         "status": data.get("status", "draft"),
         "style": data.get("style"),
         "satellite_image": data.get("satellite_image"),
@@ -1272,7 +1349,8 @@ def api_update_project(project_id):
         return jsonify({"error": "Project not found."}), 404
 
     for field in (
-        "name", "url", "source", "address", "title", "description", "photos", "status", "style",
+        "name", "url", "source", "address", "title", "description", "photos", "selected_photos",
+        "status", "style",
         "satellite_image", "lat", "lon", "beds", "baths", "sqft", "property_type", "lead_id",
     ):
         if field in data:

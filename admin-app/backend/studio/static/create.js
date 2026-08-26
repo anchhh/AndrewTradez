@@ -53,6 +53,7 @@ async function doAutosave(extra) {
     title: state.extracted?.title || null,
     description: state.extracted?.description || null,
     photos: state.photos.map((p) => p.url),
+    selected_photos: usedPhotos().map((p) => p.url),
     satellite_image: state.satellite?.url || null,
     lat: state.lat,
     lon: state.lon,
@@ -85,7 +86,6 @@ async function doAutosave(extra) {
 function prefillFromProject(project) {
   state.projectId = project.id;
   state.name = project.name || null;
-  state.photos = (project.photos || []).map((url) => ({ url }));
   state.extracted = project.url
     ? {
         url: project.url,
@@ -99,6 +99,10 @@ function prefillFromProject(project) {
         property_type: project.property_type,
       }
     : null;
+  // A project saved before selection existed has no selected_photos; treat
+  // every photo as used rather than silently excluding them all.
+  const chosen = Array.isArray(project.selected_photos) ? new Set(project.selected_photos) : null;
+  state.photos = (project.photos || []).map((url) => ({ url, use: chosen ? chosen.has(url) : true }));
   state.satellite = project.satellite_image ? { url: project.satellite_image } : null;
   state.lat = project.lat ?? null;
   state.lon = project.lon ?? null;
@@ -499,13 +503,30 @@ function closeMapModal() {
 function renderPhotoGrid() {
   const grid = el("photo-grid");
   grid.innerHTML = "";
+
   state.photos.forEach((photo, idx) => {
+    const use = photo.use !== false;
     const div = document.createElement("div");
-    div.className = "thumb";
+    div.className = "thumb" + (use ? "" : " is-excluded");
     const media = isVideoUrl(photo.url)
       ? `<video src="${photo.url}" muted controls></video><span class="media-badge">Video</span>`
       : `<img src="${photo.url}" alt="">`;
-    div.innerHTML = `${media}<button class="remove" title="Remove">&times;</button>`;
+    div.innerHTML = `
+      ${media}
+      <label class="thumb-use" title="Use this photo in the video">
+        <input type="checkbox" ${use ? "checked" : ""}>
+      </label>
+      <button class="remove" title="Remove from project">&times;</button>`;
+
+    // Excluding keeps the photo in the project but out of the video, so a
+    // change of mind doesn't mean importing everything again. Remove is the
+    // destructive one.
+    div.querySelector(".thumb-use input").addEventListener("change", (e) => {
+      photo.use = e.target.checked;
+      div.classList.toggle("is-excluded", !e.target.checked);
+      updatePhotoCount();
+      autosave();
+    });
     div.querySelector(".remove").addEventListener("click", () => {
       state.photos.splice(idx, 1);
       renderPhotoGrid();
@@ -513,7 +534,38 @@ function renderPhotoGrid() {
     });
     grid.appendChild(div);
   });
+
   el("photo-empty").style.display = state.photos.length ? "none" : "";
+  updatePhotoCount();
+}
+
+function usedPhotos() {
+  return state.photos.filter((p) => p.use !== false);
+}
+
+function updatePhotoCount() {
+  const label = el("photo-count");
+  if (!label) return;
+  const total = state.photos.length;
+  const used = usedPhotos().length;
+  label.textContent = total
+    ? used === total
+      ? `${total} photo${total === 1 ? "" : "s"}`
+      : `${used} of ${total} selected`
+    : "";
+  const toggle = el("photo-select-all");
+  if (toggle) toggle.textContent = used === total && total ? "Deselect all" : "Select all";
+}
+
+function wirePhotoSelectAll() {
+  const toggle = el("photo-select-all");
+  if (!toggle) return;
+  toggle.addEventListener("click", () => {
+    const allOn = usedPhotos().length === state.photos.length;
+    state.photos.forEach((p) => { p.use = !allOn; });
+    renderPhotoGrid();
+    autosave();
+  });
 }
 
 async function uploadFiles(fileList, dropzoneId) {
@@ -677,8 +729,10 @@ initDropzone("dropzone-upload", "file-input-upload");
 trapBrowserBack();
 
 if (existingProject) {
+  wirePhotoSelectAll();
   prefillFromProject(existingProject);
 } else if (prefillData) {
+  wirePhotoSelectAll();
   applyPrefill(prefillData);
 } else {
   renderSatelliteView();
