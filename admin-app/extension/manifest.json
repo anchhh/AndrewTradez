@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Estly Lead Clipper",
-  "version": "2.9.7",
+  "version": "2.9.8",
   "description": "Capture the listing you're viewing straight into your Estly leads, from a persistent side panel.",
   "action": {
     "default_title": "Estly Lead Clipper \u2014 click to capture this page",
@@ -37,7 +37,6 @@
     "http://localhost:5051/*",
     "http://127.0.0.1:5051/*",
     "*://*.zillow.com/*",
-    "*://*.realtor.com/*",
     "*://*.redfin.com/*",
     "*://*.homes.com/*"
   ],

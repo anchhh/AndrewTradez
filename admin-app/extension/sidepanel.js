@@ -5,7 +5,7 @@
 // (https://estly-admin.onrender.com).
 const DEFAULT_API_BASE = "http://127.0.0.1:5051";
 const DEFAULT_DASHBOARD_BASE = "http://127.0.0.1:5051/studio/dashboard";
-const SOURCES = ["zillow", "realtor", "redfin", "homes"];
+const SOURCES = ["zillow", "redfin", "homes"];
 
 let currentRaw = null; // last-captured raw page material, cached for instant tab switching
 let selectedSource = "zillow";

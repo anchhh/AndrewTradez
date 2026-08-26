@@ -170,34 +170,8 @@ function addressFromRedfinUrl(url) {
   }
 }
 
-// Realtor.com's URL format cleanly delimits street/city/state/zip with
-// underscores (.../123-Main-St_City_ST_12345_M12345-67890), so no
-// suffix-guessing heuristic is needed -- just split on "_".
-function addressFromRealtorUrl(url) {
-  try {
-    const pathname = new URL(url).pathname;
-    const m = pathname.match(/\/realestateandhomes-detail\/([^/]+)/);
-    if (!m) return null;
-
-    const parts = m[1].split("_");
-    if (parts.length < 4) return null;
-    const [streetPart, cityPart, state, zip] = parts;
-    if (!/^\d{5}$/.test(zip) || !/^[A-Za-z]{2}$/.test(state)) return null;
-
-    return {
-      address: streetPart.replace(/-/g, " ").trim(),
-      city: cityPart.replace(/-/g, " ").trim(),
-      state: expandState(state.toUpperCase()),
-      zip_code: zip,
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
 function addressFromListingUrl(url, source) {
   if (source === "zillow") return addressFromZillowUrl(url);
-  if (source === "realtor") return addressFromRealtorUrl(url);
   if (source === "redfin") return addressFromRedfinUrl(url);
   if (source === "homes") return addressFromHomesUrl(url);
   return null;
@@ -356,7 +330,7 @@ function findAnyPhone(text) {
 
 // A JSON-LD entity with these @type values represents the listing agent,
 // their brokerage, or page/navigation metadata -- not the property itself.
-// Zillow/Realtor pages commonly embed one of these alongside the actual
+// Zillow/Redfin pages commonly embed one of these alongside the actual
 // listing schema, each with its own "address" (the office's, not the
 // home's) -- without this filter, whichever one happens to appear first
 // in the page's HTML wins by accident.
@@ -446,7 +420,7 @@ function jsonLdPrice(jsonLdList, pageUrl) {
 }
 
 // ---- per-site parsers ----
-// Zillow, Realtor.com, Redfin, and Homes.com are all structurally similar
+// Zillow, Redfin, and Homes.com are all structurally similar
 // for-sale listings with an agent contact block, so they share one parser
 // (parseForSaleSite) and differ only in their URL-address-parsing logic.
 
@@ -458,7 +432,7 @@ function parseForSaleSite(raw, source) {
   // sitting in the page's text.
   const text = primaryContentText(raw.bodyText || "");
   // The listing URL itself is the most reliable address source there is --
-  // Zillow/Realtor.com encode the full address directly in the URL slug,
+  // Zillow encodes the full address directly in the URL slug,
   // which is completely immune to whatever the page's DOM/text contains.
   // Page text and JSON-LD are only fallbacks for a URL shape this parser
   // doesn't recognize.
@@ -496,17 +470,15 @@ function parseForSaleSite(raw, source) {
 }
 
 function parseZillow(raw) { return parseForSaleSite(raw, "zillow"); }
-function parseRealtor(raw) { return parseForSaleSite(raw, "realtor"); }
 function parseRedfin(raw) { return parseForSaleSite(raw, "redfin"); }
 function parseHomes(raw) { return parseForSaleSite(raw, "homes"); }
 
 const PARSERS = {
-  zillow: parseZillow, realtor: parseRealtor, redfin: parseRedfin, homes: parseHomes,
+  zillow: parseZillow, redfin: parseRedfin, homes: parseHomes,
 };
 
 const SITE_NOTES = {
   zillow: "Parses the visible address, beds/baths/sqft, and “Listed by” agent info.",
-  realtor: "Parses the visible address, beds/baths/sqft, and listing-agent info.",
   redfin: "Address parsed from the listing URL (verified). Agent name reads Redfin's “Listed by … / Name” layout specifically.",
   homes: "Address/city/state parsed from the listing URL. Homes.com doesn't encode zip in the URL, so that field falls back to the page text — double-check it before saving.",
 };
@@ -515,9 +487,9 @@ if (typeof module !== "undefined") {
   module.exports = {
     STATE_ABBR, expandState, formatPrice, parsePriceInput, findPropertyType,
     findAddress, findBedsBaths, findListedBy, findRedfinAgent, findAnyPrice, findAnyPhone,
-    jsonLdAddress, jsonLdPrice, addressFromZillowUrl, addressFromRealtorUrl,
+    jsonLdAddress, jsonLdPrice, addressFromZillowUrl,
     addressFromRedfinUrl, addressFromHomesUrl, addressFromListingUrl,
-    parseZillow, parseRealtor, parseRedfin, parseHomes,
+    parseZillow, parseRedfin, parseHomes,
     PARSERS, SITE_NOTES,
   };
 }

@@ -8,7 +8,7 @@ Estly lead pipeline.
 
 ## Why manual (mostly), not automatic
 
-Zillow, Realtor.com, Redfin, and Homes.com don't offer a public listings
+Zillow, Redfin, and Homes.com don't offer a public listings
 API, and their Terms of Service prohibit automated/bulk extraction. This
 tool doesn't try to route around that: it only reads pages you're
 actually browsing yourself, the same as if you'd copied the details into
@@ -19,7 +19,7 @@ from one listing to the next *in the same tab*, without you re-clicking
 the toolbar icon each time (see "Auto-updating between listings" below).
 That's a genuine, small increase in standing access compared to a purely
 click-gated design -- the extension has standing permission to read pages
-on zillow.com, realtor.com, redfin.com, and homes.com (declared in
+on zillow.com, redfin.com, and homes.com (declared in
 `manifest.json`'s `host_permissions`) so it can notice, at the browser
 level, when the tab's URL changes to a different listing and read that
 page automatically. It
@@ -53,7 +53,7 @@ is triggered.
 2. Open a listing page in your browser.
 3. Click the extension icon. This opens the side panel (if not already
    open) and captures the current page into it.
-4. The **Zillow / Realtor.com / Redfin / Homes.com** tab at the top is
+4. The **Zillow / Redfin / Homes.com** tab at the top is
    picked automatically from the site you were on. If it guessed wrong,
    click a different tab -- it re-parses the same captured page instantly
    with the other site's rules, no new page read needed.
@@ -93,11 +93,11 @@ text, any `schema.org` JSON-LD blocks, and `tel:`/`mailto:` links -- and
 hands it to the side panel. `parsers.js` then interprets that raw
 material per site (this is what the tabs select between):
 
-- **Zillow / Realtor.com / Redfin / Homes.com** (structurally similar
+- **Zillow / Redfin / Homes.com** (structurally similar
   "for-sale" listings):
   - **Address/city/state/zip is parsed directly from the listing URL
     first** (`parsers.js`'s `addressFromZillowUrl` /
-    `addressFromRealtorUrl` / `addressFromRedfinUrl` /
+    `addressFromRedfinUrl` /
     `addressFromHomesUrl`) -- these sites encode the full address in the
     URL slug itself, which is immune to whatever the page's own DOM/text
     contains. This was a hard-won fix: Zillow's individual listing pages
@@ -111,8 +111,7 @@ material per site (this is what the tabs select between):
   - **Zillow and Homes.com's URL parsing is verified against real pages**
     (Zillow: multiple real listings including a tricky unit-number case;
     Homes.com: one real listing, notably with no zip encoded in the URL
-    at all -- that field falls back to page text there). **Realtor.com
-    and Redfin's URL parsers are still best-effort guesses**, not yet
+    at all -- that field falls back to page text there). , not yet
     checked against a real page -- expect to need the same kind of fix
     if they turn out wrong. `SITE_NOTES` in `parsers.js` flags this in
     the panel itself for Redfin.

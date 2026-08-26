@@ -36,7 +36,6 @@ function extractRawFromPage() {
   const host = location.hostname.replace(/^www\./, "");
   let detectedSource = "manual";
   if (host.indexOf("zillow") !== -1) detectedSource = "zillow";
-  else if (host.indexOf("realtor") !== -1) detectedSource = "realtor";
   else if (host.indexOf("redfin") !== -1) detectedSource = "redfin";
   else if (host.indexOf("homes.com") !== -1) detectedSource = "homes";
 
@@ -59,7 +58,6 @@ function extractRawFromPage() {
 // grid of many listings, not the one the user has "open".
 function isListingUrl(host, pathname) {
   if (host.indexOf("zillow") !== -1) return pathname.indexOf("/homedetails/") !== -1;
-  if (host.indexOf("realtor") !== -1) return pathname.indexOf("/realestateandhomes-detail/") !== -1;
   // Homes.com's pattern is confirmed against a real listing. Redfin's is
   // still a best-effort guess -- see parsers.js's addressFromRedfinUrl.
   if (host.indexOf("redfin") !== -1) return /\/home\/\d+/.test(pathname);
@@ -124,7 +122,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 // the user browses between listings, with no content script involved:
 // chrome.tabs.onUpdated fires with changeInfo.url for BOTH full page
 // navigations and SPA-style history.pushState/replaceState transitions
-// (which is how Zillow/Realtor/Redfin/Homes.com move between listings without a
+// (which is how Zillow/Redfin/Homes.com move between listings without a
 // full reload), driven by Chrome's own tab-tracking rather than a script
 // running inside the page -- so there's nothing that can go stale after
 // an extension reload the way a content script can.

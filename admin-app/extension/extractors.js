@@ -165,12 +165,12 @@ const homesExtractor = {
 /* --------------------------------------------------------------- generic -- */
 
 /**
- * Anything without a verified rule, Realtor.com included. Realtor has never
- * been checked against a real page -- it answers 429 to the backend -- so it
- * deliberately gets the cautious generic treatment rather than a guess
- * dressed up as a rule. A gallery normally lives in one directory and
- * og:image is always a photo of the subject, so prefer that directory when it
- * holds more than one image; otherwise stay on og:image's host.
+ * Anything without a rule of its own. No supported site routes here today --
+ * Zillow, Redfin and homes.com each have one -- so this exists for whatever
+ * gets added next, and stays cautious on purpose. A gallery normally lives in
+ * one directory and og:image is always a photo of the subject, so prefer that
+ * directory when it holds more than one image; otherwise stay on og:image's
+ * host.
  */
 const genericExtractor = {
   id: "generic",
