@@ -218,18 +218,39 @@ async function advanceCarousel(matchText) {
   history.pushState = function () {};
   history.replaceState = function () {};
 
+  // The page states how many photos the listing has ("30 photos"). Where it
+  // does, that is a hard stop: reaching it means never clicking past the end
+  // of the gallery at all, which is where the next-listing navigation lives.
+  // Take the largest number stated, not the first: a page can mention a
+  // smaller count elsewhere ("6 photos of the kitchen"), and stopping on that
+  // would truncate the capture. Overshooting the real count is harmless --
+  // the idle check still ends the loop.
+  let expected = 0;
+  const counts = (document.body.innerText || "").match(/(\d{1,3})\s*(?:photos|images)/gi) || [];
+  counts.forEach((text) => {
+    const n = parseInt(text, 10);
+    if (n > expected && n <= 300) expected = n;
+  });
+
   const startedAt = location.href;
   try {
   for (const control of candidates) {
     let idle = 0;
-    for (let i = 0; i < 40 && idle < 4; i++) {
+    // Two unproductive clicks, not four. Every click past the end of the
+    // gallery is one that can trip homes.com's next-listing navigation, which
+    // moved the tab onto another property after a successful capture -- and a
+    // panel then showing a different listing invites saving the wrong lead.
+    // Cutting the tolerance risks mistaking a slow-loading photo for the end,
+    // so the wait per click goes up to compensate.
+    for (let i = 0; i < 40 && idle < 2; i++) {
+      if (expected && found.size >= expected) break;
       const before = found.size;
       try {
         control.click();
       } catch (e) {
         break;
       }
-      await sleep(150);
+      await sleep(260);
       collect();
       // Stop early once clicking stops producing anything new: either the
       // carousel has wrapped around or this control was the wrong one.
