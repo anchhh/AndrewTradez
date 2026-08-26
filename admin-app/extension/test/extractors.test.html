@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Estly — extractor regression tests</title>
+<style>
+  :root { --ink:#17130f; --soft:#4a453e; --line:#ddd3c2; --cream:#efe8dd; --ok:#2f7a4f; --bad:#c0392b; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--cream); color: var(--ink);
+         margin: 0; padding: 28px; line-height: 1.5; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  p.lede { color: var(--soft); margin: 0 0 20px; max-width: 70ch; font-size: 0.92rem; }
+  table { border-collapse: collapse; width: 100%; max-width: 940px; background: #fff;
+          border: 1px solid var(--line); font-size: 0.88rem; }
+  th { text-align: left; font-size: 0.7rem; letter-spacing: .08em; text-transform: uppercase;
+       color: var(--soft); padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pass { color: var(--ok); font-weight: 700; }
+  .fail { color: var(--bad); font-weight: 700; }
+  .note { color: var(--soft); font-size: 0.82rem; }
+  #summary { margin-top: 18px; font-weight: 700; }
+</style>
+</head>
+<body>
+  <h1>Extractor regression tests</h1>
+  <p class="lede">
+    Each case is a real listing page, reduced to the image URLs it actually contained plus its
+    og:image. Expected counts come from what the site itself displayed — Zillow's
+    “See all 35 photos”, Redfin's photo id, a real homes.com console dump. Run this after
+    changing any extractor: a rule for one site must never move another site's numbers.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Case</th><th>Extractor</th><th class="num">Candidates</th><th class="num">Picked</th><th class="num">Expected</th><th>Result</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="summary">Running…</div>
+
+<script src="../extractors.js"></script>
+<script>
+(async () => {
+  const rows = document.getElementById("rows");
+  const summary = document.getElementById("summary");
+  let fixtures;
+  try {
+    fixtures = await (await fetch("fixtures.json")).json();
+  } catch (e) {
+    summary.textContent = "Could not load fixtures.json — serve this folder over http:// rather than opening the file directly.";
+    summary.className = "fail";
+    return;
+  }
+
+  let passed = 0;
+  for (const f of fixtures) {
+    // The extractors scan text for URLs, so a newline-joined list stands in
+    // for page markup — the same shape the panel falls back to on-screen.
+    const { source, photos } = pickListingPhotos(f.urls.join("\n"), f.pageUrl, f.og, 200);
+    const ok = source === f.expectSource && photos.length === f.expectPhotos;
+    if (ok) passed++;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${f.name}${f.note ? `<div class="note">${f.note}</div>` : ""}</td>
+      <td>${source}${source === f.expectSource ? "" : ` <span class="fail">(expected ${f.expectSource})</span>`}</td>
+      <td class="num">${f.urls.length}</td>
+      <td class="num">${photos.length}</td>
+      <td class="num">${f.expectPhotos}</td>
+      <td class="${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"}</td>`;
+    rows.appendChild(tr);
+  }
+
+  summary.textContent = `${passed} of ${fixtures.length} passed`;
+  summary.className = passed === fixtures.length ? "pass" : "fail";
+})();
+</script>
+</body>
+</html>

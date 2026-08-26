@@ -172,3 +172,22 @@ the "Create Video" link next to each lead there).
   doesn't expose it yet).
 - Only pulls what's visible on the page you click on -- it can't discover
   listings you haven't opened, and it isn't meant to.
+
+## Extractors and their tests
+
+Photo extraction lives in `extractors.js`, one module per listing site. Each
+declares which hosts it handles and how it picks the subject listing's photos
+out of a page that also shows other homes. They are deliberately isolated:
+changing how Zillow is read must not be able to affect Redfin or homes.com.
+
+Every rule was derived by counting a real page against the photo count the
+site itself prints -- not assumed. `test/fixtures.json` holds those real pages
+reduced to the image URLs they contained, with the expected result for each.
+
+**Run `test/extractors.test.html` after touching any extractor.** It needs to
+be served over http:// rather than opened as a file, so the fixtures can load:
+
+    python -m http.server 8000 --directory admin-app/extension
+    # then open http://localhost:8000/test/extractors.test.html
+
+A change to one site's rule must leave every other site's numbers untouched.
