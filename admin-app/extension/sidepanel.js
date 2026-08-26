@@ -121,32 +121,55 @@ async function advanceCarousel(matchText) {
   };
   const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
 
-  // The control is not necessarily a button. On homes.com it is an <i> with
-  // class "res-icon chevron-right-bold-icon" and aria-hidden="true" -- no
-  // role, no label, invisible to assistive tech and to a search for buttons.
-  // So match on the icon vocabulary sites actually use, whatever the tag,
-  // as well as anything button-like that reads as "next".
-  const byClass = Array.prototype.slice.call(
-    document.querySelectorAll(
-      '[class*="chevron-right" i], [class*="chevronright" i], [class*="arrow-right" i],' +
-        '[class*="arrowright" i], [class*="next" i], [class*="forward" i]'
-    )
-  );
+  const ARROW_SELECTOR =
+    '[class*="chevron-right" i], [class*="chevronright" i], [class*="arrow-right" i],' +
+    '[class*="arrowright" i], [class*="next" i], [class*="forward" i]';
+
+  // Confine the search to the photo gallery. homes.com also has next-listing
+  // navigation using the same chevron iconography, and clicking that walked
+  // the tab onto a different property mid-capture. The gallery is found by
+  // walking up from a listing photo until an ancestor holds several of them.
+  const listingImages = Array.prototype.slice
+    .call(document.querySelectorAll("img"))
+    .filter((img) => {
+      const src = img.currentSrc || img.src || "";
+      return src.toLowerCase().indexOf(matchText) !== -1;
+    });
+
+  let gallery = null;
+  if (listingImages.length) {
+    let node = listingImages[0];
+    for (let hop = 0; hop < 8 && node && node.parentElement; hop++) {
+      node = node.parentElement;
+      const held = node.querySelectorAll("img");
+      let own = 0;
+      for (const img of held) {
+        const src = img.currentSrc || img.src || "";
+        if (src.toLowerCase().indexOf(matchText) !== -1) own++;
+      }
+      if (own >= 3) {
+        gallery = node;
+        break;
+      }
+    }
+  }
+
+  const scope = gallery || document;
+  const byClass = Array.prototype.slice.call(scope.querySelectorAll(ARROW_SELECTOR));
   const byRole = Array.prototype.slice
-    .call(document.querySelectorAll('button, [role="button"], a'))
+    .call(scope.querySelectorAll('button, [role="button"]'))
     .filter((el) => /next|forward|right|arrow/.test(labelOf(el)));
 
   // A click on the icon bubbles to whichever ancestor carries the handler,
   // which is how a real click works too. Promote only to a button -- never to
-  // an <a>: doing that navigated off the listing to an unrelated article,
-  // after which everything downstream read the wrong page.
+  // an <a>: doing that navigated off the listing to an unrelated article.
   const candidates = [];
   byClass.concat(byRole).forEach((el) => {
     if (!visible(el)) return;
     const target = el.closest('button, [role="button"]') || el;
     if (candidates.indexOf(target) === -1) candidates.push(target);
   });
-  candidates.length = Math.min(candidates.length, 8);
+  candidates.length = Math.min(candidates.length, 4);
 
   // Belt and braces: whatever we click, do not let it navigate. A carousel
   // control that is really a link, or one nested inside a promo link, would
@@ -159,6 +182,14 @@ async function advanceCarousel(matchText) {
     if (link) event.preventDefault();
   };
   window.addEventListener("click", blockNavigation, true);
+
+  // The anchor guard cannot stop a single-page-app router, which moves the
+  // page by calling history.pushState directly. Hold those still while paging
+  // and restore them afterwards.
+  const realPushState = history.pushState;
+  const realReplaceState = history.replaceState;
+  history.pushState = function () {};
+  history.replaceState = function () {};
 
   const startedAt = location.href;
   try {
@@ -183,6 +214,8 @@ async function advanceCarousel(matchText) {
   }
   } finally {
     window.removeEventListener("click", blockNavigation, true);
+    history.pushState = realPushState;
+    history.replaceState = realReplaceState;
   }
   return Array.from(found);
 }
