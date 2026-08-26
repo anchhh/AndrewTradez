@@ -67,32 +67,64 @@ function readForm() {
  * Must be fully self-contained: it's serialised and injected on demand.
  */
 async function collectPhotosFromPage() {
-  const MAX = 60;  // a large listing runs to 50-60 photos
+  const MAX = 60;
 
   const ogTag = document.querySelector('meta[property="og:image"]');
   const og = ogTag ? ogTag.getAttribute("content") : null;
 
   const urls = new Set();
-  if (og) urls.add(og);
-  document.querySelectorAll("img").forEach((img) => {
-    const src = img.currentSrc || img.src;
-    if (!src || src.indexOf("data:") === 0) return;
-    if (img.naturalWidth < 300 || img.naturalHeight < 200) return;
-    urls.add(src);
+  const add = (u) => {
+    if (!u) return;
+    let abs;
+    try {
+      abs = new URL(u.trim(), location.href).href;
+    } catch (e) {
+      return;
+    }
+    if (/\.svg(\?|$)/i.test(abs)) return;
+    const low = abs.toLowerCase();
+    const junk = ["sprite","icon","favicon","logo","avatar","placeholder","blank.gif",
+                  "pixel.","1x1.","spacer.","tracking","noscript","collector",
+                  "share_thumbnail","nophoto","/static/images/"];
+    if (junk.some((h) => low.indexOf(h) !== -1)) return;
+    urls.add(abs);
+  };
+
+  if (og) add(og);
+
+  // Rendered <img> tags only ever cover what has actually loaded. Listing
+  // galleries lazy-load, so on Zillow this alone found about six photos out
+  // of thirty-five. Take them, then scan the page source as well.
+  document.querySelectorAll("img, source").forEach((el) => {
+    const src = el.currentSrc || el.getAttribute("src");
+    if (src) add(src);
+    const srcset = el.getAttribute("srcset") || el.getAttribute("data-srcset");
+    if (srcset) {
+      const last = srcset.split(",").pop().trim().split(/\s+/)[0];
+      if (last) add(last);
+    }
+    ["data-src", "data-lazy-src", "data-original"].forEach((a) => {
+      if (el.getAttribute(a)) add(el.getAttribute(a));
+    });
   });
 
-  let list = Array.from(urls).filter((u) => !/\.svg(\?|$)/i.test(u));
+  // The whole gallery is in the page's own markup -- these sites render it
+  // from a JSON blob in an inline <script>, where "/" is often escaped. This
+  // is the same scan the backend runs, done here because the browser can
+  // reach pages and CDNs that refuse the server outright.
+  const source = document.documentElement.outerHTML.replace(/\\//g, "/");
+  const re = /https?:\/\/[^\s"'()<>\]+?\.(?:jpg|jpeg|png|webp)/gi;
+  let m;
+  while ((m = re.exec(source)) !== null) add(m[0]);
 
-  // Narrow to this listing's own photos. Every rule below was derived by
-  // counting a real page against the photo count the site itself displays.
-  //
-  //  Zillow  gallery photos come in "cc_ft" renditions; other listings on the
-  //          page appear only as "sr_" (search-result) ones. On a 35-photo
-  //          listing this leaves exactly 35.
-  //  Redfin  og:image carries the subject's photo id, in one of two URL
-  //          shapes, and its own photos are the ones sharing it.
-  //  homes   every real photo repeats the address slug from the page URL;
-  //          the logo and banners don't.
+  let list = Array.from(urls);
+
+  // Narrow to this listing's own photos. Every rule was derived by counting a
+  // real page against the photo count the site itself displays.
+  //   Zillow  gallery photos use "cc_ft" renditions; other listings on the
+  //           page appear only as "sr_" ones.
+  //   Redfin  og:image carries the subject's photo id, in one of two shapes.
+  //   homes   every real photo repeats the address slug from the page URL.
   if (og && og.indexOf("zillowstatic.com") !== -1) {
     const own = list.filter((u) => u.indexOf("-cc_ft_") !== -1);
     if (own.length) list = own;
@@ -107,15 +139,62 @@ async function collectPhotosFromPage() {
     } else {
       const slugMatch = location.pathname.match(/\/(?:property|homedetails)\/([^/]+)/i);
       const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
+      let matched = false;
       if (slug) {
         const own = list.filter((u) => u.toLowerCase().indexOf(slug) !== -1);
-        if (own.length) list = own;
+        if (own.length) { list = own; matched = true; }
+      }
+      // Sites without a verified rule (Realtor.com today): a gallery is
+      // normally served from one directory and og:image is always a photo of
+      // the subject, so prefer that directory when it holds more than one
+      // image; otherwise at least stay on og:image's own host.
+      if (!matched && og && /^https?:/i.test(og)) {
+        const dir = og.split("?")[0].replace(/\/[^/]*$/, "/");
+        const sameDir = list.filter((u) => u.indexOf(dir) === 0);
+        if (sameDir.length > 1) {
+          list = sameDir;
+        } else {
+          try {
+            const host = new URL(og).host;
+            const sameHost = list.filter((u) => { try { return new URL(u).host === host; } catch (e) { return false; } });
+            if (sameHost.length) list = sameHost;
+          } catch (e) { /* leave the list alone */ }
+        }
       }
     }
   }
 
+  // One photo is served at many sizes; keep the widest per photo. The size
+  // token is the trailing part of the filename, so group on what remains.
+  const groups = new Map();
+  const sizeOf = (u) => {
+    const nums = (u.match(/(\d{3,4})(?=[^\d]*$)/g) || []).map(Number);
+    return nums.length ? Math.max.apply(null, nums) : 0;
+  };
+  // jpg/png decode everywhere the video pipeline runs; webp is the same photo
+  // in a fussier container, so break size ties towards the safer format.
+  const formatRank = (u) => (/\.(jpg|jpeg)$/i.test(u) ? 2 : /\.png$/i.test(u) ? 1 : 0);
+  const better = (a, b) =>
+    sizeOf(a) !== sizeOf(b) ? sizeOf(a) > sizeOf(b) : formatRank(a) > formatRank(b);
+
+  list.forEach((u) => {
+    // Key on the photo itself: no query, no size token, no rendition
+    // directory and no extension -- otherwise one photo counts as many. On
+    // Zillow the jpg and webp of each photo alone doubled 35 into 70.
+    const key = u
+      .split("?")[0]
+      .replace(/-(cc_ft|sr|uncropped_scaled_within)[_0-9x]*(?=\.[a-z]+$)/i, "")
+      .replace(/(\/photo\/\d+\/)[a-z0-9]+(\/\d+\/)/i, "$1$2")
+      .replace(/\/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=\/)/i, "")
+      .replace(/\.[a-z0-9]+$/i, "")
+      .toLowerCase();
+    const prev = groups.get(key);
+    if (!prev || better(u, prev)) groups.set(key, u);
+  });
+  list = Array.from(groups.values()).slice(0, MAX);
+
   const out = [];
-  for (const url of list.slice(0, MAX)) {
+  for (const url of list) {
     try {
       const res = await fetch(url);
       if (!res.ok) continue;

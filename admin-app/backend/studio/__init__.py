@@ -287,6 +287,21 @@ def subject_photos_only(urls: list[str], og_image: str | None, page_url: str | N
         kept = [u for u in urls if slug in u.lower()]
         return kept or urls
 
+    # Generic fallback for sites without a verified rule (Realtor.com today --
+    # it answers 429 to this server, so no real page was available to derive
+    # one from). A gallery is normally served from one directory, and og:image
+    # is always a photo of the subject, so prefer that directory when it
+    # accounts for more than a lone image. Otherwise at least stay on the CDN
+    # og:image came from, which drops unrelated hosts.
+    if og.startswith("http"):
+        directory = og.split("?")[0].rsplit("/", 1)[0] + "/"
+        kept = [u for u in urls if u.startswith(directory)]
+        if len(kept) > 1:
+            return kept
+        host = urlparse(og).netloc
+        kept = [u for u in urls if urlparse(u).netloc == host]
+        return kept or urls
+
     return urls
 
 
