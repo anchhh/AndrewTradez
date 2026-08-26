@@ -166,3 +166,37 @@ bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
 });
 
 loadLeads();
+
+/* Extension key panel: fetched lazily the first time it's opened, so the
+   key isn't sitting in the DOM of a page someone might screen-share. */
+(function wireKeyPanel() {
+  const panel = document.querySelector(".lm-key");
+  if (!panel) return;
+  const field = document.getElementById("api-key-value");
+  const state = document.getElementById("api-key-state");
+  let loaded = false;
+
+  panel.addEventListener("toggle", async () => {
+    if (!panel.open || loaded) return;
+    try {
+      const data = await fetchJSON("/studio/api/my-key");
+      field.value = data.api_key || "";
+      loaded = true;
+    } catch (err) {
+      field.value = "";
+      state.textContent = "Couldn't load your key.";
+    }
+  });
+
+  document.getElementById("api-key-copy").addEventListener("click", async () => {
+    if (!field.value) return;
+    try {
+      await navigator.clipboard.writeText(field.value);
+      state.textContent = "Copied";
+    } catch (err) {
+      field.select();
+      state.textContent = "Press Ctrl+C to copy";
+    }
+    setTimeout(() => { state.textContent = ""; }, 2500);
+  });
+})();

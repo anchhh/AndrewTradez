@@ -11,6 +11,17 @@ from services.outreach import OutreachNotConfigured, send_outreach
 bp = Blueprint("leads", __name__, url_prefix="/api/leads")
 
 
+def _owner_from_api_key():
+    """The Chrome extension posts here with a single shared Basic Auth
+    credential, which identifies the deployment but not the person. The
+    X-Estly-Key header carries a per-account key so a captured lead can be
+    attributed to whoever clipped it. Imported lazily to keep this blueprint
+    independent of the studio package at import time."""
+    from studio import user_id_for_api_key
+
+    return user_id_for_api_key(request.headers.get("X-Estly-Key"))
+
+
 @bp.get("")
 def list_leads():
     query = Lead.query
@@ -73,6 +84,14 @@ def create_lead():
     if status not in VALID_STATUSES:
         return jsonify({"error": f"status must be one of {VALID_STATUSES}"}), 400
 
+    owner_id = _owner_from_api_key()
+    if not owner_id:
+        return jsonify({
+            "error": "Missing or unrecognised extension key. Open estly Studio "
+                     "> Lead Manager, copy your extension key, and paste it into "
+                     "the extension's Settings."
+        }), 401
+
     row = {
         "source": data.get("source", "manual"),
         "listing_url": data.get("listing_url"),
@@ -93,11 +112,11 @@ def create_lead():
         "photo_urls": data.get("photo_urls", []),
     }
 
-    created = upsert_lead(row)
+    created = upsert_lead(row, owner_id=owner_id)
     db.session.commit()
 
     dedup_key = compute_dedup_key(address, data.get("zip_code"))
-    lead = Lead.query.filter_by(dedup_key=dedup_key).first()
+    lead = Lead.query.filter_by(dedup_key=dedup_key, owner_id=owner_id).first()
     payload = lead.to_dict()
     payload["_merged"] = not created
     return jsonify(payload), 201
@@ -146,6 +165,10 @@ def import_csv():
     if "file" not in request.files:
         return jsonify({"error": "no file uploaded (expected multipart field 'file')"}), 400
 
+    owner_id = _owner_from_api_key()
+    if not owner_id:
+        return jsonify({"error": "Missing or unrecognised extension key."}), 401
+
     try:
         rows = IMPORTER_REGISTRY["csv"].run(request.files["file"].stream)
     except CsvImportError as exc:
@@ -154,7 +177,7 @@ def import_csv():
     created_count = 0
     updated_count = 0
     for row in rows:
-        if upsert_lead(row):
+        if upsert_lead(row, owner_id=owner_id):
             created_count += 1
         else:
             updated_count += 1

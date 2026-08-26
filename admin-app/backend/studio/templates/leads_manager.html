@@ -17,6 +17,19 @@
     </div>
   </header>
 
+  <details class="lm-key">
+    <summary>Chrome extension key</summary>
+    <p class="lm-key-note">
+      Paste this into the extension's Settings so leads you capture are saved to
+      your account. Anyone with this key can add leads as you — treat it like a password.
+    </p>
+    <div class="lm-key-row">
+      <input type="text" id="api-key-value" readonly value="Loading…">
+      <button type="button" id="api-key-copy" class="btn-secondary btn-tiny">Copy</button>
+      <span id="api-key-state" class="lm-key-state"></span>
+    </div>
+  </details>
+
   <div class="lm-filters">
     <label class="lm-filter">
       <span class="lm-filter-label">Qualification</span>

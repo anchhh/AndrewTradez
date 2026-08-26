@@ -1797,3 +1797,47 @@ gmp-map-3d {
 }
 
 .bulk-state:empty { display: none; }
+
+/* Extension key panel (Lead Manager) */
+.lm-key {
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 14px;
+}
+
+.lm-key summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lm-key-note {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 8px 0;
+  max-width: 68ch;
+}
+
+.lm-key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.lm-key-row input {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.lm-key-state { font-size: 0.76rem; color: var(--ink-soft); }

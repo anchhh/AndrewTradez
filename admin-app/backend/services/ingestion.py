@@ -15,12 +15,16 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
-def upsert_lead(row):
+def upsert_lead(row, owner_id=None):
     """
     Create or merge a single raw listing row (as produced by a manual add,
     the CSV importer, or the Chrome extension) into the Lead table.
     Returns True if a new Lead was created, False if an existing one
     (matched by dedup_key) was updated instead.
+
+    Dedup is scoped to owner_id: two users clipping the same house each get
+    their own lead, rather than the second capture silently merging into
+    the first user's row.
     """
     row = dict(row)  # don't mutate the caller's dict
     address = row.get("address")
@@ -30,7 +34,11 @@ def upsert_lead(row):
     photo_urls = row.pop("photo_urls", None)
     dedup_key = compute_dedup_key(address, zip_code)
 
-    existing = Lead.query.filter_by(dedup_key=dedup_key).first() if dedup_key else None
+    existing = (
+        Lead.query.filter_by(dedup_key=dedup_key, owner_id=owner_id).first()
+        if dedup_key
+        else None
+    )
 
     if existing:
         for field in (
@@ -59,6 +67,7 @@ def upsert_lead(row):
         return False
 
     lead = Lead(
+        owner_id=owner_id,
         source=source,
         external_id=external_id,
         listing_url=row.get("listing_url"),

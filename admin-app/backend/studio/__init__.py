@@ -431,6 +431,54 @@ def login_required(view):
     return wrapped
 
 
+def user_api_key(user):
+    """Per-account key the Chrome extension sends so a captured lead can be
+    attributed to its owner. The extension posts to the admin API with a
+    single shared Basic Auth credential, which says nothing about *who* is
+    clipping -- this does. Generated on first read and persisted."""
+    if not user:
+        return None
+    if not user.get("api_key"):
+        users = load_users()
+        record = next((u for u in users if u["id"] == user["id"]), None)
+        if not record:
+            return None
+        record["api_key"] = secrets.token_urlsafe(24)
+        save_users(users)
+        user["api_key"] = record["api_key"]
+    return user["api_key"]
+
+
+def user_id_for_api_key(key):
+    """Resolve an extension key back to its account. Used by the admin
+    /api/leads POST the extension talks to, which has no Studio session."""
+    if not key:
+        return None
+    for user in load_users():
+        if user.get("api_key") and secrets.compare_digest(user["api_key"], key):
+            return user["id"]
+    return None
+
+
+def owned_leads_query():
+    """Base query for the signed-in user's leads. Every /studio/* lead route
+    goes through this so one account never sees another's."""
+    from models import Lead
+
+    return Lead.query.filter(Lead.owner_id == session.get("user_id"))
+
+
+def get_owned_lead(lead_id):
+    """The lead, or None -- both when it doesn't exist and when it belongs to
+    someone else, so a wrong id and someone else's id are indistinguishable
+    from outside."""
+    from models import Lead
+
+    return (
+        Lead.query.filter(Lead.id == lead_id, Lead.owner_id == session.get("user_id")).first()
+    )
+
+
 def display_name_for(user):
     """A first-name-ish greeting name derived from the account's email
     (there's no separate "name" field on the account) -- e.g.
@@ -735,7 +783,7 @@ def _lead_prefill(lead_id):
     except ImportError:
         return None
 
-    lead = Lead.query.get(lead_id)
+    lead = get_owned_lead(lead_id)
     if not lead:
         return None
 
@@ -1164,7 +1212,7 @@ def api_list_leads():
     except ImportError:
         return jsonify([])
 
-    query = Lead.query
+    query = owned_leads_query()
     qualified_param = request.args.get("qualified")
     if qualified_param is not None:
         query = query.filter(Lead.qualified == (qualified_param.lower() in ("1", "true", "yes")))
@@ -1182,7 +1230,7 @@ def api_update_lead_status(lead_id):
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    lead = db.session.get(Lead, lead_id)
+    lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
@@ -1213,7 +1261,7 @@ def api_get_lead(lead_id):
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    lead = db.session.get(Lead, lead_id)
+    lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
     return jsonify(lead.to_dict())
@@ -1237,7 +1285,7 @@ def api_lead_photos(lead_id):
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    lead = db.session.get(Lead, lead_id)
+    lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
@@ -1286,6 +1334,17 @@ def api_lead_photos(lead_id):
     })
 
 
+@studio_bp.route("/api/my-key", methods=["GET"])
+@login_required
+def api_my_key():
+    """The signed-in account's extension key, so it can be copied into the
+    Chrome extension's settings."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Not signed in."}), 401
+    return jsonify({"api_key": user_api_key(user), "email": user.get("email")})
+
+
 @studio_bp.route("/api/leads/bulk", methods=["POST"])
 @login_required
 def api_bulk_leads():
@@ -1316,7 +1375,7 @@ def api_bulk_leads():
     except (TypeError, ValueError):
         return jsonify({"error": "Lead ids must be numbers."}), 400
 
-    leads = Lead.query.filter(Lead.id.in_(ids)).all()
+    leads = owned_leads_query().filter(Lead.id.in_(ids)).all()
     if not leads:
         return jsonify({"affected": 0, "missing": len(ids)})
 
@@ -1349,7 +1408,7 @@ def api_delete_lead(lead_id):
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    lead = db.session.get(Lead, lead_id)
+    lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
@@ -1377,7 +1436,7 @@ def api_toggle_outreach(lead_id):
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    lead = db.session.get(Lead, lead_id)
+    lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
@@ -1404,7 +1463,7 @@ def api_toggle_qualify(lead_id):
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    lead = db.session.get(Lead, lead_id)
+    lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
@@ -1425,9 +1484,10 @@ def api_get_daily_goals():
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    goal = db.session.get(DailyGoal, 1)
+    user_id = session.get("user_id")
+    goal = DailyGoal.query.filter_by(user_id=user_id).first()
     if goal is None:
-        goal = DailyGoal(id=1, calls_target=0, emails_target=0, videos_target=0)
+        goal = DailyGoal(user_id=user_id, calls_target=0, emails_target=0, videos_target=0)
         db.session.add(goal)
         db.session.commit()
 
@@ -1435,7 +1495,7 @@ def api_get_daily_goals():
 
     def count_done_today(column_name):
         column = getattr(Lead, column_name)
-        rows = Lead.query.filter(column.isnot(None)).all()
+        rows = owned_leads_query().filter(column.isnot(None)).all()
         return sum(1 for lead in rows if getattr(lead, column_name).date() == today)
 
     result = goal.to_dict()
@@ -1456,9 +1516,9 @@ def api_set_daily_goals():
     except ImportError:
         return jsonify({"error": "Lead pipeline isn't available."}), 501
 
-    goal = db.session.get(DailyGoal, 1)
+    goal = DailyGoal.query.filter_by(user_id=session.get("user_id")).first()
     if goal is None:
-        goal = DailyGoal(id=1)
+        goal = DailyGoal(user_id=session.get("user_id"))
         db.session.add(goal)
 
     data = request.get_json(force=True, silent=True) or {}

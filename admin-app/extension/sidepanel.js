@@ -60,10 +60,18 @@ async function getApiBase() {
 }
 
 async function getAuthHeaders() {
-  const { authUser, authPass } = await chrome.storage.sync.get({ authUser: "", authPass: "" });
-  if (!authUser && !authPass) return {};
-  const encoded = btoa(unescape(encodeURIComponent(`${authUser}:${authPass}`)));
-  return { Authorization: `Basic ${encoded}` };
+  const { authUser, authPass, apiKey } = await chrome.storage.sync.get({
+    authUser: "", authPass: "", apiKey: "",
+  });
+  const headers = {};
+  // Basic Auth identifies the deployment; the extension key identifies which
+  // account the captured lead belongs to. Both are needed against a server
+  // with auth enabled.
+  if (authUser || authPass) {
+    headers.Authorization = `Basic ${btoa(unescape(encodeURIComponent(`${authUser}:${authPass}`)))}`;
+  }
+  if (apiKey) headers["X-Estly-Key"] = apiKey;
+  return headers;
 }
 
 async function getDashboardBase() {

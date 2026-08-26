@@ -16,6 +16,12 @@ class Lead(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
+    # Which Studio account this lead belongs to (studio/users.json id).
+    # Every /studio/* lead route filters on it, so one user never sees
+    # another's leads. Nullable only because the column was added to an
+    # existing table; new rows always set it.
+    owner_id = db.Column(db.String(64), nullable=True, index=True)
+
     source = db.Column(db.String(20), nullable=False, default="manual")
     external_id = db.Column(db.String(120), nullable=True)
     listing_url = db.Column(db.String(500), nullable=True)
@@ -123,12 +129,14 @@ class Lead(db.Model):
 
 
 class DailyGoal(db.Model):
-    """Single-row table (id is always 1) holding the user's daily outreach
-    targets shown in the Lead manager dashboard's sidebar checklist."""
+    """One row per Studio account holding that user's daily outreach
+    targets, shown in the Dashboard's sidebar checklist. Was a single
+    shared row before leads became per-user."""
 
     __tablename__ = "daily_goals"
 
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(64), nullable=True, index=True, unique=True)
     calls_target = db.Column(db.Integer, nullable=False, default=0)
     emails_target = db.Column(db.Integer, nullable=False, default=0)
     videos_target = db.Column(db.Integer, nullable=False, default=0)
