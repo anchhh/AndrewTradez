@@ -125,10 +125,15 @@ async function advanceCarousel(matchText) {
     '[class*="chevron-right" i], [class*="chevronright" i], [class*="arrow-right" i],' +
     '[class*="arrowright" i], [class*="next" i], [class*="forward" i]';
 
-  // Confine the search to the photo gallery. homes.com also has next-listing
-  // navigation using the same chevron iconography, and clicking that walked
-  // the tab onto a different property mid-capture. The gallery is found by
-  // walking up from a listing photo until an ancestor holds several of them.
+  // Confine the search to the photo strip, by geometry rather than by DOM
+  // structure. Walking up from a photo does not work here: homes.com renders
+  // each photo in its own subtree, so the first ancestor holding several of
+  // them is <html> itself -- which put the whole page back in scope and let
+  // the next-listing arrow be clicked, moving the tab to another property.
+  //
+  // The union of the listing photos' boxes is the strip. An arrow that
+  // advances it sits on or beside that strip; next-listing and unrelated
+  // controls sit elsewhere on the page.
   const listingImages = Array.prototype.slice
     .call(document.querySelectorAll("img"))
     .filter((img) => {
@@ -136,28 +141,50 @@ async function advanceCarousel(matchText) {
       return src.toLowerCase().indexOf(matchText) !== -1;
     });
 
-  let gallery = null;
-  if (listingImages.length) {
-    let node = listingImages[0];
-    for (let hop = 0; hop < 8 && node && node.parentElement; hop++) {
-      node = node.parentElement;
-      const held = node.querySelectorAll("img");
-      let own = 0;
-      for (const img of held) {
-        const src = img.currentSrc || img.src || "";
-        if (src.toLowerCase().indexOf(matchText) !== -1) own++;
-      }
-      if (own >= 3) {
-        gallery = node;
-        break;
-      }
-    }
-  }
+  const boxes = listingImages
+    .map((img) => img.getBoundingClientRect())
+    .filter((r) => r.width > 40 && r.height > 40);
 
-  const scope = gallery || document;
-  const byClass = Array.prototype.slice.call(scope.querySelectorAll(ARROW_SELECTOR));
+  // No visible photos means no reliable strip to aim at. Paging blind is what
+  // navigated the tab away, so do nothing rather than guess.
+  if (!boxes.length) return Array.from(found);
+
+  const strip = boxes.reduce(
+    (acc, r) => ({
+      left: Math.min(acc.left, r.left),
+      top: Math.min(acc.top, r.top),
+      right: Math.max(acc.right, r.right),
+      bottom: Math.max(acc.bottom, r.bottom),
+    }),
+    { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity }
+  );
+
+  const PAD = 80; // an arrow may overhang the edge of the strip
+  const onStrip = (el) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width && !r.height) return false;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    return (
+      cx >= strip.left - PAD &&
+      cx <= strip.right + PAD &&
+      cy >= strip.top - PAD &&
+      cy <= strip.bottom + PAD
+    );
+  };
+
+  // Anything inside a link to a different property is next-listing
+  // navigation, whatever it looks like.
+  const leavesListing = (el) => {
+    const link = el.closest("a[href]");
+    if (!link) return false;
+    const href = link.getAttribute("href") || "";
+    return href.indexOf("/property/") !== -1 && href.indexOf(matchText) === -1;
+  };
+
+  const byClass = Array.prototype.slice.call(document.querySelectorAll(ARROW_SELECTOR));
   const byRole = Array.prototype.slice
-    .call(scope.querySelectorAll('button, [role="button"]'))
+    .call(document.querySelectorAll('button, [role="button"]'))
     .filter((el) => /next|forward|right|arrow/.test(labelOf(el)));
 
   // A click on the icon bubbles to whichever ancestor carries the handler,
@@ -165,11 +192,11 @@ async function advanceCarousel(matchText) {
   // an <a>: doing that navigated off the listing to an unrelated article.
   const candidates = [];
   byClass.concat(byRole).forEach((el) => {
-    if (!visible(el)) return;
+    if (!visible(el) || !onStrip(el) || leavesListing(el)) return;
     const target = el.closest('button, [role="button"]') || el;
     if (candidates.indexOf(target) === -1) candidates.push(target);
   });
-  candidates.length = Math.min(candidates.length, 4);
+  candidates.length = Math.min(candidates.length, 3);
 
   // Belt and braces: whatever we click, do not let it navigate. A carousel
   // control that is really a link, or one nested inside a promo link, would
