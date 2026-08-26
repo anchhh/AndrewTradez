@@ -62,16 +62,24 @@ const formatRank = (url) => (/\.(jpg|jpeg)$/i.test(url) ? 2 : /\.png$/i.test(url
  * `keyOf` is site-specific: it must return the same string for two URLs that
  * are the same photograph at different sizes, formats or CDN paths.
  */
-function bestPerPhoto(urls, keyOf) {
+function bestPerPhoto(urls, keyOf, scoreOf) {
+  const score = scoreOf || ((url) => [widthIn(url), formatRank(url)]);
   const groups = new Map();
   urls.forEach((url) => {
     const key = keyOf(url.split("?")[0]).toLowerCase();
     const prev = groups.get(key);
-    const better =
-      !prev ||
-      widthIn(url) > widthIn(prev) ||
-      (widthIn(url) === widthIn(prev) && formatRank(url) > formatRank(prev));
-    if (better) groups.set(key, url);
+    if (!prev) {
+      groups.set(key, url);
+      return;
+    }
+    const a = score(url);
+    const b = score(prev);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if ((a[i] || 0) !== (b[i] || 0)) {
+        if ((a[i] || 0) > (b[i] || 0)) groups.set(key, url);
+        return;
+      }
+    }
   });
   return Array.from(groups.values());
 }
@@ -114,10 +122,16 @@ const zillowExtractor = {
  *   /photo/158/mbpaddedwide/538/genMid.1890538_0.jpg
  * Both carry an id the subject's photos share and other listings' don't.
  *
- * Each photo also appears under sibling rendition directories
- * (genLdpUgcMediaBrowserUrl / ...Comp, or mbpaddedwide / mbphotov3 /
- * midphoto), which differ by directory rather than filename.
+ * Each photo also appears under sibling rendition directories that differ by
+ * directory rather than filename. A media bundle carries five of them --
+ * bare, genFirstLookEmail, genLdpUgcMediaBrowserUrl, ...Comp and
+ * genLdpUgcThumb -- so a 56-photo listing arrives as 280 URLs; the /photo/
+ * shape uses bigphoto / mbpaddedwide / mbphotov3 / midphoto / bcsphoto.
  */
+// Renditions of one Redfin photo, best first. bigphoto is the full-screen
+// original; bcsphoto is a small lightbox strip image.
+const REDFIN_RENDITION_RANK = ["bigphoto", "mbpaddedwide", "mbphotov3", "midphoto", "bcsphoto"];
+
 const redfinExtractor = {
   id: "redfin",
   handles: (host) => host.indexOf("redfin.") !== -1,
@@ -126,15 +140,34 @@ const redfinExtractor = {
     const marker = String(ogImage || "").match(/\/system_files\/media\/(\d+)_|genMid\.(\d+)_/i);
     if (!marker) return [];
     const id = marker[1] || marker[2];
-    const own = all.filter(
-      (u) =>
-        u.indexOf("/media/" + id + "_") !== -1 ||
-        u.toLowerCase().indexOf("genmid." + id + "_") !== -1
-    );
-    return bestPerPhoto(own, (url) =>
-      stripExtension(url)
-        .replace(/\/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=\/)/i, "")
-        .replace(/(\/photo\/\d+\/)[a-z0-9]+(\/\d+\/)/i, "$1$2")
+
+    // The id sits in the directory for one URL shape and in the filename for
+    // the other, and the filename carries a rendition prefix (genMid., genBcs.)
+    // on some renditions but not on bigphoto.
+    const inFilename = new RegExp("(^|[/.])" + id + "_");
+    const own = all.filter((u) => {
+      if (u.indexOf("/media/" + id + "_") !== -1) return true;
+      return inFilename.test(u.split("/").pop());
+    });
+
+    return bestPerPhoto(
+      own,
+      (url) =>
+        stripExtension(url)
+          // any gen* segment inside a media bundle is a rendition of one photo
+          .replace(/(\/system_files\/media\/[^/]+\/)gen[A-Za-z0-9]+\//i, "$1")
+          .replace(/(\/photo\/\d+\/)[a-z0-9]+(\/\d+\/)/i, "$1$2")
+          .replace(/\/gen[A-Za-z]+\.(?=\d)/i, "/"),
+      (url) => {
+        // In a media bundle the un-prefixed path is the original; every gen*
+        // sibling is a derived, smaller copy.
+        const bundle = url.match(/\/system_files\/media\/[^/]+\/(gen[A-Za-z0-9]+\/)?/i);
+        if (bundle) return [bundle[1] ? 1 : 2, formatRank(url)];
+
+        const rendition = (url.match(/\/photo\/\d+\/([a-z0-9]+)\//i) || [])[1] || "";
+        const rank = REDFIN_RENDITION_RANK.indexOf(rendition.toLowerCase());
+        return [rank === -1 ? 0 : REDFIN_RENDITION_RANK.length - rank, formatRank(url)];
+      }
     );
   },
 };

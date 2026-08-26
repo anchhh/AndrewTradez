@@ -216,6 +216,13 @@ REDFIN_RENDITION_RE = re.compile(r"/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=/)", 
 # so they key alike.
 REDFIN_SIZE_DIR_RE = re.compile(r"(/photo/\d+/)[a-z0-9]+(/\d+/)", re.I)
 
+# A media bundle carries five renditions of every photo -- bare,
+# genFirstLookEmail, genLdpUgcMediaBrowserUrl, ...Comp and genLdpUgcThumb --
+# so a 56-photo listing arrives as 280 URLs unless they key alike.
+REDFIN_BUNDLE_RENDITION_RE = re.compile(
+    r"(/system_files/media/[^/]+/)gen[A-Za-z0-9]+/", re.I
+)
+
 # --- Isolating the listing you're on from everything else on the page -----
 #
 # These pages embed carousels of *other* homes, and a scan of the HTML can't
@@ -249,6 +256,13 @@ REDFIN_RENDITION_RE = re.compile(r"/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=/)", 
 # so they key alike.
 REDFIN_SIZE_DIR_RE = re.compile(r"(/photo/\d+/)[a-z0-9]+(/\d+/)", re.I)
 
+# A media bundle carries five renditions of every photo -- bare,
+# genFirstLookEmail, genLdpUgcMediaBrowserUrl, ...Comp and genLdpUgcThumb --
+# so a 56-photo listing arrives as 280 URLs unless they key alike.
+REDFIN_BUNDLE_RENDITION_RE = re.compile(
+    r"(/system_files/media/[^/]+/)gen[A-Za-z0-9]+/", re.I
+)
+
 
 def _listing_slug(page_url):
     """The address slug a site puts in its own URL. homes.com repeats it in
@@ -276,9 +290,10 @@ def subject_photos_only(urls: list[str], og_image: str | None, page_url: str | N
     redfin = REDFIN_PHOTO_ID_RE.search(og)
     if redfin:
         photo_id = redfin.group(1) or redfin.group(2)
+        in_filename = re.compile(r"(^|[/.])" + re.escape(photo_id) + "_")
         kept = [
             u for u in urls
-            if f"/media/{photo_id}_" in u or f"genMid.{photo_id}_" in u.lower().replace("genmid", "genMid")
+            if f"/media/{photo_id}_" in u or in_filename.search(u.rsplit("/", 1)[-1])
         ]
         return kept or urls
 
@@ -308,8 +323,12 @@ def subject_photos_only(urls: list[str], og_image: str | None, page_url: str | N
 def normalize_photo_key(url: str) -> str:
     """Collapse different size/format variants of the same photo to one key."""
     path = url.split("?")[0].split("#")[0]
+    # Strip the rendition prefix first: the directory collapses below remove
+    # the slash this pattern needs to anchor on.
+    path = re.sub(r"/gen[A-Za-z]+\.(?=\d)", "/", path)
     path = REDFIN_RENDITION_RE.sub("", path)
-    path = REDFIN_SIZE_DIR_RE.sub(r"", path)
+    path = REDFIN_BUNDLE_RENDITION_RE.sub(r"\1", path)
+    path = REDFIN_SIZE_DIR_RE.sub(r"\1\2", path)
     if "." in path.rsplit("/", 1)[-1]:
         base, ext = path.rsplit(".", 1)
     else:
