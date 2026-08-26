@@ -201,9 +201,40 @@ SIZE_HINT_RE = re.compile(r"\d{2,4}")
 FORMAT_RANK = {"jpg": 0, "jpeg": 0, "png": 1, "webp": 2, "gif": 3}
 
 
+# Redfin serves each gallery photo from three sibling paths under the same
+# media bundle -- ".../<bundle>/item_47.jpg", ".../genLdpUgcMediaBrowserUrl/
+# item_47.jpg" and ".../genLdpUgcMediaBrowserUrlComp/item_47.jpg". They differ
+# by directory, not filename, so the suffix-based key below saw three separate
+# photos. Measured on a real listing: 22 photos were arriving as 66.
+REDFIN_RENDITION_RE = re.compile(r"/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=/)", re.I)
+
+# The subject listing's own photos live under one numeric media bundle, which
+# og:image always points into. Everything Redfin renders from the "similar
+# homes" rails sits under /photo/<n>/mbphoto/ or /bcsphoto/ with unrelated ids.
+REDFIN_BUNDLE_RE = re.compile(r"/system_files/media/(\d+)_[A-Za-z0-9]+/", re.I)
+
+
+def subject_photos_only(urls: list[str], og_image: str | None) -> list[str]:
+    """Drop images that belong to *other* listings on the same page.
+
+    Anchors on og:image, which is always a photo of the listing you're
+    actually looking at. Only Redfin needs this today -- its page embeds
+    whole carousels of nearby homes, and a plain scan of the HTML can't tell
+    them apart. Returns the input unchanged when there's nothing to anchor
+    on, and never returns an empty list.
+    """
+    match = REDFIN_BUNDLE_RE.search(og_image or "")
+    if not match:
+        return urls
+    prefix = f"/system_files/media/{match.group(1)}_"
+    kept = [u for u in urls if prefix in u]
+    return kept or urls
+
+
 def normalize_photo_key(url: str) -> str:
     """Collapse different size/format variants of the same photo to one key."""
     path = url.split("?")[0].split("#")[0]
+    path = REDFIN_RENDITION_RE.sub("", path)
     if "." in path.rsplit("/", 1)[-1]:
         base, ext = path.rsplit(".", 1)
     else:
@@ -227,7 +258,10 @@ def photo_quality_rank(url: str):
     suffix = base[len(stripped):]
     sizes = [int(n) for n in SIZE_HINT_RE.findall(suffix)]
     max_size = max(sizes) if sizes else 0
-    return (max_size, -FORMAT_RANK.get(ext.lower(), 5))
+    # Among Redfin's renditions of one photo, the "...Comp" path is the
+    # compressed copy; prefer anything else.
+    rendition_rank = 0 if "comp/" in url.lower() else 1
+    return (max_size, rendition_rank, -FORMAT_RANK.get(ext.lower(), 5))
 
 
 def dedupe_photo_variants(urls: list[str]) -> list[str]:
@@ -528,6 +562,7 @@ def looks_like_content_image(url: str) -> bool:
 def collect_image_urls(soup: BeautifulSoup, base_url: str, raw_html: str) -> list[str]:
     found = []
     seen = set()
+    og_image = None
 
     def add(raw_url):
         if not raw_url:
@@ -543,6 +578,8 @@ def collect_image_urls(soup: BeautifulSoup, base_url: str, raw_html: str) -> lis
     for prop in ("og:image", "og:image:secure_url", "twitter:image"):
         tag = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
         if tag and tag.get("content"):
+            if og_image is None:
+                og_image = urljoin(base_url, tag["content"].strip())
             add(tag["content"])
 
     # JSON-LD structured data (schema.org) often lists the full photo set
@@ -588,7 +625,7 @@ def collect_image_urls(soup: BeautifulSoup, base_url: str, raw_html: str) -> lis
     # The scan above finds every size/format variant of each photo (a single
     # real-estate photo commonly appears as 10-20 near-duplicate URLs); group
     # and keep just the best one per photo before this ever reaches the user.
-    return dedupe_photo_variants(found)[:MAX_IMAGE_CANDIDATES]
+    return dedupe_photo_variants(subject_photos_only(found, og_image))[:MAX_IMAGE_CANDIDATES]
 
 
 def guess_source(url: str) -> str:
@@ -791,6 +828,8 @@ def _lead_prefill(lead_id):
         "lead_id": lead.id,
         "name": lead.address,
         "address": lead.address,
+        "url": lead.listing_url,
+        "source": lead.source,
         "photos": lead.photo_urls,
         "beds": lead.beds,
         "baths": lead.baths,

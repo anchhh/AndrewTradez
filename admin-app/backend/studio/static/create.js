@@ -118,6 +118,10 @@ async function applyPrefill(prefill) {
   state.name = prefill.name || null;
   state.extracted = {
     address: prefill.address,
+    // autosave reads url/source off state.extracted, so the lead's listing
+    // link is carried into the saved project rather than being lost.
+    url: prefill.url || null,
+    source: prefill.source || null,
     beds: prefill.beds,
     baths: prefill.baths,
     sqft: prefill.sqft,
@@ -126,26 +130,68 @@ async function applyPrefill(prefill) {
   if (prefill.address) el("satellite-address").value = prefill.address;
   renderSatelliteView();
 
-  if (prefill.photos && prefill.photos.length) {
-    try {
-      const res = await fetch("/studio/api/import-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: prefill.photos, existing_photos: [] }),
-      });
-      const data = await res.json();
-      (data.photos || []).forEach((url) => state.photos.push({ url }));
-      renderPhotoGrid();
-    } catch (err) {
-      // Photos are a nice-to-have here; the lead's address/facts still came through.
-    }
+  // Carry the listing link across so the project keeps its source, and the
+  // user never has to paste it a second time.
+  if (prefill.url) {
+    const urlInput = el("listing-url");
+    if (urlInput) urlInput.value = prefill.url;
   }
+
+  await adoptLeadPhotos(prefill);
 
   if (prefill.address) {
     await fetchSatelliteView();
   }
 
   await autosave();
+}
+
+/* Bring the lead's photos into this project.
+
+   The lead's photos are already saved locally (the profile page pulls them
+   from the listing), so their URLs look like /studio/static/uploads/x.jpg.
+   Those must be adopted as-is: handing them to /api/import-images made it
+   try to HTTP-fetch a path with no host, every one failed, and the project
+   opened with an empty photo grid -- which is what made this feel like
+   "re-upload everything". Only genuinely remote URLs get downloaded.
+
+   If the lead has no photos yet (its profile was never opened), pull them
+   from the listing first using the same endpoint the profile uses. */
+async function adoptLeadPhotos(prefill) {
+  let photos = prefill.photos || [];
+
+  if (!photos.length && prefill.lead_id) {
+    try {
+      const res = await fetch(`/studio/api/leads/${prefill.lead_id}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      photos = (await res.json()).photos || [];
+    } catch (err) {
+      photos = [];
+    }
+  }
+  if (!photos.length) return;
+
+  const isLocal = (url) => url.startsWith("/studio/static/uploads/");
+  photos.filter(isLocal).forEach((url) => state.photos.push({ url }));
+
+  const remote = photos.filter((url) => !isLocal(url));
+  if (remote.length) {
+    try {
+      const res = await fetch("/studio/api/import-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images: remote, existing_photos: state.photos.map((p) => p.url) }),
+      });
+      const data = await res.json();
+      (data.photos || []).forEach((url) => state.photos.push({ url }));
+    } catch (err) {
+      // Photos are a nice-to-have here; the lead's address/facts still came through.
+    }
+  }
+  renderPhotoGrid();
 }
 
 async function fetchListingInfo() {
