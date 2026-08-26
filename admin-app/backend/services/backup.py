@@ -16,6 +16,7 @@ this is the hosting provider's job, not ours.
 """
 import os
 import re
+import shutil
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,11 @@ from pathlib import Path
 BACKUP_DIR_NAME = "backups"
 KEEP = 20  # ~81KB each today, so twenty costs a couple of megabytes
 _STAMP_RE = re.compile(r"^leads-(\d{8}-\d{6})-([a-z0-9-]+)\.db$")
+
+# estly Studio keeps accounts and video projects in flat JSON beside its
+# package rather than in the database, so a snapshot of leads.db alone would
+# leave the drafts and the logins themselves unprotected.
+SIDECAR_FILES = ("projects.json", "users.json")
 
 
 def _sqlite_path(app):
@@ -79,10 +85,25 @@ def snapshot(app, reason="manual", skip_if_unchanged=False):
         finally:
             src.close()
 
+        _snapshot_sidecars(source, target_dir, stamp, safe_reason)
         prune(target_dir)
         return target
     except Exception:  # noqa: BLE001 -- a backup must never break the app
         return None
+
+
+def _snapshot_sidecars(source, target_dir, stamp, reason):
+    """Copy Studio's flat-file stores alongside the database snapshot, under
+    the same timestamp so a restore can take a matching set."""
+    studio_dir = source.parent / "studio"
+    for name in SIDECAR_FILES:
+        src = studio_dir / name
+        if not src.is_file():
+            continue
+        try:
+            shutil.copy2(src, target_dir / f"{name.rsplit('.',1)[0]}-{stamp}-{reason}.json")
+        except OSError:
+            pass
 
 
 def prune(target_dir, keep=KEEP):
@@ -95,6 +116,12 @@ def prune(target_dir, keep=KEEP):
         )
         for old in snaps[keep:]:
             old.unlink(missing_ok=True)
+        # Sidecars are pruned by the same retention, matched on timestamp.
+        keep_stamps = {_STAMP_RE.match(p.name).group(1) for p in snaps[:keep]}
+        for side in target_dir.glob("*.json"):
+            stamp_match = re.search(r"(\d{8}-\d{6})", side.name)
+            if stamp_match and stamp_match.group(1) not in keep_stamps:
+                side.unlink(missing_ok=True)
     except Exception:  # noqa: BLE001
         pass
 
