@@ -26,6 +26,28 @@ AUTH_ENABLED = bool(BASIC_AUTH_USER and BASIC_AUTH_PASS)
 # typed-in password against /api/health -- nothing sensitive either way.
 _EXEMPT_API_PATHS = {"/api/auth/status"}
 
+# The Chrome extension authenticates with a per-account key (X-Estly-Key)
+# rather than the single shared Basic Auth password: the key says *which*
+# user captured a lead, is revocable one account at a time, and means the
+# extension never has to hold a password that opens the whole admin API.
+#
+# Only the endpoints it actually uses accept it. Notably GET /api/leads is
+# not among them -- that returns every lead regardless of owner, so it stays
+# behind Basic Auth rather than being readable by any key holder.
+_API_KEY_ROUTES = {
+    ("POST", "/api/leads"),
+    ("POST", "/api/leads/import/csv"),
+    ("GET", "/api/health"),
+}
+
+
+def _has_valid_api_key():
+    try:
+        from studio import user_id_for_api_key
+    except ImportError:
+        return False
+    return bool(user_id_for_api_key(request.headers.get("X-Estly-Key")))
+
 
 def _check_credentials(header):
     if not header or not header.startswith("Basic "):
@@ -54,6 +76,8 @@ def register_basic_auth(app):
             return
         if not request.path.startswith("/api/"):
             return  # static frontend bundle -- see module docstring
+        if (request.method, request.path) in _API_KEY_ROUTES and _has_valid_api_key():
+            return  # authenticated as a specific account by its extension key
         if not _check_credentials(request.headers.get("Authorization")):
             return Response(
                 "Authentication required",

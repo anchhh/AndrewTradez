@@ -1428,6 +1428,46 @@ def api_lead_photos(lead_id):
     })
 
 
+@studio_bp.route("/api/extension/login", methods=["POST"])
+def api_extension_login():
+    """Sign the Chrome extension in with the same credentials as Studio
+    itself, and hand back the account's key.
+
+    The extension used to hold a shared Basic Auth username and password
+    that opened the whole admin API and said nothing about who was
+    capturing. Now it signs in as a person, exactly like the web app, and
+    stores only that account's key -- which is revocable on its own and
+    identifies the owner of every lead it captures.
+
+    Deliberately not behind login_required: this is what establishes the
+    session in the first place.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    user = find_user_by_email(email)
+    if not user or not user.get("password_hash"):
+        # Google-only accounts have no password to check. Same generic reply
+        # either way, so this can't be used to find out which emails exist.
+        return jsonify({"error": "Incorrect email or password."}), 401
+    if not check_password_hash(user["password_hash"], password):
+        return jsonify({"error": "Incorrect email or password."}), 401
+
+    return jsonify({"token": user_api_key(user), "email": user["email"]})
+
+
+@studio_bp.route("/api/extension/me", methods=["GET"])
+def api_extension_me():
+    """Who a stored extension token belongs to, so the panel can show the
+    signed-in account and detect a token that's no longer valid."""
+    user_id = user_id_for_api_key(request.headers.get("X-Estly-Key"))
+    if not user_id:
+        return jsonify({"error": "Not signed in."}), 401
+    user = next((u for u in load_users() if u["id"] == user_id), None)
+    return jsonify({"email": user["email"] if user else None})
+
+
 @studio_bp.route("/api/my-key", methods=["GET"])
 @login_required
 def api_my_key():

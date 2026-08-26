@@ -143,19 +143,67 @@ async function getApiBase() {
   return stored.apiBase;
 }
 
+async function getToken() {
+  const { authToken } = await chrome.storage.local.get({ authToken: "" });
+  return authToken;
+}
+
+// The extension signs in as a Studio account and keeps that account's token,
+// so it no longer holds a shared password that opens the whole admin API and
+// every captured lead is attributed to whoever is signed in.
 async function getAuthHeaders() {
-  const { authUser, authPass, apiKey } = await chrome.storage.sync.get({
-    authUser: "", authPass: "", apiKey: "",
-  });
-  const headers = {};
-  // Basic Auth identifies the deployment; the extension key identifies which
-  // account the captured lead belongs to. Both are needed against a server
-  // with auth enabled.
-  if (authUser || authPass) {
-    headers.Authorization = `Basic ${btoa(unescape(encodeURIComponent(`${authUser}:${authPass}`)))}`;
+  const token = await getToken();
+  return token ? { "X-Estly-Key": token } : {};
+}
+
+async function setSignedIn(email, token) {
+  await chrome.storage.local.set({ authToken: token, authEmail: email });
+  renderAuth(email);
+}
+
+async function signOut() {
+  await chrome.storage.local.remove(["authToken", "authEmail"]);
+  renderAuth(null);
+}
+
+function renderAuth(email) {
+  const signedIn = !!email;
+  $("signin").hidden = signedIn;
+  $("signed-in").hidden = !signedIn;
+  if (signedIn) $("signed-in-email").textContent = email;
+  // Nothing is capturable until we know whose lead it would be.
+  const save = $("btn-save");
+  if (save) save.disabled = !signedIn;
+}
+
+// Verifies the stored token still works; a deleted account or rotated key
+// should drop the panel back to the sign-in form rather than failing later
+// with a confusing error on save.
+async function restoreSession() {
+  const { authToken, authEmail } = await chrome.storage.local.get({ authToken: "", authEmail: "" });
+  if (!authToken) {
+    renderAuth(null);
+    return;
   }
-  if (apiKey) headers["X-Estly-Key"] = apiKey;
-  return headers;
+  renderAuth(authEmail || "…");
+  try {
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}/studio/api/extension/me`, {
+      headers: { "X-Estly-Key": authToken },
+    });
+    if (!res.ok) {
+      await signOut();
+      return;
+    }
+    const body = await res.json();
+    if (body.email && body.email !== authEmail) {
+      await chrome.storage.local.set({ authEmail: body.email });
+    }
+    renderAuth(body.email || authEmail);
+  } catch (e) {
+    // Backend unreachable -- keep the stored session rather than signing the
+    // user out because their laptop was offline for a moment.
+  }
 }
 
 async function getDashboardBase() {
@@ -221,7 +269,10 @@ async function checkBackend() {
   try {
     const apiBase = await getApiBase();
     const res = await fetch(`${apiBase}/api/health`, { headers: await getAuthHeaders() });
-    if (res.status === 401) throw new Error("401 unauthorized — check username/password in Settings");
+    if (res.status === 401) {
+      await signOut();
+      throw new Error("Your session expired — sign in again above.");
+    }
     if (!res.ok) throw new Error(`status ${res.status}`);
     el.textContent = `Backend connected (${apiBase})`;
     el.className = "backend-status ok";
@@ -290,7 +341,10 @@ $("form").addEventListener("submit", async (e) => {
       headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
       body: JSON.stringify(payload),
     });
-    if (res.status === 401) throw new Error("401 unauthorized — check username/password in Settings");
+    if (res.status === 401) {
+      await signOut();
+      throw new Error("Your session expired — sign in again above.");
+    }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Save failed (${res.status})`);
     setStatus((body._merged ? "Merged into existing lead." : "Saved.") + " Click Open Pipeline to view it.", "ok");
@@ -302,6 +356,33 @@ $("form").addEventListener("submit", async (e) => {
   $("btn-save").disabled = false;
 });
 
+$("signin").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("signin-email").value.trim();
+  const password = $("signin-password").value;
+  const err = $("signin-error");
+  const btn = $("signin-submit");
+  err.textContent = "";
+  btn.disabled = true;
+  try {
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}/studio/api/extension/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Sign-in failed (${res.status})`);
+    $("signin-password").value = "";
+    await setSignedIn(body.email, body.token);
+  } catch (e2) {
+    err.textContent = e2.message;
+  }
+  btn.disabled = false;
+});
+
+$("btn-signout").addEventListener("click", signOut);
+
 $("btn-options").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
@@ -312,4 +393,5 @@ $("btn-pipeline").addEventListener("click", async () => {
 });
 
 init();
+restoreSession();
 setInterval(checkBackend, 8000);

@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Estly Lead Clipper",
-  "version": "2.9.2",
-  "description": "Capture the listing you're viewing into your Estly lead pipeline from a persistent side panel. Auto-updates as you browse between listings.",
+  "version": "2.9.3",
+  "description": "Sign in with your estly Studio account and capture the listing you're viewing straight into your leads.",
   "action": {
-    "default_title": "Estly Lead Clipper — click to capture this page",
+    "default_title": "Estly Lead Clipper \u2014 click to capture this page",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -24,7 +24,12 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel"
+  ],
   "host_permissions": [
     "https://estly-admin.onrender.com/*",
     "http://localhost:5050/*",
