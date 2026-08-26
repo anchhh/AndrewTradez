@@ -1474,6 +1474,12 @@ def api_bulk_leads():
         return jsonify({"affected": 0, "missing": len(ids)})
 
     if action == "delete":
+        # Bulk delete is the one action here that destroys data outright,
+        # so take a snapshot we can fall back on first.
+        from services.backup import snapshot
+        from flask import current_app
+
+        snapshot(current_app, "bulk-delete")
         for lead in leads:
             db.session.delete(lead)
     elif action == "status":

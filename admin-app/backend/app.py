@@ -46,6 +46,10 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        # Snapshot on every boot, so there is always a recent copy of the
+        # lead database to fall back on. See services/backup.py.
+        from services.backup import snapshot
+        snapshot(app, "startup")
 
     return app
 
