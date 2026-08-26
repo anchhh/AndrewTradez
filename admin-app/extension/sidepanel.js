@@ -120,11 +120,44 @@ async function readListingSource() {
 }
 
 /**
- * Injected to read chosen images and hand back their bytes. Fetching here
- * rather than server-side is what makes homes.com work at all -- its CDN
- * refuses the backend -- and spares every other site a second download.
+ * Injected to read chosen images and hand back their bytes.
+ *
+ * Runs in the page so requests carry the site's own origin and cookies, which
+ * is what makes this work at all for a site whose CDN refuses our backend.
+ * The catch is that a page-context fetch is still subject to CORS, and a
+ * listing's photos usually live on a different host than the listing itself
+ * (images.homes.com vs www.homes.com). Where that host sends no CORS headers
+ * the read fails, so each URL reports back individually and the panel retries
+ * the failures from the extension, which host_permissions exempt from CORS.
  */
 async function fetchImagesAsDataUrls(urls) {
+  const out = [];
+  for (const url of urls) {
+    let data = null;
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.type.indexOf("image/") === 0 && blob.size >= 3000) {
+          data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (e) {
+      // CORS, or the image simply didn't load -- the panel will retry it
+    }
+    out.push({ url: url, data: data });
+  }
+  return out;
+}
+
+/** Same read, but from the extension, where host_permissions grant
+ *  cross-origin access without the site needing to send CORS headers. */
+async function fetchFromExtension(urls) {
   const out = [];
   for (const url of urls) {
     try {
@@ -141,7 +174,7 @@ async function fetchImagesAsDataUrls(urls) {
         })
       );
     } catch (e) {
-      // one unreachable image shouldn't lose the rest
+      // nothing more to try for this one
     }
   }
   return out;
@@ -171,12 +204,21 @@ async function capturePhotos(onProgress) {
     if (!photos.length) return [];
 
     if (onProgress) onProgress(photos.length);
-    const [{ result: data }] = await chrome.scripting.executeScript({
+    const [{ result: results }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: fetchImagesAsDataUrls,
       args: [photos],
     });
-    return data || [];
+
+    const collected = (results || []).filter((r) => r && r.data).map((r) => r.data);
+    const blocked = (results || []).filter((r) => r && !r.data).map((r) => r.url);
+    if (blocked.length) {
+      console.log(`[Estly] ${blocked.length} images unreadable from the page (CORS?), retrying from the extension`);
+      const rescued = await fetchFromExtension(blocked);
+      console.log(`[Estly] recovered ${rescued.length} of ${blocked.length}`);
+      collected.push.apply(collected, rescued);
+    }
+    return collected;
   } catch (e) {
     console.warn("[Estly] sidepanel: photo capture failed", e);
     return [];
