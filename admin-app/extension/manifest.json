@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Estly Lead Clipper",
-  "version": "2.9.15",
+  "version": "2.9.16",
   "description": "Capture the listing you're viewing straight into your Estly leads, from a persistent side panel.",
   "action": {
     "default_title": "Estly Lead Clipper \u2014 click to capture this page",

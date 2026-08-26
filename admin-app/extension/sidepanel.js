@@ -137,16 +137,31 @@ async function advanceCarousel(matchText) {
     .filter((el) => /next|forward|right|arrow/.test(labelOf(el)));
 
   // A click on the icon bubbles to whichever ancestor carries the handler,
-  // which is how a real click works too -- but prefer the ancestor when there
-  // is an obvious one, since some carousels bind to the button element.
+  // which is how a real click works too. Promote only to a button -- never to
+  // an <a>: doing that navigated off the listing to an unrelated article,
+  // after which everything downstream read the wrong page.
   const candidates = [];
   byClass.concat(byRole).forEach((el) => {
     if (!visible(el)) return;
-    const target = el.closest('button, [role="button"], a') || el;
+    const target = el.closest('button, [role="button"]') || el;
     if (candidates.indexOf(target) === -1) candidates.push(target);
   });
   candidates.length = Math.min(candidates.length, 8);
 
+  // Belt and braces: whatever we click, do not let it navigate. A carousel
+  // control that is really a link, or one nested inside a promo link, would
+  // otherwise take the tab elsewhere mid-capture.
+  const blockNavigation = (event) => {
+    const link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    // preventDefault only: it cancels the navigation while still letting the
+    // carousel's own handler run. stopPropagation would kill the paging too
+    // whenever the arrow happens to sit inside a link.
+    if (link) event.preventDefault();
+  };
+  window.addEventListener("click", blockNavigation, true);
+
+  const startedAt = location.href;
+  try {
   for (const control of candidates) {
     let idle = 0;
     for (let i = 0; i < 40 && idle < 4; i++) {
@@ -161,7 +176,13 @@ async function advanceCarousel(matchText) {
       // Stop early once clicking stops producing anything new: either the
       // carousel has wrapped around or this control was the wrong one.
       idle = found.size > before ? 0 : idle + 1;
+      // If the page moved anyway, stop immediately: anything read from here
+      // belongs to a different listing.
+      if (location.href !== startedAt) return Array.from(found);
     }
+  }
+  } finally {
+    window.removeEventListener("click", blockNavigation, true);
   }
   return Array.from(found);
 }
