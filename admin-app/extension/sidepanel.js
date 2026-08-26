@@ -66,135 +66,67 @@ function readForm() {
  *
  * Must be fully self-contained: it's serialised and injected on demand.
  */
-async function collectPhotosFromPage() {
-  const MAX = 60;
-
+/**
+ * Injected into the listing page. Returns the page's own HTML *as the server
+ * would send it*, plus its og:image.
+ *
+ * It re-fetches location.href rather than reading document.documentElement,
+ * because these sites are single-page apps: browsing from one listing to the
+ * next leaves the previous listing's photos in the live DOM, and on Zillow
+ * those are indistinguishable from the current one's. Re-fetching gives the
+ * markup for exactly one listing -- the same clean input the backend gets,
+ * which is why re-fetching from the Lead Manager was always right -- while
+ * still running in the browser, which can reach pages that refuse the server.
+ *
+ * Falls back to the live DOM if the fetch fails, which is better than nothing.
+ *
+ * Must be fully self-contained: it's serialised and injected on demand.
+ */
+async function readListingSource() {
   const ogTag = document.querySelector('meta[property="og:image"]');
   const og = ogTag ? ogTag.getAttribute("content") : null;
 
-  const urls = new Set();
-  const add = (u) => {
-    if (!u) return;
-    let abs;
-    try {
-      abs = new URL(u.trim(), location.href).href;
-    } catch (e) {
-      return;
-    }
-    if (/\.svg(\?|$)/i.test(abs)) return;
-    const low = abs.toLowerCase();
-    const junk = ["sprite","icon","favicon","logo","avatar","placeholder","blank.gif",
-                  "pixel.","1x1.","spacer.","tracking","noscript","collector",
-                  "share_thumbnail","nophoto","/static/images/"];
-    if (junk.some((h) => low.indexOf(h) !== -1)) return;
-    urls.add(abs);
-  };
-
-  if (og) add(og);
-
-  // Rendered <img> tags only ever cover what has actually loaded. Listing
-  // galleries lazy-load, so on Zillow this alone found about six photos out
-  // of thirty-five. Take them, then scan the page source as well.
-  document.querySelectorAll("img, source").forEach((el) => {
-    const src = el.currentSrc || el.getAttribute("src");
-    if (src) add(src);
-    const srcset = el.getAttribute("srcset") || el.getAttribute("data-srcset");
-    if (srcset) {
-      const last = srcset.split(",").pop().trim().split(/\s+/)[0];
-      if (last) add(last);
-    }
-    ["data-src", "data-lazy-src", "data-original"].forEach((a) => {
-      if (el.getAttribute(a)) add(el.getAttribute(a));
-    });
-  });
-
-  // The whole gallery is in the page's own markup -- these sites render it
-  // from a JSON blob in an inline <script>, where "/" is often escaped. This
-  // is the same scan the backend runs, done here because the browser can
-  // reach pages and CDNs that refuse the server outright.
-  const source = document.documentElement.outerHTML.replace(/\\\//g, "/");
-  const re = /https?:\/\/[^\s"'()<>\\]+?\.(?:jpg|jpeg|png|webp)/gi;
-  let m;
-  while ((m = re.exec(source)) !== null) add(m[0]);
-
-  let list = Array.from(urls);
-
-  // Narrow to this listing's own photos. Every rule was derived by counting a
-  // real page against the photo count the site itself displays.
-  //   Zillow  gallery photos use "cc_ft" renditions; other listings on the
-  //           page appear only as "sr_" ones.
-  //   Redfin  og:image carries the subject's photo id, in one of two shapes.
-  //   homes   every real photo repeats the address slug from the page URL.
-  if (og && og.indexOf("zillowstatic.com") !== -1) {
-    const own = list.filter((u) => u.indexOf("-cc_ft_") !== -1);
-    if (own.length) list = own;
-  } else {
-    const redfin = og && og.match(/\/system_files\/media\/(\d+)_|genMid\.(\d+)_/i);
-    if (redfin) {
-      const id = redfin[1] || redfin[2];
-      const own = list.filter(
-        (u) => u.indexOf("/media/" + id + "_") !== -1 || u.toLowerCase().indexOf("genmid." + id + "_") !== -1
-      );
-      if (own.length) list = own;
-    } else {
-      const slugMatch = location.pathname.match(/\/(?:property|homedetails)\/([^/]+)/i);
-      const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
-      let matched = false;
-      if (slug) {
-        const own = list.filter((u) => u.toLowerCase().indexOf(slug) !== -1);
-        if (own.length) { list = own; matched = true; }
-      }
-      // Sites without a verified rule (Realtor.com today): a gallery is
-      // normally served from one directory and og:image is always a photo of
-      // the subject, so prefer that directory when it holds more than one
-      // image; otherwise at least stay on og:image's own host.
-      if (!matched && og && /^https?:/i.test(og)) {
-        const dir = og.split("?")[0].replace(/\/[^/]*$/, "/");
-        const sameDir = list.filter((u) => u.indexOf(dir) === 0);
-        if (sameDir.length > 1) {
-          list = sameDir;
-        } else {
-          try {
-            const host = new URL(og).host;
-            const sameHost = list.filter((u) => { try { return new URL(u).host === host; } catch (e) { return false; } });
-            if (sameHost.length) list = sameHost;
-          } catch (e) { /* leave the list alone */ }
-        }
-      }
-    }
+  let html = null;
+  try {
+    const res = await fetch(location.href, { credentials: "include", cache: "no-store" });
+    if (res.ok) html = await res.text();
+  } catch (e) {
+    /* handled below */
   }
 
-  // One photo is served at many sizes; keep the widest per photo. The size
-  // token is the trailing part of the filename, so group on what remains.
-  const groups = new Map();
-  const sizeOf = (u) => {
-    const nums = (u.match(/(\d{3,4})(?=[^\d]*$)/g) || []).map(Number);
-    return nums.length ? Math.max.apply(null, nums) : 0;
-  };
-  // jpg/png decode everywhere the video pipeline runs; webp is the same photo
-  // in a fussier container, so break size ties towards the safer format.
-  const formatRank = (u) => (/\.(jpg|jpeg)$/i.test(u) ? 2 : /\.png$/i.test(u) ? 1 : 0);
-  const better = (a, b) =>
-    sizeOf(a) !== sizeOf(b) ? sizeOf(a) > sizeOf(b) : formatRank(a) > formatRank(b);
+  // Degraded mode. If the re-fetch failed we must NOT fall back to
+  // document.documentElement: on a single-page app it holds photos from every
+  // listing visited in this tab, and on Zillow those are indistinguishable
+  // from the current one's. Measured on two real pages concatenated, that
+  // leaks 25 of another listing's photos. The rendered <img> tags belong to
+  // the listing actually on screen, so they're fewer but never wrong.
+  let domUrls = [];
+  if (!html) {
+    const seen = new Set();
+    document.querySelectorAll("img, source").forEach((el) => {
+      [el.currentSrc, el.getAttribute("src"), el.getAttribute("data-src")].forEach((u) => {
+        if (u && u.indexOf("data:") !== 0) seen.add(u);
+      });
+      const srcset = el.getAttribute("srcset");
+      if (srcset) {
+        const last = srcset.split(",").pop().trim().split(/\s+/)[0];
+        if (last) seen.add(last);
+      }
+    });
+    domUrls = Array.from(seen);
+  }
 
-  list.forEach((u) => {
-    // Key on the photo itself: no query, no size token, no rendition
-    // directory and no extension -- otherwise one photo counts as many. On
-    // Zillow the jpg and webp of each photo alone doubled 35 into 70.
-    const key = u
-      .split("?")[0]
-      .replace(/-(cc_ft|sr|uncropped_scaled_within)[_0-9x]*(?=\.[a-z]+$)/i, "")
-      .replace(/(\/photo\/\d+\/)[a-z0-9]+(\/\d+\/)/i, "$1$2")
-      .replace(/\/gen[A-Za-z]*MediaBrowserUrl[A-Za-z]*(?=\/)/i, "")
-      .replace(/\.[a-z0-9]+$/i, "")
-      .toLowerCase();
-    const prev = groups.get(key);
-    if (!prev || better(u, prev)) groups.set(key, u);
-  });
-  list = Array.from(groups.values()).slice(0, MAX);
+  return { href: location.href, og: og, html: html, domUrls: domUrls, fresh: !!html };
+}
 
+/**
+ * Injected to read chosen images and hand back their bytes. Fetching here
+ * rather than server-side is what makes homes.com work at all -- its CDN
+ * refuses the backend -- and spares every other site a second download.
+ */
+async function fetchImagesAsDataUrls(urls) {
   const out = [];
-  for (const url of list) {
+  for (const url of urls) {
     try {
       const res = await fetch(url);
       if (!res.ok) continue;
@@ -215,15 +147,36 @@ async function collectPhotosFromPage() {
   return out;
 }
 
-async function capturePhotos() {
+async function capturePhotos(onProgress) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) return [];
-    const [{ result }] = await chrome.scripting.executeScript({
+
+    const [{ result: page }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: collectPhotosFromPage,
+      func: readListingSource,
     });
-    return result || [];
+    if (!page) return [];
+
+    // Per-site rules live in extractors.js so changing one site can't affect
+    // another. In degraded mode the rendered image URLs stand in for the page
+    // source, so the same per-site filter still applies to them.
+    const material = page.fresh ? page.html : page.domUrls.join("\n");
+    if (!material) return [];
+    const { source, photos } = pickListingPhotos(material, page.href, page.og, 60);
+    console.log(
+      `[Estly] ${source} extractor picked ${photos.length} photos` +
+        (page.fresh ? "" : " (degraded: page re-fetch failed, on-screen images only)")
+    );
+    if (!photos.length) return [];
+
+    if (onProgress) onProgress(photos.length);
+    const [{ result: data }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: fetchImagesAsDataUrls,
+      args: [photos],
+    });
+    return data || [];
   } catch (e) {
     console.warn("[Estly] sidepanel: photo capture failed", e);
     return [];
@@ -375,8 +328,8 @@ $("form").addEventListener("submit", async (e) => {
   }
 
   $("btn-save").disabled = true;
-  setStatus("Reading photos from the page…");
-  const photosBase64 = await capturePhotos();
+  setStatus("Reading photos from the listing…");
+  const photosBase64 = await capturePhotos((n) => setStatus(`Downloading ${n} photos…`));
   if (photosBase64.length) payload.photos_base64 = photosBase64;
   setStatus(photosBase64.length ? `Saving with ${photosBase64.length} photos…` : "Saving…");
 
