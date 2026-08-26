@@ -14,6 +14,8 @@ here). Data still lives in flat JSON files (projects.json/users.json) next
 to this package rather than the SQLAlchemy `db` the rest of the admin app
 uses; unifying those is future work.
 """
+import base64
+import binascii
 import io
 import json
 import os
@@ -1052,6 +1054,59 @@ def api_upload():
         return jsonify({"error": "No valid image or video files found (png/jpg/webp/heic, mp4/mov/webm/m4v)."}), 400
 
     return jsonify({"photos": saved, "duplicates": duplicates})
+
+
+MAX_INLINE_PHOTOS = 40  # bounds the capture payload the extension sends
+
+DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9.+-]+);base64,(.+)$", re.S)
+
+
+def save_data_url_images(data_urls, existing_photos=None):
+    """Save images the Chrome extension captured in the page and sent inline
+    as data: URLs.
+
+    Some sites (homes.com, via Akamai) refuse this server outright -- 403 on
+    the listing HTML *and* on their image CDN -- so there is no server-side
+    fetch that can ever work for them. The extension is a real browser on the
+    page the user is already looking at, so it reads the bytes there and
+    hands them over. Same hashing and de-duplication as an upload.
+    """
+    known_hashes = hash_existing_photos(existing_photos or [])
+    saved, failed, duplicates = [], 0, 0
+
+    for entry in (data_urls or [])[:MAX_INLINE_PHOTOS]:
+        match = DATA_URL_RE.match((entry or "").strip())
+        if not match:
+            failed += 1
+            continue
+        subtype, payload = match.groups()
+        ext = CONTENT_TYPE_EXT.get(f"image/{subtype.lower()}") or (
+            subtype.lower() if subtype.lower() in ALLOWED_IMAGE_EXTENSIONS else None
+        )
+        if not ext:
+            failed += 1
+            continue
+        try:
+            content = base64.b64decode(payload, validate=False)
+        except (ValueError, binascii.Error):
+            failed += 1
+            continue
+        if len(content) < 3000:  # icon or tracking pixel, not a listing photo
+            failed += 1
+            continue
+
+        img_hash = average_hash(content)
+        if img_hash is not None and is_duplicate(img_hash, known_hashes):
+            duplicates += 1
+            continue
+        if img_hash is not None:
+            known_hashes.append(img_hash)
+
+        name = secure_filename(f"{uuid.uuid4().hex}.{ext}")
+        (UPLOAD_DIR / name).write_bytes(content)
+        saved.append(f"/studio/static/uploads/{name}")
+
+    return {"photos": saved, "failed": failed, "duplicates": duplicates}
 
 
 def download_image_urls(urls, existing_photos=None):

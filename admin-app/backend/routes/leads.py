@@ -112,6 +112,17 @@ def create_lead():
         "photo_urls": data.get("photo_urls", []),
     }
 
+    # The extension can send the listing's photos inline as data: URLs,
+    # having read them in the page. That's the only way to get photos from
+    # sites whose CDN refuses this server (homes.com returns 403 for both
+    # their HTML and their images), and it avoids a second round trip to
+    # re-fetch what the browser already had for every other site.
+    inline = data.get("photos_base64")
+    if inline:
+        from studio import save_data_url_images
+
+        row["photo_urls"] = save_data_url_images(inline)["photos"] or row["photo_urls"]
+
     created = upsert_lead(row, owner_id=owner_id)
     db.session.commit()
 

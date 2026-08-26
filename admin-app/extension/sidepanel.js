@@ -54,6 +54,90 @@ function readForm() {
   };
 }
 
+
+/**
+ * Injected into the listing page to collect its photos and hand back the
+ * actual bytes as data: URLs.
+ *
+ * Reading the bytes here rather than server-side is not an optimisation --
+ * homes.com's CDN returns 403 to our backend for both the page and every
+ * image, so this is the only path that works at all for that site. It also
+ * spares every other site a second fetch of what this browser already has.
+ *
+ * Must be fully self-contained: it's serialised and injected on demand.
+ */
+async function collectPhotosFromPage() {
+  const MAX = 24;
+
+  const ogTag = document.querySelector('meta[property="og:image"]');
+  const og = ogTag ? ogTag.getAttribute("content") : null;
+
+  const urls = new Set();
+  if (og) urls.add(og);
+  document.querySelectorAll("img").forEach((img) => {
+    const src = img.currentSrc || img.src;
+    if (!src || src.indexOf("data:") === 0) return;
+    if (img.naturalWidth < 300 || img.naturalHeight < 200) return;
+    urls.add(src);
+  });
+
+  let list = Array.from(urls).filter((u) => !/\.svg(\?|$)/i.test(u));
+
+  // Narrow to this listing's own photos. Two shapes, both confirmed against
+  // real pages: Redfin puts the subject's gallery in one numbered media
+  // bundle that og:image points into, while everything from its "similar
+  // homes" rails sits elsewhere; homes.com puts the address slug from the
+  // page URL into every real photo's filename and into none of its chrome.
+  const bundle = og && og.match(/\/system_files\/media\/(\d+)_/);
+  if (bundle) {
+    const own = list.filter((u) => u.indexOf("/media/" + bundle[1] + "_") !== -1);
+    if (own.length) list = own;
+  } else {
+    const slugMatch = location.pathname.match(/\/(?:property|homedetails)\/([^/]+)/i);
+    const slug = slugMatch ? slugMatch[1].toLowerCase() : null;
+    if (slug) {
+      const own = list.filter((u) => u.toLowerCase().indexOf(slug) !== -1);
+      if (own.length) list = own;
+    }
+  }
+
+  const out = [];
+  for (const url of list.slice(0, MAX)) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (blob.type.indexOf("image/") !== 0 || blob.size < 3000) continue;
+      out.push(
+        await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        })
+      );
+    } catch (e) {
+      // one unreachable image shouldn't lose the rest
+    }
+  }
+  return out;
+}
+
+async function capturePhotos() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) return [];
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: collectPhotosFromPage,
+    });
+    return result || [];
+  } catch (e) {
+    console.warn("[Estly] sidepanel: photo capture failed", e);
+    return [];
+  }
+}
+
 async function getApiBase() {
   const stored = await chrome.storage.sync.get({ apiBase: DEFAULT_API_BASE });
   return stored.apiBase;
@@ -194,7 +278,10 @@ $("form").addEventListener("submit", async (e) => {
   }
 
   $("btn-save").disabled = true;
-  setStatus("Saving…");
+  setStatus("Reading photos from the page…");
+  const photosBase64 = await capturePhotos();
+  if (photosBase64.length) payload.photos_base64 = photosBase64;
+  setStatus(photosBase64.length ? `Saving with ${photosBase64.length} photos…` : "Saving…");
 
   try {
     const apiBase = await getApiBase();
