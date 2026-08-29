@@ -117,6 +117,59 @@ function renderChecklist() {
    brokerage is what makes the difference; searching a name alone turns up
    same-name agents in other states, which is how a Pennsylvania appraiser
    nearly ended up filed as a Cincinnati agent. */
+/* ---------- editable contact details ---------- */
+
+/* A listing often doesn't publish the agent's email -- Zillow never does --
+   so it gets looked up and typed in here. Kept editable rather than
+   read-only because the research offers options and a person decides. */
+
+let saveContactField = null;
+
+function wireContactEditing() {
+  const emailInput = el("lp-agent-email");
+  const brokerInput = el("lp-brokerage");
+  const state = el("lp-contact-state");
+  const findButton = el("lp-find-email");
+
+  emailInput.value = lead.agent_email || "";
+  brokerInput.value = lead.brokerage || "";
+
+  findButton.disabled = !lead.agent_name;
+  findButton.textContent = lead.agent_email ? "Check email" : "Find email";
+  findButton.addEventListener("click", runEmailResearch);
+
+  const save = async (field, input) => {
+    const value = input.value.trim();
+    if ((lead[field] || "") === value) return;
+    state.textContent = "Saving…";
+    try {
+      const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (updated.error) throw new Error(updated.error);
+      Object.assign(lead, updated);
+      state.textContent = "Saved";
+      findButton.textContent = lead.agent_email ? "Check email" : "Find email";
+      renderLead();
+    } catch (err) {
+      state.textContent = err.message || "Couldn't save.";
+    }
+  };
+
+  saveContactField = save;
+  emailInput.addEventListener("blur", () => save("agent_email", emailInput));
+  brokerInput.addEventListener("blur", () => save("brokerage", brokerInput));
+  [emailInput, brokerInput].forEach((input) =>
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur();
+    })
+  );
+}
+
+/* ---------- ranked email candidates ---------- */
+
 /* Ranked email candidates.
 
    The automatic lookup on capture stores what it found; this shows the same
