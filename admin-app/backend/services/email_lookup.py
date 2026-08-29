@@ -106,31 +106,66 @@ def _search(query, limit=8):
     return urls, False
 
 
-def _explain(candidate):
-    """Plain-English reason this address might be the agent's, for a human
-    choosing between several."""
-    reason = candidate["reason"]
-    wording = {
-        "first+last": "the address is the agent's full name",
-        "last+first": "the address is the agent's name, surname first",
-        "initial+last": "the address is the agent's initial and surname",
-        "last+initial": "the address is the agent's surname and initial",
-        "first+initial": "the address is the agent's first name and surname initial",
-        "first name only": "the address is the agent's first name",
-        "surname present": "the address contains the agent's surname",
-    }
-    bits = [wording.get(reason, reason)]
-    bits.append(
-        "the same page shows the phone number from the listing"
-        if candidate["phone_confirmed"]
-        else "the page does not show the listing's phone number"
-    )
+NAME_WORDING = {
+    "first+last": "the address is the agent's full name",
+    "last+first": "the address is the agent's name, surname first",
+    "initial+last": "the address is the agent's initial and surname",
+    "last+initial": "the address is the agent's surname and initial",
+    "first+initial": "the address is the agent's first name and surname initial",
+    "first name only": "the address is the agent's first name",
+    "surname present": "the address contains the agent's surname",
+}
+
+# Sites that list many agents. An address found only here is weaker than one
+# on the agent's own page, because directories go stale and mix people up.
+AGGREGATOR_HINTS = ("directory", "agents", "findglocal", "nestfully", "sold.com",
+                    "agentpronto", "fastexpert", "homelight", "realsatisfied")
+
+
+def _weigh(candidate, agent_name, brokerage):
+    """The case for and against this address being the agent's.
+
+    Both sides are returned so a person can judge rather than trust a number.
+    An address with no case against it and a corroborating phone number is
+    about as good as this gets without sending mail to it.
+    """
+    supports, concerns = [], []
+
+    wording = NAME_WORDING.get(candidate["reason"])
+    if wording:
+        supports.append(wording)
+    else:
+        concerns.append("the address does not obviously match the agent's name")
+
+    if candidate["reason"] in ("first name only", "surname present"):
+        concerns.append("that alone could match a colleague with a similar name")
+    if candidate["reason"] == "shared mailbox":
+        concerns.append("it looks like a shared or office mailbox rather than a person")
+
+    if candidate["phone_confirmed"]:
+        supports.append("the page carrying it also shows the phone number from the listing")
+    else:
+        concerns.append("the page does not show the listing's phone number to confirm the person")
+
+    host = urlparse(candidate["source"] or "").netloc.lower()
+    domain = candidate["email"].split("@")[-1].lower()
+    if brokerage and domain and domain.split(".")[0] in host:
+        supports.append("it is on the brokerage's own website")
+    elif any(h in host for h in AGGREGATOR_HINTS):
+        concerns.append(f"{host} is a directory rather than the agent's own site")
+
     if candidate.get("domain_conflict"):
-        bits.append("the domain is not this brokerage's known one, which can mean a typo")
-    host = urlparse(candidate["source"] or "").netloc
-    if host:
-        bits.append(f"found on {host}")
-    return "; ".join(bits)
+        concerns.append(
+            f"{domain} is not the mail domain already confirmed for this brokerage, "
+            "which can mean a typo on the source page"
+        )
+    elif candidate.get("domain_known"):
+        supports.append("the domain matches one already confirmed for this brokerage")
+
+    # Where it came from is context, not an argument -- listing it as a point
+    # in favour while also warning the site is a directory reads as a
+    # contradiction. The UI shows it separately.
+    return supports, concerns
 
 
 def research_agent_email(agent_name, brokerage=None, city=None, state=None, phone=None,
@@ -177,9 +212,13 @@ def research_agent_email(agent_name, brokerage=None, city=None, state=None, phon
         confirmed = page_confirms_phone(page.text, phone)
         for email in find_emails(page.text):
             score, reason = score_email_for_agent(email, agent_name)
-            if not score:
-                continue
             domain = email.split("@")[-1].lower()
+            known = bool(known_domains) and domain in known_domains
+            # Keep weak addresses too, with the case against them stated. An
+            # office mailbox on the right brokerage is worth seeing; an
+            # unrelated address on an unrelated page is not.
+            if not score and not confirmed and not known:
+                continue
             candidate = {
                 "email": email,
                 "score": score,
@@ -188,16 +227,22 @@ def research_agent_email(agent_name, brokerage=None, city=None, state=None, phon
                 "phone_confirmed": confirmed,
                 "domain_conflict": bool(known_domains) and domain not in known_domains,
             }
+            candidate["domain_known"] = known
             candidate["confident"] = (
                 score >= AUTOFILL_THRESHOLD
                 or (confirmed and score >= CORROBORATED_THRESHOLD)
             ) and not candidate["domain_conflict"]
-            candidate["why"] = _explain(candidate)
+            supports, concerns = _weigh(candidate, agent_name, brokerage)
+            candidate["supports"] = supports
+            candidate["concerns"] = concerns
+            candidate["why"] = "; ".join(supports)
             prior = seen.get(email)
             if prior:
                 # Seen on more than one page: corroboration anywhere counts.
                 prior["phone_confirmed"] = prior["phone_confirmed"] or confirmed
-                prior["why"] = _explain(prior)
+                sup, con = _weigh(prior, agent_name, brokerage)
+                prior["supports"], prior["concerns"] = sup, con
+                prior["why"] = "; ".join(sup)
                 if candidate["score"] > prior["score"]:
                     seen[email] = candidate
             else:

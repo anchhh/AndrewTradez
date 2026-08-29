@@ -2048,3 +2048,43 @@ gmp-map-3d {
   color: var(--ink-soft);
   line-height: 1.45;
 }
+
+/* The case for and against each candidate address */
+.lead-candidate-why,
+.lp-candidate-why {
+  margin: 4px 0 0;
+  padding-left: 27px;
+  list-style: none;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.lead-candidate-why li,
+.lp-candidate-why li { position: relative; padding-left: 15px; }
+
+.lead-candidate-why.for li::before,
+.lp-candidate-why.for li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #2f7a4f;
+  font-weight: 700;
+}
+
+.lead-candidate-why.against li::before,
+.lp-candidate-why.against li::before {
+  content: "✕";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.lead-candidate-source {
+  padding-left: 27px;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  opacity: 0.8;
+}

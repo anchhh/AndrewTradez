@@ -161,7 +161,13 @@ function renderCandidates(candidates, note) {
                 )}">Use this</button>`
           }
         </div>
-        <div class="lp-candidate-why">${escapeHtml(c.why || "")}</div>
+        ${(c.supports || []).length
+          ? `<ul class="lp-candidate-why for">${c.supports.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
+          : ""}
+        ${(c.concerns || []).length
+          ? `<ul class="lp-candidate-why against">${c.concerns.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
+          : ""}
+        <div class="lead-candidate-source">source: ${escapeHtml((() => { try { return new URL(c.source).host; } catch (e) { return "unknown"; } })())}</div>
       </div>`
       )
       .join("");

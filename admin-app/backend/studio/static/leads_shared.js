@@ -232,8 +232,10 @@ function leadCardHtml(lead, opts = {}) {
         </div>
         <div class="lead-card-actions">
           ${statusSelect}
-          ${!lead.agent_email && lead.agent_name
-            ? `<button type="button" class="link-btn lead-find-email">Find email</button>`
+          ${lead.agent_name
+            ? `<button type="button" class="link-btn lead-find-email">${
+                lead.agent_email ? "Check email" : "Find email"
+              }</button>`
             : ""}
           ${qualify}
           <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
@@ -455,6 +457,14 @@ function initBulkBar(host, { getVisibleLeads, reload }) {
    gets the first approach about someone else's listing.
    --------------------------------------------------------------- */
 
+function sourceHost(url) {
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return "unknown";
+  }
+}
+
 function candidateRowHtml(candidate, index, currentEmail) {
   const inUse = candidate.email === currentEmail;
   return `
@@ -469,7 +479,17 @@ function candidateRowHtml(candidate, index, currentEmail) {
             : `<button type="button" class="btn-secondary btn-tiny lead-candidate-use" data-email="${escapeHtml(candidate.email)}">Use this</button>`
         }
       </div>
-      <div class="lead-candidate-why">${escapeHtml(candidate.why || "")}</div>
+      ${(candidate.supports || []).length
+        ? `<ul class="lead-candidate-why for">${candidate.supports
+            .map((r) => `<li>${escapeHtml(r)}</li>`)
+            .join("")}</ul>`
+        : ""}
+      ${(candidate.concerns || []).length
+        ? `<ul class="lead-candidate-why against">${candidate.concerns
+            .map((r) => `<li>${escapeHtml(r)}</li>`)
+            .join("")}</ul>`
+        : ""}
+      <div class="lead-candidate-source">source: ${escapeHtml(sourceHost(candidate.source))}</div>
     </div>`;
 }
 
