@@ -83,6 +83,17 @@ function brokerageLine(lead) {
   return lead.brokerage || "";
 }
 
+/* Search for an agent's email, built from what the listing gave us. The
+   brokerage is the part that matters: a name alone turns up same-name agents
+   in other states. Opens in a new tab -- a human confirms it's the right
+   person before it goes anywhere near the lead. */
+function findEmailUrl(lead) {
+  const terms = [lead.agent_name, lead.brokerage, lead.city, lead.state, "realtor email"]
+    .filter(Boolean)
+    .join(" ");
+  return "https://duckduckgo.com/?q=" + encodeURIComponent(terms);
+}
+
 function factsLine(lead) {
   return [
     lead.beds != null ? `${lead.beds} bd` : null,
@@ -232,6 +243,9 @@ function leadCardHtml(lead, opts = {}) {
         </div>
         <div class="lead-card-actions">
           ${statusSelect}
+          ${!lead.agent_email && lead.agent_name
+            ? `<a class="link-btn lead-find-email" href="${findEmailUrl(lead)}" target="_blank" rel="noopener noreferrer">Find email ↗</a>`
+            : ""}
           ${qualify}
           <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
           <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>

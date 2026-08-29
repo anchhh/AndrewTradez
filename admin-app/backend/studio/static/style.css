@@ -1886,3 +1886,25 @@ gmp-map-3d {
    the video -- but read clearly as switched off. */
 .thumb.is-excluded img,
 .thumb.is-excluded video { opacity: 0.35; filter: grayscale(1); }
+
+/* Editable agent contact details on the lead profile */
+.lp-contact-edit {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.lp-contact-edit input {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  min-width: 220px;
+}
+
+.lp-contact-edit input:focus { outline: none; border-color: var(--accent); }

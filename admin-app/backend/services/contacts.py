@@ -89,7 +89,33 @@ def score_email_for_agent(email, agent_name):
         return 60, "first+initial"
     if len(last) >= 5 and last in bare:
         return 55, "surname present"
+    # Small brokerages hand out first-name addresses -- karent@searsrealestate.com
+    # is the listing agent's real address. On its own that is far too weak (any
+    # Amy at that brokerage matches), so it sits below the autofill threshold
+    # and only becomes usable when the same page also carries the lead's phone.
+    if len(first) >= 4 and bare == first:
+        return 70, "first name only"
     return 0, "no match"
+
+
+def phone_digits(value):
+    """Last 10 digits, so (970) 330-7700 and 970-330-7700 compare equal."""
+    digits = re.sub(r"\D", "", value or "")
+    return digits[-10:] if len(digits) >= 10 else ""
+
+
+def page_confirms_phone(page_text, phone):
+    """Whether the page carrying an address also carries the lead's phone.
+
+    This is the check that separates the right agent from a namesake, and it
+    is what caught a same-name appraiser in another state during a manual
+    pass. A weak name match on a page that also shows the agent's number is
+    worth more than a strong name match on a page about someone else.
+    """
+    wanted = phone_digits(phone)
+    if not wanted:
+        return False
+    return wanted in re.sub(r"\D", "", page_text or "")
 
 
 def pick_agent_email(candidates, agent_name):

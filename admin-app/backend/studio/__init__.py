@@ -1441,18 +1441,28 @@ def api_update_lead_status(lead_id):
         return jsonify({"error": "Lead not found."}), 404
 
     data = request.get_json(force=True, silent=True) or {}
-    if "status" not in data and "notes" not in data:
-        return jsonify({"error": "Nothing to update: send status and/or notes."}), 400
+
+    # Contact details are editable because a listing often doesn't publish the
+    # agent's email -- Zillow never does -- so it gets looked up and typed in.
+    EDITABLE_TEXT = ("notes", "agent_email", "agent_name", "agent_phone", "brokerage")
+    if "status" not in data and not any(f in data for f in EDITABLE_TEXT):
+        return jsonify({"error": "Nothing to update."}), 400
 
     if "status" in data:
         if data["status"] not in VALID_STATUSES:
             return jsonify({"error": f"status must be one of {VALID_STATUSES}"}), 400
         lead.status = data["status"]
 
-    if "notes" in data:
-        notes = data["notes"]
-        # Empty string clears the note rather than storing a blank line.
-        lead.notes = (notes or "").strip() or None
+    if "agent_email" in data:
+        email = (data["agent_email"] or "").strip()
+        if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            return jsonify({"error": "That doesn't look like an email address."}), 400
+        lead.agent_email = email or None
+
+    for field in ("notes", "agent_name", "agent_phone", "brokerage"):
+        if field in data:
+            # Empty string clears the field rather than storing a blank.
+            setattr(lead, field, (data[field] or "").strip() or None)
 
     db.session.commit()
     return jsonify(lead.to_dict())

@@ -109,6 +109,65 @@ function renderChecklist() {
   });
 }
 
+/* ---------- editable contact details ---------- */
+
+/* A listing often doesn't publish the agent's email -- Zillow never does --
+   so it gets looked up and typed in here. The search is built from what the
+   listing did give us: the agent's name, their brokerage and the city. The
+   brokerage is what makes the difference; searching a name alone turns up
+   same-name agents in other states, which is how a Pennsylvania appraiser
+   nearly ended up filed as a Cincinnati agent. */
+function findEmailSearchUrl() {
+  const terms = [lead.agent_name, lead.brokerage, lead.city, lead.state, "realtor email"]
+    .filter(Boolean)
+    .join(" ");
+  return "https://duckduckgo.com/?q=" + encodeURIComponent(terms);
+}
+
+function wireContactEditing() {
+  const emailInput = el("lp-agent-email");
+  const brokerInput = el("lp-brokerage");
+  const state = el("lp-contact-state");
+  const findLink = el("lp-find-email");
+
+  emailInput.value = lead.agent_email || "";
+  brokerInput.value = lead.brokerage || "";
+
+  const refreshLink = () => {
+    findLink.href = findEmailSearchUrl();
+    findLink.classList.toggle("hidden", !lead.agent_name || !!emailInput.value.trim());
+  };
+  refreshLink();
+
+  const save = async (field, input) => {
+    const value = input.value.trim();
+    if ((lead[field] || "") === value) return;
+    state.textContent = "Saving…";
+    try {
+      const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (updated.error) throw new Error(updated.error);
+      Object.assign(lead, updated);
+      state.textContent = "Saved";
+      renderLead();
+      refreshLink();
+    } catch (err) {
+      state.textContent = err.message || "Couldn't save.";
+    }
+  };
+
+  emailInput.addEventListener("blur", () => save("agent_email", emailInput));
+  brokerInput.addEventListener("blur", () => save("brokerage", brokerInput));
+  [emailInput, brokerInput].forEach((input) =>
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur();
+    })
+  );
+}
+
 /* ---------- notes ---------- */
 
 function wireNotes() {
@@ -202,6 +261,7 @@ async function load() {
   el("lp-body").classList.remove("hidden");
 
   renderLead();
+  wireContactEditing();
   renderChecklist();
   wireNotes();
   renderVideo((projects || []).find((p) => p.lead_id === lead.id) || null);

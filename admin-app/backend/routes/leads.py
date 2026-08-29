@@ -158,6 +158,17 @@ def create_lead():
 
     dedup_key = compute_dedup_key(address, data.get("zip_code"))
     lead = Lead.query.filter_by(dedup_key=dedup_key, owner_id=owner_id).first()
+
+    # A listing often doesn't publish the agent's email -- Zillow never does --
+    # so go and look for it. On a background thread: the search opens several
+    # pages and takes seconds, and a capture shouldn't wait for it. It fails
+    # often by design; the outcome is recorded on the lead either way.
+    if lead and not lead.agent_email and lead.agent_name:
+        from flask import current_app
+        from services.enrichment import enrich_lead_async
+
+        enrich_lead_async(current_app._get_current_object(), lead.id)
+
     payload = lead.to_dict()
     payload["_merged"] = not created
     return jsonify(payload), 201
