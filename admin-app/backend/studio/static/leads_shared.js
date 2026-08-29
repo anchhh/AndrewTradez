@@ -83,17 +83,6 @@ function brokerageLine(lead) {
   return lead.brokerage || "";
 }
 
-/* Search for an agent's email, built from what the listing gave us. The
-   brokerage is the part that matters: a name alone turns up same-name agents
-   in other states. Opens in a new tab -- a human confirms it's the right
-   person before it goes anywhere near the lead. */
-function findEmailUrl(lead) {
-  const terms = [lead.agent_name, lead.brokerage, lead.city, lead.state, "realtor email"]
-    .filter(Boolean)
-    .join(" ");
-  return "https://duckduckgo.com/?q=" + encodeURIComponent(terms);
-}
-
 function factsLine(lead) {
   return [
     lead.beds != null ? `${lead.beds} bd` : null,
@@ -244,13 +233,14 @@ function leadCardHtml(lead, opts = {}) {
         <div class="lead-card-actions">
           ${statusSelect}
           ${!lead.agent_email && lead.agent_name
-            ? `<a class="link-btn lead-find-email" href="${findEmailUrl(lead)}" target="_blank" rel="noopener noreferrer">Find email ↗</a>`
+            ? `<button type="button" class="link-btn lead-find-email">Find email</button>`
             : ""}
           ${qualify}
           <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
           <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>
         </div>
       </div>
+      <div class="lead-card-candidates hidden"></div>
       ${notes}
     </article>`;
 }
@@ -319,6 +309,8 @@ function wireLeadCard(card, lead, handlers = {}) {
     await fetch(`/studio/api/leads/${lead.id}`, { method: "DELETE" });
     if (handlers.onDeleted) handlers.onDeleted(lead);
   });
+
+  wireFindEmail(card, lead, handlers);
 
   const notes = card.querySelector(".lm-notes-input");
   if (notes) {
@@ -452,4 +444,84 @@ function initBulkBar(host, { getVisibleLeads, reload }) {
   });
 
   return refresh;
+}
+
+/* ---------------------------------------------------------------
+   Finding an agent's email, in the app.
+
+   The research runs on the backend -- search, open the results, read the
+   addresses off the pages -- and comes back ranked with the reason for each.
+   Nothing is written until one is chosen: a wrong address means a stranger
+   gets the first approach about someone else's listing.
+   --------------------------------------------------------------- */
+
+function candidateRowHtml(candidate, index, currentEmail) {
+  const inUse = candidate.email === currentEmail;
+  return `
+    <div class="lead-candidate ${candidate.confident ? "is-confident" : ""}">
+      <div class="lead-candidate-top">
+        <span class="lead-candidate-rank">${index + 1}</span>
+        <span class="lead-candidate-email">${escapeHtml(candidate.email)}</span>
+        ${candidate.confident ? '<span class="lead-candidate-badge">confident</span>' : ""}
+        ${
+          inUse
+            ? '<span class="lead-candidate-badge is-inuse">in use</span>'
+            : `<button type="button" class="btn-secondary btn-tiny lead-candidate-use" data-email="${escapeHtml(candidate.email)}">Use this</button>`
+        }
+      </div>
+      <div class="lead-candidate-why">${escapeHtml(candidate.why || "")}</div>
+    </div>`;
+}
+
+function wireFindEmail(card, lead, handlers) {
+  const button = card.querySelector(".lead-find-email");
+  const box = card.querySelector(".lead-card-candidates");
+  if (!button || !box) return;
+
+  const show = (candidates, message) => {
+    box.classList.remove("hidden");
+    const list = candidates || [];
+    box.innerHTML =
+      (message ? `<p class="lead-candidates-note">${escapeHtml(message)}</p>` : "") +
+      list.map((c, i) => candidateRowHtml(c, i, lead.agent_email)).join("");
+
+    box.querySelectorAll(".lead-candidate-use").forEach((use) => {
+      use.addEventListener("click", async () => {
+        use.disabled = true;
+        const updated = await fetchJSON(`/studio/api/leads/${lead.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_email: use.dataset.email }),
+        });
+        Object.assign(lead, updated);
+        if (handlers.onChanged) handlers.onChanged(lead);
+        show(list, message);
+      });
+    });
+  };
+
+  // Anything a previous run already found shows without asking again.
+  if ((lead.email_candidates || []).length) show(lead.email_candidates, null);
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Searching…";
+    try {
+      const found = await fetchJSON(`/studio/api/leads/${lead.id}/find-email`, { method: "POST" });
+      if (found.error) throw new Error(found.error);
+      lead.email_candidates = found.candidates || [];
+      show(
+        lead.email_candidates,
+        found.blocked
+          ? "The search is rate limiting us right now - worth trying again in a few minutes."
+          : lead.email_candidates.length
+          ? null
+          : "Nothing published for this agent was found."
+      );
+    } catch (err) {
+      show([], err.message || "Search failed.");
+    }
+    button.disabled = false;
+    button.textContent = "Find email";
+  });
 }
