@@ -55,7 +55,8 @@ SKIP_HOSTS = (
     "instantcheckmate.com", "whitepages.com", "wikipedia.org",
 )
 
-MAX_PAGES = 5          # how many search results to open
+MAX_PAGES = 8          # how many search results to open; more pages means
+                       # more options to choose between, at a few seconds each
 PAGE_TIMEOUT = 12      # seconds per page
 # Weak name matches (a first name, a bare surname) become usable only when the
 # page also shows the lead's phone.

@@ -5,12 +5,11 @@ The lookup opens a search and several pages, so it takes some seconds -- far
 too long to hold up a capture. It runs on a background thread instead: the
 lead saves immediately, and the email appears on it shortly after.
 
-It fails often and that is expected. The search endpoint rate-limits after a
+It fails often and that is expected: the search endpoint rate-limits after a
 dozen or so queries, plenty of agents publish no address anywhere, and some
-pages refuse us. Every outcome is written into the lead's notes so a blank
-email field is never a mystery -- you can see whether nothing was found,
-whether something was found but wasn't trustworthy, or whether the search
-itself was blocked.
+pages refuse us. Nothing is written to the lead's notes -- those belong to
+the user. What it found is kept as ranked candidates on the lead, each with
+the case for and against, and the Check email button re-runs it live.
 """
 import logging
 import threading
@@ -39,10 +38,6 @@ def known_domains_for(brokerage):
         .all()
     )
     return {r[0].split("@")[-1].lower() for r in rows if r[0] and "@" in r[0]}
-
-
-def _append_note(lead, text):
-    lead.notes = ((lead.notes + "\n") if lead.notes else "") + text
 
 
 def _run(app, lead_id):
@@ -76,26 +71,6 @@ def _run(app, lead_id):
 
         if found.get("email") and found.get("autofill"):
             lead.agent_email = found["email"]
-            _append_note(
-                lead,
-                f"Email {found['email']} found automatically ({found['reason']}"
-                + (", phone confirmed on the same page" if found["phone_confirmed"] else "")
-                + f"). Source: {found['source']}",
-            )
-        elif found.get("email"):
-            _append_note(
-                lead,
-                f"Possible email {found['email']} ({found['reason']}) - not confident "
-                f"enough to fill in. Source: {found['source']}",
-            )
-        elif found.get("blocked"):
-            _append_note(
-                lead,
-                "Automatic email lookup could not run: the search endpoint is rate limiting us. "
-                "This is temporary - the lookup can be retried later.",
-            )
-        else:
-            _append_note(lead, "Automatic email lookup found nothing published for this agent.")
 
         db.session.commit()
         log.info("email lookup for lead %s: %s", lead_id, found.get("email") or "nothing")

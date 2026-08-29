@@ -137,15 +137,6 @@ def create_lead():
         email, score, reason = pick_agent_email(data.get("page_emails"), row.get("agent_name"))
         if email and score >= AUTOFILL_THRESHOLD:
             row["agent_email"] = email
-            row["notes"] = ((row.get("notes") + "\n") if row.get("notes") else "") + (
-                f"Email {email} taken from the listing page ({reason} match on "
-                f"{row.get('agent_name')})."
-            )
-        elif email:
-            row["notes"] = ((row.get("notes") + "\n") if row.get("notes") else "") + (
-                f"Possible agent email {email} on the listing page ({reason}, "
-                f"not confident enough to use automatically)."
-            )
 
     inline = data.get("photos_base64")
     if inline:
