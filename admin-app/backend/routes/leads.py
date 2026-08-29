@@ -5,6 +5,7 @@ from models import VALID_SOURCES, VALID_STATUSES, Lead
 from services.dedup import compute_dedup_key
 from services.importers import REGISTRY as IMPORTER_REGISTRY
 from services.importers.csv_importer import CsvImportError
+from services.contacts import AUTOFILL_THRESHOLD, pick_agent_email
 from services.ingestion import upsert_lead
 from services.outreach import OutreachNotConfigured, send_outreach
 
@@ -126,6 +127,25 @@ def create_lead():
     # sites whose CDN refuses this server (homes.com returns 403 for both
     # their HTML and their images), and it avoids a second round trip to
     # re-fetch what the browser already had for every other site.
+    # Listing pages publish the agent's email; the extension now sends every
+    # address it found. Fill it in only when one actually matches the agent
+    # named on the listing -- a page also carries other agents at the same
+    # brokerage and shared mailboxes. A weaker match is recorded for review
+    # rather than used, because a wrong address means mailing a stranger.
+    if not row.get("agent_email"):
+        email, score, reason = pick_agent_email(data.get("page_emails"), row.get("agent_name"))
+        if email and score >= AUTOFILL_THRESHOLD:
+            row["agent_email"] = email
+            row["notes"] = ((row.get("notes") + "\n") if row.get("notes") else "") + (
+                f"Email {email} taken from the listing page ({reason} match on "
+                f"{row.get('agent_name')})."
+            )
+        elif email:
+            row["notes"] = ((row.get("notes") + "\n") if row.get("notes") else "") + (
+                f"Possible agent email {email} on the listing page ({reason}, "
+                f"not confident enough to use automatically)."
+            )
+
     inline = data.get("photos_base64")
     if inline:
         from studio import save_data_url_images

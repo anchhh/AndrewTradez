@@ -280,7 +280,30 @@ async function readListingSource() {
     domUrls = Array.from(seen);
   }
 
-  return { href: location.href, og: og, html: html, domUrls: domUrls, fresh: !!html };
+  // Agent emails are published in the listing markup -- Redfin carries
+  // sean.lohbeck@redfin.com and agetgey@comey.com in plain text -- and were
+  // simply being discarded. The backend decides which one belongs to the
+  // agent named on the listing; this only gathers them.
+  const emails = [];
+  const seenEmails = new Set();
+  const source = (html || "") + " " + document.documentElement.outerHTML;
+  const matches = source.replace(/%40/gi, "@").match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
+  matches.forEach((raw) => {
+    const email = raw.toLowerCase().replace(/\.$/, "");
+    if (!seenEmails.has(email) && emails.length < 40) {
+      seenEmails.add(email);
+      emails.push(email);
+    }
+  });
+
+  return {
+    href: location.href,
+    og: og,
+    html: html,
+    domUrls: domUrls,
+    emails: emails,
+    fresh: !!html,
+  };
 }
 
 /**
@@ -344,6 +367,10 @@ async function fetchFromExtension(urls) {
   return out;
 }
 
+// Addresses seen on the last page read, handed to the backend with the save
+// so it can match one to the agent. Set by capturePhotos().
+let lastPageEmails = [];
+
 async function capturePhotos(onProgress) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -372,6 +399,7 @@ async function capturePhotos(onProgress) {
       func: readListingSource,
     });
     if (!page) return [];
+    lastPageEmails = page.emails || [];
 
     // Per-site rules live in extractors.js so changing one site can't affect
     // another. In degraded mode the rendered image URLs stand in for the page
@@ -590,6 +618,7 @@ $("form").addEventListener("submit", async (e) => {
     setStatus(`Downloading ${n} photos…`);
   });
   if (photosBase64.length) payload.photos_base64 = photosBase64;
+  if (!payload.agent_email && lastPageEmails.length) payload.page_emails = lastPageEmails;
   setStatus(found ? `Saving ${photosBase64.length} of ${found} photos…` : "Saving…");
 
   try {
