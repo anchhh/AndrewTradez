@@ -47,6 +47,11 @@ class Lead(db.Model):
 
     photo_urls_json = db.Column(db.Text, nullable=False, default="[]")
 
+    # The listing agent's brokerage, taken from the site's own structured
+    # data rather than page text. Needed to look up an agent whose email the
+    # listing doesn't publish, and worth having on its own.
+    brokerage = db.Column(db.String(160), nullable=True)
+
     agent_name = db.Column(db.String(120), nullable=True)
     agent_email = db.Column(db.String(255), nullable=True)
     agent_phone = db.Column(db.String(40), nullable=True)
@@ -114,6 +119,7 @@ class Lead(db.Model):
             "sqft": self.sqft,
             "property_type": self.property_type,
             "photo_urls": self.photo_urls,
+            "brokerage": self.brokerage,
             "agent_name": self.agent_name,
             "agent_email": self.agent_email,
             "agent_phone": self.agent_phone,

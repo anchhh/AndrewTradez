@@ -259,5 +259,109 @@ function pickListingPhotos(html, pageUrl, ogImage, max) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { pickListingPhotos, extractorFor, allImageUrls, bestPerPhoto };
+  module.exports = { pickListingPhotos, extractorFor, allImageUrls, bestPerPhoto, pickListingAgent };
+}
+
+/* ============================================================================
+   Agent attribution
+   ============================================================================
+
+   Who listed the property, taken from each site's own structured data rather
+   than from page text. Two reasons this is worth doing separately:
+
+   The phone shown beside a listing is often the brokerage switchboard, while
+   the structured field carries the agent's direct line. On one Redfin listing
+   the structured number (513-382-2751) matched the agent's mobile as
+   published independently on the web, and on a Zillow listing the structured
+   number differed from the one being scraped off the page entirely.
+
+   The brokerage is not captured at all today, and it is the key to finding an
+   agent whose email the listing doesn't publish -- Zillow never publishes one.
+
+   As with photos: one module per site, each verified against a real page.
+*/
+
+// Site JSON escapes both slashes and ampersands ("Comey & Shepherd").
+function decodeJsonText(value) {
+  return String(value || "")
+    // JSON inside JSON: an escape can arrive with one backslash or two, and
+    // it isn't only ampersands -- "Comey \u0026 Shepherd" came back verbatim
+    // when this only handled the single-backslash form. Decode any of them.
+    .replace(/\\{1,2}u([0-9a-fA-F]{4})/g, (whole, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    )
+    .replace(/\\+"/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstJsonString(html, key) {
+  const match = new RegExp('"' + key + '"\\s*:\\s*"([^"]{2,120})"').exec(html || "");
+  return match ? decodeJsonText(match[1]) : null;
+}
+
+const AGENT_RULES = [
+  {
+    // Zillow's attributionInfo. agentEmail is present but has been null on
+    // every listing checked, so email always needs an outside lookup here.
+    // On a builder's new-construction listing agentName is null too and the
+    // phone is the builder's sales line -- there is no agent to find.
+    id: "zillow",
+    handles: (host) => host.indexOf("zillow.") !== -1,
+    pick(html) {
+      const blob = (html || "").slice((html || "").indexOf("attributionInfo"));
+      if (!blob) return null;
+      const window_ = blob.slice(0, 600);
+      return {
+        agent_name: firstJsonString(window_, "agentName"),
+        agent_phone: firstJsonString(window_, "agentPhoneNumber"),
+        agent_email: firstJsonString(window_, "agentEmail"),
+        brokerage: firstJsonString(window_, "brokerName"),
+      };
+    },
+  },
+  {
+    // Redfin names the listing agent specifically. Note brokerageName is
+    // "Redfin Corporation" -- the site itself, not the listing's brokerage --
+    // so listingBrokerName is the one that means anything.
+    id: "redfin",
+    handles: (host) => host.indexOf("redfin.") !== -1,
+    pick(html) {
+      return {
+        agent_name: firstJsonString(html, "listingAgentName"),
+        agent_phone: firstJsonString(html, "listingAgentNumber"),
+        agent_email: null,
+        brokerage:
+          firstJsonString(html, "listingBrokerName") || firstJsonString(html, "brokerName"),
+      };
+    },
+  },
+];
+
+/**
+ * Structured agent details for a listing, or null when the site has no rule
+ * yet. homes.com is deliberately absent: no real page has been available to
+ * derive one from, and guessing at page structure is what has gone wrong
+ * before -- it keeps using the existing text parsing until then.
+ */
+function pickListingAgent(html, pageUrl) {
+  let host = "";
+  try {
+    host = new URL(pageUrl).host.toLowerCase();
+  } catch (e) {
+    return null;
+  }
+  const rule = AGENT_RULES.find((r) => r.handles(host));
+  if (!rule) return null;
+
+  const found = rule.pick(decodeJsonText === null ? html : String(html || "")) || {};
+  const clean = {};
+  ["agent_name", "agent_phone", "agent_email", "brokerage"].forEach((field) => {
+    const value = found[field];
+    // "null" arrives as the literal word when the JSON value is null.
+    if (value && value !== "null") clean[field] = value;
+  });
+  if (!Object.keys(clean).length) return null;
+  clean.source = rule.id;
+  return clean;
 }

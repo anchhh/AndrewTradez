@@ -43,7 +43,7 @@ def upsert_lead(row, owner_id=None):
     if existing:
         for field in (
             "price", "beds", "baths", "sqft", "property_type", "listing_url",
-            "agent_name", "agent_email", "agent_phone",
+            "brokerage", "agent_name", "agent_email", "agent_phone",
         ):
             value = row.get(field)
             if value is not None:
@@ -80,6 +80,7 @@ def upsert_lead(row, owner_id=None):
         baths=row.get("baths"),
         sqft=row.get("sqft"),
         property_type=row.get("property_type"),
+        brokerage=row.get("brokerage"),
         agent_name=row.get("agent_name"),
         agent_email=row.get("agent_email"),
         agent_phone=row.get("agent_phone"),

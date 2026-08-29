@@ -114,6 +114,7 @@ def create_lead():
         "baths": data.get("baths"),
         "sqft": data.get("sqft"),
         "property_type": data.get("property_type"),
+        "brokerage": data.get("brokerage"),
         "agent_name": data.get("agent_name"),
         "agent_email": data.get("agent_email"),
         "agent_phone": data.get("agent_phone"),

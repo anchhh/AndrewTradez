@@ -79,6 +79,10 @@ function contactLine(lead) {
   return [lead.agent_name, lead.agent_phone, lead.agent_email].filter(Boolean).join(" | ");
 }
 
+function brokerageLine(lead) {
+  return lead.brokerage || "";
+}
+
 function factsLine(lead) {
   return [
     lead.beds != null ? `${lead.beds} bd` : null,
@@ -217,6 +221,7 @@ function leadCardHtml(lead, opts = {}) {
         <div class="lead-card-info">
           <h3 class="lead-card-address">${escapeHtml(addressLine(lead))}</h3>
           ${contactLine(lead) ? `<div class="lead-card-contact">${escapeHtml(contactLine(lead))}</div>` : ""}
+          ${brokerageLine(lead) ? `<div class="lead-card-facts">${escapeHtml(brokerageLine(lead))}</div>` : ""}
           ${factsLine(lead) ? `<div class="lead-card-facts">${factsLine(lead)}</div>` : ""}
           ${lead.listing_url ? `<a class="lead-card-url" href="${escapeHtml(lead.listing_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(lead.listing_url)}</a>` : ""}
         </div>

@@ -370,6 +370,10 @@ async function fetchFromExtension(urls) {
 // Addresses seen on the last page read, handed to the backend with the save
 // so it can match one to the agent. Set by capturePhotos().
 let lastPageEmails = [];
+// Structured agent details from the listing's own data, read at capture time.
+// The site states the listing agent, their direct number and the brokerage;
+// page text often shows the brokerage switchboard instead.
+let lastAgent = null;
 
 async function capturePhotos(onProgress) {
   try {
@@ -400,6 +404,10 @@ async function capturePhotos(onProgress) {
     });
     if (!page) return [];
     lastPageEmails = page.emails || [];
+    lastAgent = (typeof pickListingAgent === "function" && page.html)
+      ? pickListingAgent(page.html, page.href)
+      : null;
+    if (lastAgent) console.log("[Estly] agent attribution:", lastAgent);
 
     // Per-site rules live in extractors.js so changing one site can't affect
     // another. In degraded mode the rendered image URLs stand in for the page
@@ -619,6 +627,25 @@ $("form").addEventListener("submit", async (e) => {
   });
   if (photosBase64.length) payload.photos_base64 = photosBase64;
   if (!payload.agent_email && lastPageEmails.length) payload.page_emails = lastPageEmails;
+
+  // The site's own data beats text scraped off the page: it names the listing
+  // agent specifically and gives their direct line rather than the brokerage
+  // switchboard. Anything it doesn't state is left as parsed.
+  const corrections = [];
+  if (lastAgent) {
+    if (lastAgent.brokerage) payload.brokerage = lastAgent.brokerage;
+    if (lastAgent.agent_email && !payload.agent_email) payload.agent_email = lastAgent.agent_email;
+    if (lastAgent.agent_name && lastAgent.agent_name !== payload.agent_name) {
+      payload.agent_name = lastAgent.agent_name;
+      corrections.push("agent");
+      $("f-agent-name").value = lastAgent.agent_name;
+    }
+    if (lastAgent.agent_phone && lastAgent.agent_phone !== payload.agent_phone) {
+      payload.agent_phone = lastAgent.agent_phone;
+      corrections.push("phone");
+      $("f-agent-phone").value = lastAgent.agent_phone;
+    }
+  }
   setStatus(found ? `Saving ${photosBase64.length} of ${found} photos…` : "Saving…");
 
   try {
@@ -633,12 +660,16 @@ $("form").addEventListener("submit", async (e) => {
     }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Save failed (${res.status})`);
+    const agentNote = corrections.length
+      ? ` Corrected ${corrections.join(" and ")} from ${lastAgent.source}.`
+      : "";
     const photoNote = found
       ? ` ${photosBase64.length} of ${found} photos.`
       : " No photos found on this page.";
     setStatus(
       (body._merged ? "Merged into existing lead." : "Saved.") +
         photoNote +
+        agentNote +
         " Click Open Pipeline to view it.",
       photosBase64.length === found ? "ok" : "warn"
     );

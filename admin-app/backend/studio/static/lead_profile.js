@@ -140,7 +140,7 @@ function renderVideo(project) {
 function renderLead() {
   el("lp-address").textContent = addressLine(lead);
   el("lp-contact").textContent = contactLine(lead);
-  el("lp-facts").textContent = factsLine(lead);
+  el("lp-facts").textContent = [brokerageLine(lead), factsLine(lead)].filter(Boolean).join(" • ");
 
   const url = el("lp-url");
   if (lead.listing_url) {
