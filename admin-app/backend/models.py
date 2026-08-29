@@ -54,6 +54,11 @@ class Lead(db.Model):
 
     agent_name = db.Column(db.String(120), nullable=True)
     agent_email = db.Column(db.String(255), nullable=True)
+
+    # Ranked addresses the automatic lookup turned up, each with the reason it
+    # might be this agent's. Kept even when one was confident enough to fill
+    # in, so the choice can be reviewed and changed.
+    email_candidates_json = db.Column(db.Text, nullable=False, default="[]")
     agent_phone = db.Column(db.String(40), nullable=True)
 
     status = db.Column(db.String(20), nullable=False, default="new")
@@ -74,6 +79,14 @@ class Lead(db.Model):
 
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def email_candidates(self):
+        return json.loads(self.email_candidates_json or "[]")
+
+    @email_candidates.setter
+    def email_candidates(self, value):
+        self.email_candidates_json = json.dumps(value or [])
 
     @property
     def photo_urls(self):
@@ -122,6 +135,7 @@ class Lead(db.Model):
             "brokerage": self.brokerage,
             "agent_name": self.agent_name,
             "agent_email": self.agent_email,
+            "email_candidates": self.email_candidates,
             "agent_phone": self.agent_phone,
             "status": self.status,
             "notes": self.notes,

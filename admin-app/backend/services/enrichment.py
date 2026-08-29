@@ -70,6 +70,10 @@ def _run(app, lead_id):
             log.exception("email lookup failed for lead %s", lead_id)
             return
 
+        # Keep every candidate, ranked, even when one was good enough to use:
+        # the choice should be reviewable rather than a black box.
+        lead.email_candidates = found.get("candidates") or []
+
         if found.get("email") and found.get("autofill"):
             lead.agent_email = found["email"]
             _append_note(

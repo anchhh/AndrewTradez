@@ -33,7 +33,7 @@ from services.contacts import (
     AUTOFILL_THRESHOLD,
     find_emails,
     page_confirms_phone,
-    pick_agent_email,
+    score_email_for_agent,
 )
 
 SEARCH_URL = "https://html.duckduckgo.com/html/?q="
@@ -106,21 +106,44 @@ def _search(query, limit=8):
     return urls, False
 
 
-def find_agent_email(agent_name, brokerage=None, city=None, state=None, phone=None,
-                     known_domains=None):
-    """Look up an agent's email on the open web.
-
-    Returns a dict describing what was found and how confident it is:
-    {email, score, reason, source, phone_confirmed, autofill, searched}.
-    `autofill` is the caller's signal that it is safe to write in.
-    """
-    result = {
-        "email": None, "score": 0, "reason": "no agent name",
-        "source": None, "phone_confirmed": False, "autofill": False,
-        "domain_conflict": False, "blocked": False, "searched": None,
+def _explain(candidate):
+    """Plain-English reason this address might be the agent's, for a human
+    choosing between several."""
+    reason = candidate["reason"]
+    wording = {
+        "first+last": "the address is the agent's full name",
+        "last+first": "the address is the agent's name, surname first",
+        "initial+last": "the address is the agent's initial and surname",
+        "last+initial": "the address is the agent's surname and initial",
+        "first+initial": "the address is the agent's first name and surname initial",
+        "first name only": "the address is the agent's first name",
+        "surname present": "the address contains the agent's surname",
     }
+    bits = [wording.get(reason, reason)]
+    bits.append(
+        "the same page shows the phone number from the listing"
+        if candidate["phone_confirmed"]
+        else "the page does not show the listing's phone number"
+    )
+    if candidate.get("domain_conflict"):
+        bits.append("the domain is not this brokerage's known one, which can mean a typo")
+    host = urlparse(candidate["source"] or "").netloc
+    if host:
+        bits.append(f"found on {host}")
+    return "; ".join(bits)
+
+
+def research_agent_email(agent_name, brokerage=None, city=None, state=None, phone=None,
+                         known_domains=None):
+    """Every address on the open web that might belong to this agent, ranked.
+
+    Returns {candidates, best, blocked, searched}. `candidates` is ordered
+    most-likely first, each carrying a plain-English `why`. Nothing is written
+    anywhere: the caller decides, and a human can pick between them.
+    """
+    out = {"candidates": [], "best": None, "blocked": False, "searched": None}
     if not agent_name or len(agent_name.split()) < 2:
-        return result
+        return out
 
     terms = [f'"{agent_name}"']
     if brokerage:
@@ -131,25 +154,19 @@ def find_agent_email(agent_name, brokerage=None, city=None, state=None, phone=No
         terms.append(state)
     terms.append("realtor email")
     query = " ".join(terms)
-    result["searched"] = query
-    result["reason"] = "no address found"
+    out["searched"] = query
 
-    # Quoting the brokerage exactly can return nothing at all -- it found no
-    # page for an agent whose address was there to be read. Fall back to a
-    # looser phrasing before giving up.
     urls, blocked = _search(query)
     if not urls and not blocked:
         loose = " ".join([agent_name, brokerage or "", city or "", "realtor email"]).strip()
-        result["searched"] = f"{query} | {loose}"
+        out["searched"] = f"{query} | {loose}"
         urls, blocked = _search(loose)
     if blocked:
-        result["reason"] = "search unavailable (rate limited) - worth retrying later"
-        result["blocked"] = True
-        return result
-    urls = urls[:MAX_PAGES]
+        out["blocked"] = True
+        return out
 
-    best = None
-    for url in urls:
+    seen = {}
+    for url in urls[:MAX_PAGES]:
         try:
             page = requests.get(url, headers=HEADERS, timeout=PAGE_TIMEOUT)
             if page.status_code != 200 or not page.text:
@@ -157,40 +174,63 @@ def find_agent_email(agent_name, brokerage=None, city=None, state=None, phone=No
         except requests.RequestException:
             continue
 
-        email, score, reason = pick_agent_email(find_emails(page.text), agent_name)
-        if not email:
-            continue
         confirmed = page_confirms_phone(page.text, phone)
-
-        # If we already know this brokerage's real mail domain from a
-        # previously confirmed lead, an address on a different domain is
-        # suspect. A real directory published "rolando@searsrealestate.co" --
-        # the brokerage's actual domain is searsrealestate.com, and mail to
-        # the typo would simply vanish.
-        domain = email.split("@")[-1].lower()
-        domain_conflict = bool(known_domains) and domain not in known_domains
-
-        candidate = {
-            "email": email, "score": score, "reason": reason,
-            "source": url, "phone_confirmed": confirmed,
-            "autofill": (
+        for email in find_emails(page.text):
+            score, reason = score_email_for_agent(email, agent_name)
+            if not score:
+                continue
+            domain = email.split("@")[-1].lower()
+            candidate = {
+                "email": email,
+                "score": score,
+                "reason": reason,
+                "source": url,
+                "phone_confirmed": confirmed,
+                "domain_conflict": bool(known_domains) and domain not in known_domains,
+            }
+            candidate["confident"] = (
                 score >= AUTOFILL_THRESHOLD
                 or (confirmed and score >= CORROBORATED_THRESHOLD)
-            )
-            and not domain_conflict,
-            "domain_conflict": domain_conflict,
-            "searched": result["searched"],
-        }
-        if domain_conflict:
-            candidate["reason"] = (
-                f"{reason}, but {domain} is not this brokerage's known mail domain "
-                f"({', '.join(sorted(known_domains))}) - possible typo on the source page"
-            )
-        # A corroborated hit is the best outcome; take it and stop.
-        if candidate["autofill"] and confirmed:
-            return candidate
-        if best is None or candidate["score"] > best["score"]:
-            best = candidate
+            ) and not candidate["domain_conflict"]
+            candidate["why"] = _explain(candidate)
+            prior = seen.get(email)
+            if prior:
+                # Seen on more than one page: corroboration anywhere counts.
+                prior["phone_confirmed"] = prior["phone_confirmed"] or confirmed
+                prior["why"] = _explain(prior)
+                if candidate["score"] > prior["score"]:
+                    seen[email] = candidate
+            else:
+                seen[email] = candidate
         time.sleep(0.4)  # be a considerate visitor
 
-    return best or result
+    ranked = sorted(
+        seen.values(),
+        key=lambda c: (c["confident"], c["phone_confirmed"], c["score"], not c["domain_conflict"]),
+        reverse=True,
+    )
+    out["candidates"] = ranked
+    out["best"] = ranked[0] if ranked and ranked[0]["confident"] else None
+    return out
+
+
+def find_agent_email(agent_name, brokerage=None, city=None, state=None, phone=None,
+                     known_domains=None):
+    """Single best address, for the automatic pass. A thin wrapper so the
+    automatic and on-demand paths rank identically."""
+    found = research_agent_email(agent_name, brokerage, city, state, phone, known_domains)
+    top = found["candidates"][0] if found["candidates"] else None
+    return {
+        "email": top["email"] if top else None,
+        "score": top["score"] if top else 0,
+        "reason": top["why"] if top else (
+            "search unavailable" if found["blocked"] else "no address found"
+        ),
+        "source": top["source"] if top else None,
+        "phone_confirmed": bool(top and top["phone_confirmed"]),
+        "domain_conflict": bool(top and top["domain_conflict"]),
+        "autofill": bool(top and top["confident"]),
+        "blocked": found["blocked"],
+        "searched": found["searched"],
+        "candidates": found["candidates"],
+    }

@@ -117,55 +117,86 @@ function renderChecklist() {
    brokerage is what makes the difference; searching a name alone turns up
    same-name agents in other states, which is how a Pennsylvania appraiser
    nearly ended up filed as a Cincinnati agent. */
-function findEmailSearchUrl() {
-  const terms = [lead.agent_name, lead.brokerage, lead.city, lead.state, "realtor email"]
-    .filter(Boolean)
-    .join(" ");
-  return "https://duckduckgo.com/?q=" + encodeURIComponent(terms);
+/* Ranked email candidates.
+
+   The automatic lookup on capture stores what it found; this shows the same
+   list and lets a different one be chosen. Nothing here is a guess dressed up
+   as fact -- each option carries the reason it might be this agent's, and the
+   strongest signal is that the page carrying the address also showed the
+   phone number from the listing. */
+
+function renderCandidates(candidates, note) {
+  const box = el("lp-candidates");
+  const list = candidates || [];
+  if (!list.length && !note) {
+    box.classList.add("hidden");
+    return;
+  }
+  box.classList.remove("hidden");
+
+  if (!list.length) {
+    box.innerHTML = `<p class="lp-candidates-note">${escapeHtml(note)}</p>`;
+    return;
+  }
+
+  box.innerHTML =
+    `<p class="lp-candidates-note">${escapeHtml(
+      note || "Most likely first. Nothing is sent until you pick one."
+    )}</p>` +
+    list
+      .map(
+        (c, i) => `
+      <div class="lp-candidate ${c.confident ? "is-confident" : ""} ${
+          c.email === lead.agent_email ? "is-current" : ""
+        }">
+        <div class="lp-candidate-top">
+          <span class="lp-candidate-rank">${i + 1}</span>
+          <span class="lp-candidate-email">${escapeHtml(c.email)}</span>
+          ${c.confident ? '<span class="lp-candidate-badge">confident</span>' : ""}
+          ${
+            c.email === lead.agent_email
+              ? '<span class="lp-candidate-badge is-current-badge">in use</span>'
+              : `<button type="button" class="btn-secondary btn-tiny lp-use" data-email="${escapeHtml(
+                  c.email
+                )}">Use this</button>`
+          }
+        </div>
+        <div class="lp-candidate-why">${escapeHtml(c.why || "")}</div>
+      </div>`
+      )
+      .join("");
+
+  box.querySelectorAll(".lp-use").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      el("lp-agent-email").value = btn.dataset.email;
+      await saveContactField("agent_email", el("lp-agent-email"));
+      renderCandidates(lead.email_candidates, note);
+    });
+  });
 }
 
-function wireContactEditing() {
-  const emailInput = el("lp-agent-email");
-  const brokerInput = el("lp-brokerage");
+async function runEmailResearch() {
+  const button = el("lp-find-email");
   const state = el("lp-contact-state");
-  const findLink = el("lp-find-email");
-
-  emailInput.value = lead.agent_email || "";
-  brokerInput.value = lead.brokerage || "";
-
-  const refreshLink = () => {
-    findLink.href = findEmailSearchUrl();
-    findLink.classList.toggle("hidden", !lead.agent_name || !!emailInput.value.trim());
-  };
-  refreshLink();
-
-  const save = async (field, input) => {
-    const value = input.value.trim();
-    if ((lead[field] || "") === value) return;
-    state.textContent = "Saving…";
-    try {
-      const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: value }),
-      });
-      if (updated.error) throw new Error(updated.error);
-      Object.assign(lead, updated);
-      state.textContent = "Saved";
-      renderLead();
-      refreshLink();
-    } catch (err) {
-      state.textContent = err.message || "Couldn't save.";
-    }
-  };
-
-  emailInput.addEventListener("blur", () => save("agent_email", emailInput));
-  brokerInput.addEventListener("blur", () => save("brokerage", brokerInput));
-  [emailInput, brokerInput].forEach((input) =>
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") input.blur();
-    })
-  );
+  button.disabled = true;
+  state.textContent = "Searching…";
+  try {
+    const found = await fetchJSON(`/studio/api/leads/${LEAD_ID}/find-email`, { method: "POST" });
+    if (found.error) throw new Error(found.error);
+    lead.email_candidates = found.candidates || [];
+    state.textContent = "";
+    renderCandidates(
+      lead.email_candidates,
+      found.blocked
+        ? "The search endpoint is rate limiting us right now — worth trying again in a few minutes."
+        : lead.email_candidates.length
+        ? null
+        : "Nothing published for this agent was found."
+    );
+  } catch (err) {
+    state.textContent = err.message || "Search failed.";
+  }
+  button.disabled = false;
 }
 
 /* ---------- notes ---------- */
@@ -262,6 +293,7 @@ async function load() {
 
   renderLead();
   wireContactEditing();
+  renderCandidates(lead.email_candidates);
   renderChecklist();
   wireNotes();
   renderVideo((projects || []).find((p) => p.lead_id === lead.id) || null);

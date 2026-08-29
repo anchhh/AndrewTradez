@@ -1601,6 +1601,38 @@ def api_my_key():
     return jsonify({"api_key": user_api_key(user), "email": user.get("email")})
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/find-email", methods=["POST"])
+@login_required
+def api_find_email(lead_id):
+    """Research this agent's email on demand and return the options, ranked.
+
+    Writes nothing: the caller picks. The automatic pass on capture uses the
+    same code, so the ranking here is the ranking that decided whether to fill
+    the address in.
+    """
+    from extensions import db
+    from services.email_lookup import research_agent_email
+    from services.enrichment import known_domains_for
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+    if not lead.agent_name:
+        return jsonify({"error": "This lead has no agent name to search for."}), 400
+
+    found = research_agent_email(
+        lead.agent_name,
+        brokerage=lead.brokerage,
+        city=lead.city,
+        state=lead.state,
+        phone=lead.agent_phone,
+        known_domains=known_domains_for(lead.brokerage),
+    )
+    lead.email_candidates = found["candidates"]
+    db.session.commit()
+    return jsonify(found)
+
+
 @studio_bp.route("/api/leads/bulk", methods=["POST"])
 @login_required
 def api_bulk_leads():
