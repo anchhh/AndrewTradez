@@ -7,7 +7,6 @@ from services.importers import REGISTRY as IMPORTER_REGISTRY
 from services.importers.csv_importer import CsvImportError
 from services.contacts import AUTOFILL_THRESHOLD, pick_agent_email
 from services.ingestion import upsert_lead
-from services.outreach import OutreachNotConfigured, send_outreach
 
 bp = Blueprint("leads", __name__, url_prefix="/api/leads")
 
@@ -234,13 +233,24 @@ def import_csv():
 
 @bp.post("/<int:lead_id>/outreach")
 def trigger_outreach(lead_id):
+    """Deliberately does not send.
+
+    Outreach goes out from the Studio review queue instead, where the address
+    is shown with how much it can be trusted and a person clicks send. This
+    blueprint sits behind Basic Auth with no per-account scoping, so wiring
+    sending in here would be a second path that mails agents with nobody
+    checking -- which is exactly what the review step exists to prevent.
+    Kept so the admin UI gets a useful answer rather than a 404.
+    """
+    from services import outreach
+
     lead = db.session.get(Lead, lead_id)
     if lead is None:
         return jsonify({"error": "lead not found"}), 404
 
-    data = request.get_json(force=True, silent=True) or {}
-    try:
-        send_outreach(lead, channel=data.get("channel", "email"))
-    except OutreachNotConfigured as exc:
-        return jsonify({"error": str(exc)}), 501
-    return jsonify({"status": "sent"})
+    return jsonify({
+        "error": "Outreach is sent from the Studio review queue, not from here.",
+        "review_at": "/studio/outreach",
+        "ready": outreach.is_ready(lead),
+        "blockers": outreach.blockers(lead),
+    }), 501

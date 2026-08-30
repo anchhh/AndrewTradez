@@ -1100,6 +1100,12 @@ def lead_profile(lead_id):
     return render_template("lead_profile.html", lead_id=lead_id)
 
 
+@studio_bp.route("/outreach")
+@login_required
+def outreach_queue():
+    return render_template("outreach.html")
+
+
 @studio_bp.route("/leads")
 @login_required
 def leads_manager():
@@ -1444,7 +1450,8 @@ def api_update_lead_status(lead_id):
 
     # Contact details are editable because a listing often doesn't publish the
     # agent's email -- Zillow never does -- so it gets looked up and typed in.
-    EDITABLE_TEXT = ("notes", "agent_email", "agent_name", "agent_phone", "brokerage")
+    EDITABLE_TEXT = ("notes", "agent_email", "agent_name", "agent_phone", "brokerage",
+                     "video_url")
     if "status" not in data and not any(f in data for f in EDITABLE_TEXT):
         return jsonify({"error": "Nothing to update."}), 400
 
@@ -1458,6 +1465,15 @@ def api_update_lead_status(lead_id):
         if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
             return jsonify({"error": "That doesn't look like an email address."}), 400
         lead.agent_email = email or None
+
+    # The finished video for this listing. Nothing in this app renders one
+    # yet, so it is pasted in from wherever it was produced -- and it is
+    # what makes the lead eligible for outreach, since the pitch is the video.
+    if "video_url" in data:
+        video = (data["video_url"] or "").strip()
+        if video and not video.lower().startswith(("http://", "https://")):
+            return jsonify({"error": "The video link needs to start with http:// or https://"}), 400
+        lead.video_url = video or None
 
     for field in ("notes", "agent_name", "agent_phone", "brokerage"):
         if field in data:
@@ -1743,6 +1759,131 @@ def api_toggle_outreach(lead_id):
     was_set = getattr(lead, column) is not None
     setattr(lead, column, None if was_set else datetime.now(timezone.utc))
     db.session.commit()
+    return jsonify(lead.to_dict())
+
+
+@studio_bp.route("/api/outreach/queue", methods=["GET"])
+@login_required
+def api_outreach_queue():
+    """Everything waiting on a send decision, and why.
+
+    Split three ways rather than filtered down to the sendable ones: seeing
+    that eleven leads are stuck on "no finished video" is the useful signal,
+    and it would be invisible if the queue only listed what was ready.
+    """
+    from models import Lead
+    from services import outreach
+    from services.gohighlevel import is_configured
+
+    leads = owned_leads_query().order_by(Lead.updated_at.desc()).all()
+
+    ready, waiting, sent = [], [], []
+    for lead in leads:
+        item = outreach.review_item(lead)
+        if lead.outreach_email_sent_at:
+            sent.append(item)
+        elif lead.outreach_skipped:
+            continue
+        elif item["ready"]:
+            ready.append(item)
+        else:
+            waiting.append(item)
+
+    return jsonify({
+        "connected": is_configured(),
+        "ready": ready,
+        "waiting": waiting,
+        "sent": sent[:20],
+        "skipped_count": sum(1 for l in leads if l.outreach_skipped and not l.outreach_email_sent_at),
+    })
+
+
+@studio_bp.route("/api/outreach/status", methods=["GET"])
+@login_required
+def api_outreach_status():
+    """Whether GoHighLevel is reachable, and whether the merge fields exist.
+
+    A missing custom field doesn't error on send -- GHL just ignores the key
+    -- so the failure mode is an email that goes out with a blank where the
+    address or video link should be. Better to surface it here.
+    """
+    from services.gohighlevel import (
+        CUSTOM_FIELDS,
+        GoHighLevelError,
+        GoHighLevelNotConfigured,
+        verify_connection,
+    )
+
+    try:
+        return jsonify(verify_connection())
+    except GoHighLevelNotConfigured as exc:
+        return jsonify({"ok": False, "configured": False, "error": str(exc),
+                        "expected_fields": sorted(CUSTOM_FIELDS)}), 200
+    except GoHighLevelError as exc:
+        return jsonify({"ok": False, "configured": True, "error": str(exc)}), 200
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/outreach/preview", methods=["POST"])
+@login_required
+def api_outreach_preview(lead_id):
+    """Exactly what would be sent to GoHighLevel, without sending it."""
+    from extensions import db
+    from services import outreach
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+    try:
+        result = outreach.send(lead, db.session, dry_run=True)
+    except outreach.OutreachNotReady as exc:
+        return jsonify({"error": f"Not ready to send: {exc}"}), 400
+    except outreach.GoHighLevelNotConfigured as exc:
+        return jsonify({"error": str(exc)}), 400
+    except outreach.GoHighLevelError as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify(result)
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/outreach/send", methods=["POST"])
+@login_required
+def api_outreach_send(lead_id):
+    """Push this lead to GoHighLevel and tag it, which starts the email.
+
+    This is the one place anything reaches a real agent, and it only ever runs
+    from an explicit click in the review queue.
+    """
+    from extensions import db
+    from services import outreach
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    try:
+        result = outreach.send(lead, db.session)
+    except outreach.OutreachNotReady as exc:
+        return jsonify({"error": f"Not ready to send: {exc}"}), 400
+    except outreach.GoHighLevelNotConfigured as exc:
+        return jsonify({"error": str(exc)}), 400
+    except outreach.GoHighLevelError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    return jsonify({"sent": True, "contact_id": result.get("contact_id"),
+                    "new_contact": result.get("new"), "lead": lead.to_dict()})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/outreach/skip", methods=["POST"])
+@login_required
+def api_outreach_skip(lead_id):
+    """Take this lead out of the queue, or put it back."""
+    from extensions import db
+    from services import outreach
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+    undo = bool((request.get_json(silent=True) or {}).get("undo"))
+    outreach.skip(lead, db.session, undo=undo)
     return jsonify(lead.to_dict())
 
 

@@ -2,6 +2,8 @@ const OUTREACH_LABELS = [["email", "Email sent"], ["phone", "Phone called"], ["v
 
 const LEAD_ID = window.LEAD_ID;
 let lead = null;
+// Kept so the video panel can re-render itself after the link is saved.
+let currentProject = null;
 
 const el = (id) => document.getElementById(id);
 
@@ -274,14 +276,58 @@ function renderVideo(project) {
 
   if (video) {
     box.innerHTML = `<video src="${escapeHtml(video)}" controls></video>`;
-    return;
+  } else {
+    box.innerHTML = `
+      <div class="lp-video-empty">
+        <div class="lp-video-empty-label">${project ? "Project started — no video yet" : "No project video yet"}</div>
+        <a class="cta-btn cta-btn-sm" href="/studio/create?lead_id=${LEAD_ID}">${project ? "Open project" : "Create Video"}</a>
+      </div>`;
   }
 
-  box.innerHTML = `
-    <div class="lp-video-empty">
-      <div class="lp-video-empty-label">${project ? "Project started — no video yet" : "No project video yet"}</div>
-      <a class="cta-btn cta-btn-sm" href="/studio/create?lead_id=${LEAD_ID}">${project ? "Open project" : "Create Video"}</a>
+  box.insertAdjacentHTML("beforeend", finishedVideoHtml());
+  wireFinishedVideo();
+}
+
+/* The finished video, wherever it ended up being hosted. Nothing in this app
+   renders video yet, so this is pasted in by hand -- and it is what makes the
+   lead sendable, since the outreach email exists to show the agent this. */
+function finishedVideoHtml() {
+  return `
+    <div class="lp-video-link">
+      <label class="lp-video-link-label" for="lp-video-url">Finished video link</label>
+      <div class="lp-video-link-row">
+        <input id="lp-video-url" type="url" placeholder="https://…"
+               value="${escapeHtml(lead.video_url || "")}">
+        <button id="lp-video-save" class="btn-tiny" type="button">Save</button>
+      </div>
+      <p class="lp-video-link-hint">${
+        lead.video_url
+          ? `Ready to send from the <a href="/studio/outreach">outreach queue</a>.`
+          : `Paste the link an agent can watch it at. Until then this lead can't be sent.`
+      }</p>
     </div>`;
+}
+
+function wireFinishedVideo() {
+  const input = el("lp-video-url");
+  const button = el("lp-video-save");
+  if (!input || !button) return;
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_url: input.value.trim() }),
+      });
+      Object.assign(lead, updated);
+      renderVideo(currentProject);
+    } catch (err) {
+      alert(err.message || "Could not save that link.");
+      button.disabled = false;
+    }
+  });
 }
 
 /* ---------- header ---------- */
@@ -355,7 +401,8 @@ async function load() {
   renderCandidates(lead.email_candidates);
   renderChecklist();
   wireNotes();
-  renderVideo((projects || []).find((p) => p.lead_id === lead.id) || null);
+  currentProject = (projects || []).find((p) => p.lead_id === lead.id) || null;
+  renderVideo(currentProject);
   renderPhotos(lead.photo_urls);
 
   el("lp-refetch").addEventListener("click", () => pullPhotos(true));

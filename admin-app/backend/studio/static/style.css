@@ -2088,3 +2088,168 @@ gmp-map-3d {
   color: var(--ink-soft);
   opacity: 0.8;
 }
+
+/* ---------- Outreach queue ----------
+   The review step between a finished video and GoHighLevel actually mailing
+   an agent. Confidence is shown rather than hidden because the addresses come
+   from research and are sometimes wrong. */
+
+.ghl-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--cream-soft);
+  margin-bottom: 28px;
+  font-size: 0.9rem;
+}
+.ghl-status code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+.ghl-status-good { border-color: #7fae7f; background: #f1f7f0; }
+.ghl-status-warn { border-color: #d9a441; background: #fdf6e8; }
+.ghl-status-bad  { border-color: var(--accent); background: #fdefea; }
+.ghl-status button { flex: 0 0 auto; }
+
+.outreach-section { margin-bottom: 44px; }
+.outreach-heading {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.outreach-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+/* The shared lead card stacks its actions in a narrow column. On this page
+   they sit in a row under a full-width card, so the direction is reset
+   explicitly rather than inherited. */
+.outreach-card .lead-card-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.outreach-card .lead-card-actions > button { width: auto; flex: 0 0 auto; }
+.outreach-to { margin: 4px 0; font-size: 0.9rem; }
+.outreach-to code { font-size: 0.95em; }
+.outreach-video { margin: 6px 0 0; font-size: 0.85rem; word-break: break-all; }
+
+.conf-badge {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.conf-high { background: #e3f0e0; color: #2f6b2c; }
+.conf-low  { background: #fdf1dc; color: #8a5d10; }
+.conf-none { background: #f2ded8; color: #96331a; }
+
+.conf-list {
+  margin: 6px 0 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.conf-list li { position: relative; padding-left: 16px; }
+.conf-for::before  { content: "✓"; position: absolute; left: 0; color: #2f6b2c; }
+.conf-against::before { content: "✕"; position: absolute; left: 0; color: var(--accent); }
+
+.btn-send {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-send:disabled { opacity: 0.55; cursor: default; }
+
+.outreach-preview {
+  margin: 10px 0 0;
+  padding: 12px;
+  background: #17130f;
+  color: #e8e2d8;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  overflow-x: auto;
+}
+
+.outreach-waiting { display: flex; flex-direction: column; gap: 8px; }
+.outreach-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cream-soft);
+  font-size: 0.85rem;
+}
+.outreach-row-main { flex: 1 1 240px; min-width: 0; }
+.outreach-row-main a { font-weight: 600; }
+.outreach-row-agent { display: block; color: var(--ink-soft); font-size: 0.8rem; }
+.outreach-row-blockers { display: flex; gap: 6px; flex-wrap: wrap; }
+.outreach-blocker {
+  background: #f2ded8;
+  color: #96331a;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.72rem;
+}
+.outreach-row-video { display: flex; gap: 6px; flex: 1 1 100%; }
+.outreach-row-video .video-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.outreach-row-sent { opacity: 0.75; }
+.outreach-sent-mark { color: #2f6b2c; font-weight: 600; font-size: 0.78rem; }
+.outreach-skipped-note:empty { display: none; }
+
+/* The finished video link on a lead profile. Nothing renders video in this
+   app yet, so the link is pasted in -- and it gates outreach. */
+.lp-video-link { margin-top: 12px; }
+.lp-video-link-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.lp-video-link-row { display: flex; gap: 6px; }
+.lp-video-link-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.lp-video-link-row button { flex: 0 0 auto; width: auto; }
+.lp-video-link-hint { margin: 5px 0 0; font-size: 0.75rem; color: var(--ink-soft); }

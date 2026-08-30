@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy this to gohighlevel.json and fill it in. That file is gitignored - the repo is public. Get both values from GoHighLevel: Settings -> Private Integrations -> create a token with the contacts.readonly, contacts.write and locations/customFields.readonly scopes. The location id is the sub-account id, visible in Settings -> Business Info or in the URL when that sub-account is open.",
+  "api_key": "",
+  "location_id": "",
+  "version": "2021-07-28"
+}

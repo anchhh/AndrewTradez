@@ -77,6 +77,20 @@ class Lead(db.Model):
     outreach_phone_called_at = db.Column(db.DateTime, nullable=True)
     outreach_video_sent_at = db.Column(db.DateTime, nullable=True)
 
+    # The finished marketing video for this listing, somewhere the agent can
+    # actually watch it. Nothing in this app renders video yet, so this is
+    # filled in by hand from wherever the video was produced -- and it is what
+    # makes a lead eligible for outreach at all, since the pitch is the video.
+    video_url = db.Column(db.String(500), nullable=True)
+
+    # Set once this lead has been pushed to GoHighLevel, so a re-send updates
+    # that contact instead of creating a second one.
+    ghl_contact_id = db.Column(db.String(64), nullable=True)
+
+    # Dismissed from the outreach queue by hand. Distinct from "sent": this
+    # lead is one we decided not to mail, and it should stop coming back.
+    outreach_skipped = db.Column(db.Boolean, nullable=False, default=False)
+
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
@@ -143,6 +157,9 @@ class Lead(db.Model):
             "outreach_email_sent": self.outreach_email_sent_at is not None,
             "outreach_phone_called": self.outreach_phone_called_at is not None,
             "outreach_video_sent": self.outreach_video_sent_at is not None,
+            "outreach_skipped": bool(self.outreach_skipped),
+            "video_url": self.video_url,
+            "ghl_contact_id": self.ghl_contact_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

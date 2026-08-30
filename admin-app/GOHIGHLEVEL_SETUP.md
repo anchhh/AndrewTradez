@@ -1,0 +1,110 @@
+# Connecting GoHighLevel
+
+Estly decides *who* is worth mailing. GoHighLevel does the actual sending, so
+it owns unsubscribes, bounces, sending reputation and follow-ups — and it keeps
+working when this app isn't running.
+
+Four steps, once.
+
+## 1. Make a Private Integration token
+
+In GoHighLevel, inside the sub-account you want the contacts to land in:
+
+**Settings → Private Integrations → Create new integration**
+
+Give it these scopes:
+
+- `contacts.readonly`
+- `contacts.write`
+- `locations/customFields.readonly`
+
+Copy the token it shows you. You only get to see it once.
+
+## 2. Find your location id
+
+**Settings → Business Info**, or read it out of the URL while that sub-account
+is open — it's the string after `/location/`.
+
+## 3. Put both in the config file
+
+Copy `backend/studio/gohighlevel.example.json` to
+`backend/studio/gohighlevel.json` and fill it in:
+
+```json
+{
+  "api_key": "pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "location_id": "ve9EPM428h8vShlRW1KT",
+  "version": "2021-07-28"
+}
+```
+
+That file is gitignored — this repo is public, so the token must never be
+committed. `GHL_API_KEY` / `GHL_LOCATION_ID` environment variables work too and
+take priority, which is how this should be configured once it's hosted.
+
+Leave `version` alone unless a call fails; the app already retries with `v3`
+automatically if `2021-07-28` is rejected.
+
+## 4. Create the custom fields
+
+**Settings → Custom Fields**, one text field each:
+
+| Field key | Holds |
+|---|---|
+| `estly_property_address` | 319 S Kathleen Ave |
+| `estly_listing_url` | link to the Zillow/Redfin listing |
+| `estly_video_url` | the finished video for that listing |
+| `estly_price` | $425,000 |
+| `estly_beds_baths` | 3 bd / 2 ba / 2,016 sqft |
+| `estly_brokerage` | Sears Real Estate |
+
+The keys have to match exactly. A missing field does **not** error — GHL just
+ignores it, and the email goes out with a blank where the address or video link
+should have been. The banner at the top of `/studio/outreach` lists any that are
+missing, so check it there rather than finding out from a sent email.
+
+## 5. Build the workflow in GHL
+
+**Automation → Workflows → Create**
+
+- **Trigger:** Contact Tag — tag is `estly-video-ready`
+- **Action:** Send Email
+
+Write the email with the merge fields, e.g.
+
+> Hi `{{contact.first_name}}`,
+>
+> I put together a short marketing video for `{{contact.estly_property_address}}` —
+> you can watch it here: `{{contact.estly_video_url}}`
+>
+> No charge and no catch; if it's useful it's yours to post.
+
+Include your physical postal address and a working unsubscribe link. GHL adds
+both if you use its footer element — leave it in. Cold B2B email is legal in the
+US under CAN-SPAM, but only with an honest sender, a real address and a
+functioning opt-out.
+
+## How a send actually happens
+
+1. A lead is captured and the app researches the agent's email in the background.
+2. You produce the video and paste its link on the lead's profile, or straight
+   into the **Waiting** list on `/studio/outreach`.
+3. The lead moves to **Ready to send**, showing the address with the case for and
+   against it being the right person.
+4. You click **Send via GoHighLevel**. The contact is upserted with the listing
+   details and tagged `estly-video-ready`.
+5. Your workflow sees the tag and sends the email.
+
+Nothing sends on its own. **Preview payload** shows exactly what would be pushed
+without pushing it, which is the safe way to test the connection.
+
+## When something breaks
+
+- **"GoHighLevel isn't connected"** — the config file is missing or empty.
+- **HTTP 401** — the token is wrong, expired, or from a different sub-account
+  than the location id.
+- **HTTP 403** — the token is missing one of the scopes in step 1.
+- **Email arrives with blanks** — a custom field in step 4 is missing or its key
+  is misspelled. Check the banner on the outreach page.
+- **Contact created but no email** — the workflow is paused, or its trigger tag
+  doesn't match `estly-video-ready` exactly.

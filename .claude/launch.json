@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "estly-studio",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "flask", "--app", "app", "run", "--port", "5051", "--debug"],
+      "cwd": "admin-app/backend",
+      "port": 5051
+    }
+  ]
+}
