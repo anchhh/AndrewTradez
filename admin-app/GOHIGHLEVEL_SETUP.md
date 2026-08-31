@@ -120,6 +120,18 @@ banner on `/studio/outreach` flags this too.
 - **Trigger:** Contact Tag — tag is `estly-video-ready`
 - **Action:** Send Email
 
+**The tag won't be in the dropdown the first time.** GHL creates tags when they
+are first applied, and until the app has pushed a contact nothing has ever
+carried it. Type it into the tag box and take the "create new tag" option, or
+add it under Settings → Tags first.
+
+It has to match exactly — lowercase, hyphens. `Estly Video Ready` or
+`estly_video_ready` will never fire, and the failure is silent: the contact
+gets tagged and no email goes out.
+
+**Publish the workflow when you're done.** A workflow left in Draft does
+nothing, with no error anywhere.
+
 Write the email with the merge fields, e.g.
 
 > Hi `{{contact.first_name}}`,
