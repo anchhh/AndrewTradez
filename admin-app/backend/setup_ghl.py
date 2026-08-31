@@ -19,9 +19,13 @@ after creating anything this reads the fields back and checks the keys really
 are the ones the app sends. A mismatch means the email would merge a blank, so
 it is reported loudly rather than assumed.
 """
+import getpass
+import json
+import os
 import sys
 
 from services.gohighlevel import (
+    CONFIG_PATH,
     CUSTOM_FIELDS,
     GoHighLevelError,
     GoHighLevelNotConfigured,
@@ -67,10 +71,66 @@ def create_field(cfg, key):
     return field.get("fieldKey") or field.get("key") or "(no key returned)", None
 
 
+def set_token():
+    """Read the token from the terminal and write it to the config file.
+
+    Typed straight into your own terminal and never echoed, so it doesn't land
+    in a chat transcript or your shell history. Leaves location_id alone.
+    """
+    # getpass reads the terminal directly, so with nothing attached it would
+    # hang forever rather than fail -- which is what happens if this is run
+    # from a button or a pipe instead of a real terminal window. Say so.
+    if not sys.stdin.isatty():
+        print("  This needs a real terminal window, because it prompts for the")
+        print("  token without echoing it. Open PowerShell, cd to this folder,")
+        print("  and run:")
+        print("      python setup_ghl.py --set-token")
+        print()
+        print("  Or just paste the token into studio/gohighlevel.json yourself.")
+        return 1
+
+    print("Paste your GoHighLevel Private Integration token.")
+    print("Nothing will appear as you type or paste -- that is deliberate.\n")
+    token = getpass.getpass("Token: ").strip()
+
+    if not token:
+        print("\n  Nothing entered. Config unchanged.")
+        return 1
+    if not token.startswith("pit-"):
+        print("\n  That doesn't look like a Private Integration token")
+        print("  (they start with 'pit-'). Config unchanged.")
+        return 1
+
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        cfg = {}
+
+    cfg["api_key"] = token
+    cfg.setdefault("location_id", "")
+    cfg.setdefault("version", "2021-07-28")
+
+    with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)
+        fh.write("\n")
+
+    print(f"\n  Saved to {os.path.relpath(CONFIG_PATH)}")
+    if not cfg["location_id"]:
+        print("  Still missing location_id -- add it to that file.")
+        return 1
+    print(f"  Using location {cfg['location_id']}.")
+    return 0
+
+
 def main():
+    if "--set-token" in sys.argv:
+        if set_token() != 0:
+            return 1
+
     create = "--create" in sys.argv
 
-    print("Checking the GoHighLevel connection...\n")
+    print("\nChecking the GoHighLevel connection...\n")
     try:
         info = verify_connection()
     except GoHighLevelNotConfigured as exc:
