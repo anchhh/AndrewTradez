@@ -23,6 +23,7 @@ import getpass
 import json
 import os
 import sys
+import time
 
 from services.gohighlevel import (
     CONFIG_PATH,
@@ -198,8 +199,18 @@ def main():
     # rather than trusting that it matched. A silent mismatch merges a blank
     # into a real email.
     print("\nReading the fields back to confirm the keys match what the app sends...\n")
-    actual = _existing_custom_field_keys(cfg)
-    still_missing = [k for k in CUSTOM_FIELDS if k not in actual]
+
+    # GHL's field list is eventually consistent: read straight after creating
+    # and the last field created is reliably absent, which looks alarming and
+    # isn't. Retry a few times before believing it.
+    still_missing = list(CUSTOM_FIELDS)
+    for attempt in range(4):
+        if attempt:
+            time.sleep(2)
+        actual = _existing_custom_field_keys(cfg)
+        still_missing = [k for k in CUSTOM_FIELDS if k not in actual]
+        if not still_missing:
+            break
 
     if still_missing:
         print("  These keys are still not what the app expects:")
