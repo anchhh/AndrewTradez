@@ -6,6 +6,32 @@ working when this app isn't running.
 
 Four steps, once.
 
+## 0. Use a sub-account of its own
+
+Do this first, before anything else. In GoHighLevel: **Sub-Accounts → Create
+Sub-Account**, name it Estly, and skip the snapshot so another business's
+automations aren't copied in.
+
+Sub-accounts are fully isolated — separate contacts, workflows, custom fields,
+pipelines and sending domain. Three reasons that matters here:
+
+- A Private Integration token is created *inside* a sub-account and can only
+  reach that sub-account's data. A token minted in the Estly sub-account is
+  structurally incapable of touching another business's contacts, whatever this
+  app does.
+- The six `estly_*` custom fields will exist only here, rather than cluttering
+  every contact record in another business.
+- Each sub-account verifies its own sending domain, so cold outreach from Estly
+  can't damage the email reputation of anything else you run.
+
+Every step below — the token, the location id, the custom fields, the workflow —
+happens **inside this sub-account**. Pointing the integration at the wrong one
+would file real-estate leads into another business's CRM, which is tedious to
+unpick.
+
+Sub-account limits go by plan: Starter allows 3 (1 agency + 2 client);
+Unlimited and Agency Pro are uncapped.
+
 ## 1. Make a Private Integration token
 
 In GoHighLevel, inside the sub-account you want the contacts to land in:
