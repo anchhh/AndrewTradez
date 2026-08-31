@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to atlascloud.json and fill in. That file is gitignored - the repo is public. Get a key at atlascloud.ai -> sign up -> console -> API keys. rate_per_second is only used to estimate cost before generating; check the live price if it matters.",
+  "api_key": "",
+  "model": "bytedance/seedance-2.5/image-to-video",
+  "rate_per_second": 0.134
+}
