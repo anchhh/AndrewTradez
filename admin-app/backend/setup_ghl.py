@@ -139,8 +139,9 @@ def main():
         return 1
     except GoHighLevelError as exc:
         print(f"  GoHighLevel rejected the request: {exc}")
-        print("\n  A 401 usually means the token is wrong or belongs to a different")
-        print("  sub-account than the location id. A 403 means it is missing a scope.")
+        print("\n  A 401 means a bad token, a token from a different sub-account")
+        print("  than the location id, or a missing scope -- GHL uses 401 for all")
+        print("  three. The message above says which.")
         return 1
 
     print(f"  Connected. Location {info['location_id']}, API version {info['version_used']}.")
