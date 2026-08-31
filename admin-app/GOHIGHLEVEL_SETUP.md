@@ -47,21 +47,41 @@ automatically if `2021-07-28` is rejected.
 
 ## 4. Create the custom fields
 
-**Settings → Custom Fields**, one text field each:
+Run this from `admin-app/backend`:
 
-| Field key | Holds |
-|---|---|
-| `estly_property_address` | 319 S Kathleen Ave |
-| `estly_listing_url` | link to the Zillow/Redfin listing |
-| `estly_video_url` | the finished video for that listing |
-| `estly_price` | $425,000 |
-| `estly_beds_baths` | 3 bd / 2 ba / 2,016 sqft |
-| `estly_brokerage` | Sears Real Estate |
+```
+python setup_ghl.py
+```
 
-The keys have to match exactly. A missing field does **not** error — GHL just
-ignores it, and the email goes out with a blank where the address or video link
-should have been. The banner at the top of `/studio/outreach` lists any that are
-missing, so check it there rather than finding out from a sent email.
+It checks the connection and lists which fields exist. Then create the missing
+ones:
+
+```
+python setup_ghl.py --create
+```
+
+That is the only command here that writes to your GHL account, and it only
+creates fields — it never touches a contact or sends anything.
+
+If you would rather do it by hand: **Settings → Custom Fields**, one TEXT field
+on the contact model for each row below.
+
+| Field key the app sends | Name it in GHL | Holds |
+|---|---|---|
+| `estly_property_address` | Estly Property Address | 319 S Kathleen Ave |
+| `estly_listing_url` | Estly Listing Url | link to the listing |
+| `estly_video_url` | Estly Video Url | the finished video |
+| `estly_price` | Estly Price | $425,000 |
+| `estly_beds_baths` | Estly Beds Baths | 3 bd / 2 ba / 2,016 sqft |
+| `estly_brokerage` | Estly Brokerage | Sears Real Estate |
+
+GHL generates the key from the name, so the names matter. The script reads the
+fields back afterwards and tells you if the generated keys don't match what the
+app sends.
+
+A missing field does **not** error — GHL ignores the unknown key and the email
+goes out with a blank where the address or video link should have been. The
+banner on `/studio/outreach` flags this too.
 
 ## 5. Build the workflow in GHL
 
