@@ -168,13 +168,30 @@ def main():
     cfg = load_config()
     print(f"\nCreating {len(missing)} field(s)...\n")
     failures = []
+    scope_problem = False
     for key in missing:
         created_key, error = create_field(cfg, key)
         if error:
             print(f"  FAILED  {FIELD_NAMES[key][0]}: {error}")
             failures.append(key)
+            if "scope" in error.lower():
+                scope_problem = True
         else:
             print(f"  created {FIELD_NAMES[key][0]}  ->  {created_key}")
+
+    # GHL answers a missing scope with 401 rather than 403, which reads like a
+    # bad token when the token is fine. Name the scope instead.
+    if scope_problem:
+        print("\n  The token is missing the scope needed to create fields.")
+        print("  In GHL: Settings -> Private Integrations -> edit this integration")
+        print("  and add:")
+        print("      locations/customFields.write")
+        print()
+        print("  Only this one-time setup needs it. You can remove it again")
+        print("  afterwards; sending outreach never creates fields.")
+        print("\n  If editing the scopes issues a new token, run:")
+        print("      python setup_ghl.py --set-token")
+        return 1
 
     # GHL derives the key from the name, so confirm what it actually assigned
     # rather than trusting that it matched. A silent mismatch merges a blank

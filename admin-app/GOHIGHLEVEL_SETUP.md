@@ -43,6 +43,10 @@ Give it these scopes:
 - `contacts.readonly`
 - `contacts.write`
 - `locations/customFields.readonly`
+- `locations/customFields.write` — only needed for step 4 below, which
+  creates the merge fields. Safe to remove afterwards: sending outreach never
+  creates a field. Leave it out and step 4 fails with
+  `401: The token is not authorized for this scope`.
 
 Copy the token it shows you. You only get to see it once.
 
