@@ -1778,6 +1778,7 @@ def api_video_status():
     cfg = load_config()
     return jsonify({
         "configured": bool(cfg["api_key"]),
+        "config_error": cfg.get("config_error"),
         "model": cfg["model"],
         "rate_per_second": cfg["rate_per_second"],
         "cost_per_second": estimate_cost(1, cfg),

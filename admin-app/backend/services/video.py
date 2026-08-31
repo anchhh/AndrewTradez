@@ -63,16 +63,33 @@ class VideoError(Exception):
 def load_config():
     """Credentials and model choice, from the gitignored config or the env."""
     cfg = {}
+    # A broken config file used to be swallowed and look exactly like a missing
+    # one, which sent someone hunting for a key they had already pasted. Report
+    # the parse error instead.
+    config_error = None
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, encoding="utf-8") as fh:
                 cfg = json.load(fh) or {}
-        except (OSError, ValueError):
-            cfg = {}
+        except ValueError as exc:
+            config_error = f"studio/atlascloud.json isn't valid JSON: {exc}"
+        except OSError as exc:
+            config_error = f"could not read studio/atlascloud.json: {exc}"
+
+    key = os.environ.get("ATLASCLOUD_API_KEY") or cfg.get("api_key") or ""
+    # A pasted code sample rather than a key: long, or containing whitespace.
+    if key and (len(key) > 200 or any(c.isspace() for c in key)):
+        config_error = (
+            "the api_key value doesn't look like a key -- it contains spaces or "
+            "line breaks. Paste only the key itself, not the example code."
+        )
+        key = ""
+
     return {
-        "api_key": os.environ.get("ATLASCLOUD_API_KEY") or cfg.get("api_key") or "",
+        "api_key": key,
         "model": os.environ.get("ATLASCLOUD_MODEL") or cfg.get("model") or DEFAULT_MODEL,
         "rate_per_second": cfg.get("rate_per_second", DEFAULT_RATE_PER_SECOND),
+        "config_error": config_error,
     }
 
 

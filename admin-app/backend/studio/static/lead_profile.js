@@ -588,8 +588,11 @@ async function initGenerator(photos) {
     state.textContent = "Not connected";
     state.className = "lp-gen-state is-warn";
     body.classList.add("hidden");
-    el("lp-gen-results").innerHTML =
-      `<p class="hint">Add an Atlas Cloud key to <code>studio/atlascloud.json</code> to enable this.</p>`;
+    // A broken config file is a different problem from a missing one, and
+    // saying so saves hunting for a key that is already in the file.
+    el("lp-gen-results").innerHTML = genStatus.config_error
+      ? `<p class="lp-gen-error">${escapeHtml(genStatus.config_error)}</p>`
+      : `<p class="hint">Add an Atlas Cloud key to <code>studio/atlascloud.json</code> to enable this.</p>`;
     return;
   }
 
