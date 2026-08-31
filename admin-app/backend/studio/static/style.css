@@ -2253,3 +2253,109 @@ gmp-map-3d {
 }
 .lp-video-link-row button { flex: 0 0 auto; width: auto; }
 .lp-video-link-hint { margin: 5px 0 0; font-size: 0.75rem; color: var(--ink-soft); }
+
+/* ---------- Video generator (lead profile) ----------
+   Every clip costs money, so the cost sits next to the button rather than
+   somewhere the eye can skip. */
+
+.lp-gen { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
+.lp-gen-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.lp-gen-head h2 { margin: 0; font-size: 1rem; }
+.lp-gen-state { font-size: 0.75rem; color: var(--ink-soft); }
+.lp-gen-state.is-warn { color: var(--accent); font-weight: 600; }
+
+.lp-gen-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+  margin: 10px 0 14px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.lp-gen-photo { position: relative; cursor: pointer; display: block; }
+.lp-gen-photo img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  display: block;
+}
+.lp-gen-photo input { position: absolute; top: 6px; left: 6px; margin: 0; z-index: 1; cursor: pointer; }
+.lp-gen-photo input:checked ~ img { border-color: var(--accent); }
+.lp-gen-photo-n {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 0.65rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.lp-gen-controls { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.lp-gen-controls .lp-field { flex: 0 0 auto; }
+.lp-gen-controls input, .lp-gen-controls select {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.lp-gen-controls input { width: 90px; }
+.lp-gen-prompt-field { display: block; margin-bottom: 6px; }
+.lp-gen-prompt {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+.lp-gen-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+.lp-gen-actions > button { width: auto; flex: 0 0 auto; }
+.lp-gen-cost { font-size: 0.85rem; font-weight: 600; }
+
+.lp-gen-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+.lp-gen-progress button { margin-left: auto; width: auto; flex: 0 0 auto; }
+.lp-gen-spin {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: lp-gen-spin 0.8s linear infinite;
+  flex: 0 0 auto;
+}
+@keyframes lp-gen-spin { to { transform: rotate(360deg); } }
+
+.lp-gen-error { color: var(--accent); font-size: 0.85rem; margin: 10px 0 0; }
+.lp-gen-clips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.lp-gen-clip { margin: 0; }
+.lp-gen-clip video { width: 100%; border-radius: 10px; display: block; background: #000; }
+.lp-gen-clip figcaption { margin-top: 6px; text-align: center; }
+.lp-gen-clip figcaption button { width: auto; }

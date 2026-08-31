@@ -1762,6 +1762,123 @@ def api_toggle_outreach(lead_id):
     return jsonify(lead.to_dict())
 
 
+@studio_bp.route("/api/video/status", methods=["GET"])
+@login_required
+def api_video_status():
+    """Whether the generator is connected, and what a clip would cost."""
+    from services.video import (
+        MAX_DURATION,
+        MIN_DURATION,
+        REAL_ESTATE_PROMPT,
+        estimate_cost,
+        load_config,
+    )
+    from services.video_jobs import is_busy
+
+    cfg = load_config()
+    return jsonify({
+        "configured": bool(cfg["api_key"]),
+        "model": cfg["model"],
+        "rate_per_second": cfg["rate_per_second"],
+        "cost_per_second": estimate_cost(1, cfg),
+        "min_duration": MIN_DURATION,
+        "max_duration": MAX_DURATION,
+        "default_prompt": REAL_ESTATE_PROMPT,
+        "busy": is_busy(),
+    })
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/video/job", methods=["GET"])
+@login_required
+def api_video_job(lead_id):
+    """The most recent generation for this lead, for polling."""
+    from services.video_jobs import latest_job_for
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    job = latest_job_for(lead_id)
+    return jsonify({"job": job.to_dict() if job else None})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/video/generate", methods=["POST"])
+@login_required
+def api_video_generate(lead_id):
+    """Start generating clips for the chosen photos.
+
+    This spends money, so it only ever runs from an explicit click, and the
+    photos have to be named -- there is deliberately no "generate from all
+    photos" default that could turn one stray click into thirty-nine clips.
+    """
+    from services.video import load_config
+    from services.video_jobs import VideoJobBusy, start_job  # noqa: F401
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    if not load_config()["api_key"]:
+        return jsonify({"error": "The video generator isn't connected. Add an Atlas "
+                                 "Cloud key to studio/atlascloud.json."}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    photos = data.get("photos") or []
+    if not photos:
+        return jsonify({"error": "Pick at least one photo."}), 400
+
+    known = set(lead.photo_urls or [])
+    unknown = [p for p in photos if p not in known]
+    if unknown:
+        return jsonify({"error": "Those photos don't belong to this lead."}), 400
+
+    try:
+        duration = int(data.get("duration") or 5)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Duration must be a number."}), 400
+
+    from services.video import MAX_DURATION, MIN_DURATION
+
+    if not (MIN_DURATION <= duration <= MAX_DURATION):
+        return jsonify({"error": f"Duration must be {MIN_DURATION}-{MAX_DURATION} seconds."}), 400
+
+    resolution = data.get("resolution") or "720p"
+    if resolution not in ("720p", "1080p"):
+        return jsonify({"error": "Resolution must be 720p or 1080p."}), 400
+
+    try:
+        job = start_job(
+            current_app._get_current_object(),
+            lead,
+            photos,
+            prompt=(data.get("prompt") or "").strip() or None,
+            duration=duration,
+            resolution=resolution,
+        )
+    except VideoJobBusy as exc:
+        return jsonify({"error": str(exc)}), 409
+
+    return jsonify({"job": job.to_dict()}), 201
+
+
+@studio_bp.route("/api/video/jobs/<int:job_id>/cancel", methods=["POST"])
+@login_required
+def api_video_cancel(job_id):
+    """Stop a run. Clips already generated are kept -- they were paid for."""
+    from extensions import db
+    from models import VideoJob
+
+    job = VideoJob.query.filter_by(id=job_id, owner_id=session.get("user_id")).first()
+    if job is None:
+        return jsonify({"error": "Job not found."}), 404
+    if job.status in ("completed", "failed"):
+        return jsonify({"error": "That job has already finished."}), 400
+
+    job.status = "cancelled"
+    db.session.commit()
+    return jsonify({"job": job.to_dict()})
+
+
 @studio_bp.route("/api/outreach/queue", methods=["GET"])
 @login_required
 def api_outreach_queue():

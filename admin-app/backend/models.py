@@ -165,6 +165,86 @@ class Lead(db.Model):
         }
 
 
+class VideoJob(db.Model):
+    """One run of the video generator for a lead.
+
+    Generation takes minutes and happens on a background thread, so the state
+    has to live somewhere the browser can poll and a restart can recover. Each
+    selected photo becomes one clip; `clips_json` is updated as they land, so
+    the UI can say "3 of 6" rather than spinning.
+    """
+
+    __tablename__ = "video_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, index=True, nullable=False)
+    owner_id = db.Column(db.String(64), index=True, nullable=True)
+
+    # queued -> running -> completed | failed | cancelled
+    status = db.Column(db.String(20), nullable=False, default="queued")
+    error = db.Column(db.Text, nullable=True)
+
+    # What was asked for, kept so a result can be reproduced or judged later --
+    # "the model changed the room" is only actionable if the prompt is known.
+    model = db.Column(db.String(120), nullable=True)
+    prompt = db.Column(db.Text, nullable=True)
+    duration = db.Column(db.Integer, nullable=False, default=5)
+    resolution = db.Column(db.String(20), nullable=False, default="720p")
+
+    photos_json = db.Column(db.Text, nullable=False, default="[]")
+    clips_json = db.Column(db.Text, nullable=False, default="[]")
+
+    # The finished video. With one clip that is the clip itself; with several
+    # it stays empty until they are stitched together.
+    output_url = db.Column(db.String(500), nullable=True)
+
+    # What it actually cost, in dollars, estimated at submit time.
+    estimated_cost = db.Column(db.Float, nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def photos(self):
+        return json.loads(self.photos_json or "[]")
+
+    @photos.setter
+    def photos(self, value):
+        self.photos_json = json.dumps(value or [])
+
+    @property
+    def clips(self):
+        return json.loads(self.clips_json or "[]")
+
+    @clips.setter
+    def clips(self, value):
+        self.clips_json = json.dumps(value or [])
+
+    def to_dict(self):
+        clips = self.clips
+        done = sum(1 for c in clips if c.get("video_url"))
+        return {
+            "id": self.id,
+            "lead_id": self.lead_id,
+            "status": self.status,
+            "error": self.error,
+            "model": self.model,
+            "prompt": self.prompt,
+            "duration": self.duration,
+            "resolution": self.resolution,
+            "photos": self.photos,
+            "clips": clips,
+            "clips_done": done,
+            # Photos is the real total: clips is appended to as they run,
+            # so trusting its length reports "1 of 2" on a 3-photo job.
+            "clips_total": max(len(clips), len(self.photos)),
+            "output_url": self.output_url,
+            "estimated_cost": round(self.estimated_cost, 2) if self.estimated_cost else None,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+
 class DailyGoal(db.Model):
     """One row per Studio account holding that user's daily outreach
     targets, shown in the Dashboard's sidebar checklist. Was a single

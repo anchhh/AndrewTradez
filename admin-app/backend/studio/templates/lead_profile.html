@@ -60,6 +60,42 @@
       </div>
 
       <div id="lp-video" class="lp-video"></div>
+      <div id="lp-video-link-box"></div>
+
+      <div id="lp-gen" class="lp-gen">
+        <div class="lp-gen-head">
+          <h2>Generate video</h2>
+          <span id="lp-gen-state" class="lp-gen-state"></span>
+        </div>
+        <div id="lp-gen-body" class="hidden">
+          <p class="hint">Pick the photos to animate. Each becomes one clip, and each clip costs money — start with one.</p>
+          <div id="lp-gen-photos" class="lp-gen-photos"></div>
+          <div class="lp-gen-controls">
+            <label class="lp-field">
+              <span class="lp-field-label">Seconds each</span>
+              <input id="lp-gen-seconds" type="number" min="4" max="30" value="5">
+            </label>
+            <label class="lp-field">
+              <span class="lp-field-label">Resolution</span>
+              <select id="lp-gen-resolution">
+                <option value="720p">720p</option>
+                <option value="1080p">1080p</option>
+              </select>
+            </label>
+          </div>
+          <label class="lp-field lp-gen-prompt-field">
+            <span class="lp-field-label">Motion prompt</span>
+            <textarea id="lp-gen-prompt" class="lp-gen-prompt" rows="3"></textarea>
+          </label>
+          <p class="hint">The photo fixes what the room is; this only directs the camera. Asking for less invention keeps the room intact.</p>
+          <div class="lp-gen-actions">
+            <span id="lp-gen-cost" class="lp-gen-cost"></span>
+            <button type="button" id="lp-gen-go" class="btn-send">Generate</button>
+          </div>
+        </div>
+        <div id="lp-gen-progress" class="lp-gen-progress hidden"></div>
+        <div id="lp-gen-results" class="lp-gen-results"></div>
+      </div>
     </section>
 
     <aside class="lp-side">
