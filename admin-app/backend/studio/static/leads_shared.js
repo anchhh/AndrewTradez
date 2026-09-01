@@ -572,6 +572,23 @@ function wireFindEmail(card, lead, handlers) {
 
 let lightboxState = null;
 
+/* Photos in walkthrough order -- all the exteriors, then the outdoor space,
+   then living, kitchen and so on -- rather than the order the listing site
+   happened to serve them. Without this, arrowing forward leaves the room you
+   are in after one photo and the room directory appears to jump about.
+
+   The rank comes from the label itself (services/rooms.py owns the order), so
+   there is no second copy of it here to drift. Ties keep their original
+   position, and anything unlabelled sorts to the end. */
+function orderPhotos(photos, rooms) {
+  const list = (photos || []).filter(Boolean);
+  if (!rooms) return list;
+  return list
+    .map((url, i) => ({ url, i, rank: (rooms[url] && rooms[url].order) ?? 999 }))
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .map((x) => x.url);
+}
+
 function ensureLightbox() {
   let box = document.getElementById("photo-lightbox");
   if (box) return box;
@@ -711,10 +728,16 @@ function stepLightbox(direction) {
 }
 
 function openLightbox(photos, index = 0, rooms = null) {
-  const list = (photos || []).filter(Boolean);
-  if (!list.length) return;
+  const raw = (photos || []).filter(Boolean);
+  if (!raw.length) return;
 
-  lightboxState = { photos: list, index: Math.max(0, Math.min(index, list.length - 1)), rooms };
+  // Reorder, then follow the photo that was clicked to its new position, so
+  // the viewer still opens on what the user actually pointed at.
+  const wanted = raw[Math.max(0, Math.min(index, raw.length - 1))];
+  const list = orderPhotos(raw, rooms);
+  const start = Math.max(0, list.indexOf(wanted));
+
+  lightboxState = { photos: list, index: start, rooms };
   const box = ensureLightbox();
   box.classList.remove("hidden");
   box.setAttribute("aria-hidden", "false");

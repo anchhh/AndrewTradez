@@ -81,7 +81,7 @@ def apply_labels(lead_id, labels):
     from app import create_app
     from extensions import db
     from models import Lead
-    from services.rooms import ROOMS, ROOM_DISPLAY
+    from services.rooms import ROOM_DISPLAY, ROOM_ORDER, ROOMS
 
     app = create_app()
     with app.app_context():
@@ -111,6 +111,7 @@ def apply_labels(lead_id, labels):
                 # Read off the photo rather than researched, so no probability
                 # is invented -- it either was identified or it wasn't.
                 "confidence": 1.0,
+                "order": ROOM_ORDER.get(room, 999),
             }
             applied += 1
 

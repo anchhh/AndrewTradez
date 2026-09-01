@@ -18,7 +18,9 @@ function setStatus(message, cls) {
 function renderPhotos(photos) {
   const hero = el("lp-hero");
   const thumbs = el("lp-thumbs");
-  const list = photos || [];
+  // Same walkthrough order the viewer uses, so the strip and the fullscreen
+  // gallery agree about what comes next.
+  const list = orderPhotos(photos || [], (lead && lead.photo_rooms) || null);
 
   if (!list.length) {
     hero.innerHTML = `<div class="lp-hero-empty">No photos yet</div>`;

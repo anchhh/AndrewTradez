@@ -243,6 +243,9 @@ def classify_photos(photo_urls, on_progress=None):
                     "room": row["room"],
                     "label": ROOM_DISPLAY.get(row["room"], row["room"]),
                     "confidence": round(row["confidence"], 2),
+                    # Walkthrough rank, carried with the label so the browser
+                    # can order photos without a second copy of this list.
+                    "order": ROOM_ORDER.get(row["room"], 999),
                 }
         if on_progress:
             on_progress(len(results), len(photo_urls))
