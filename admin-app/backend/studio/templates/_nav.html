@@ -7,11 +7,59 @@
     <a href="/studio/leads" class="topnav-link {{ 'active' if request.path == '/studio/leads' else '' }}">Lead Manager</a>
     <a href="/studio/create" class="topnav-link {{ 'active' if request.path == '/studio/create' else '' }}">Create Video</a>
     <a href="/studio/outreach" class="topnav-link {{ 'active' if request.path == '/studio/outreach' else '' }}">Outreach</a>
+
     {% if user %}
-      <span class="topnav-user">{{ user.email }}</span>
-      <form action="/studio/logout" method="post" class="topnav-logout-form">
-        <button type="submit" class="topnav-link topnav-logout">Log out</button>
-      </form>
+      {# The four links above are the app's spine and stay visible. The account
+         is what was crowding them out -- a long address and a Log out button
+         taking as much room as two pages -- so it collapses to an initial. #}
+      <div class="topnav-account">
+        <button type="button" id="account-btn" class="topnav-avatar"
+                aria-haspopup="menu" aria-expanded="false"
+                title="{{ user.email }}">{{ (display_name or user.email)[:1] | upper }}</button>
+        <div id="account-menu" class="topnav-menu" role="menu" hidden>
+          {# Just the address. The derived display name ("Andrewmc" from
+             andrewmc42@) adds nothing above the exact thing it was derived
+             from, and the menu's job is only "which account is this". #}
+          <div class="topnav-menu-who">
+            <span class="topnav-menu-label">Signed in as</span>
+            <span class="topnav-menu-email">{{ user.email }}</span>
+          </div>
+          <form action="/studio/logout" method="post">
+            <button type="submit" class="topnav-menu-item" role="menuitem">Log out</button>
+          </form>
+        </div>
+      </div>
     {% endif %}
   </div>
 </nav>
+
+{% if user %}
+<script>
+  /* Small enough to travel with the markup it wires, and every page includes
+     this nav while only some load the shared scripts. */
+  (function () {
+    var btn = document.getElementById("account-btn");
+    var menu = document.getElementById("account-menu");
+    if (!btn || !menu) return;
+
+    function close() {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }
+
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = menu.hidden;
+      menu.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!menu.hidden && !menu.contains(e.target)) close();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") close();
+    });
+  })();
+</script>
+{% endif %}

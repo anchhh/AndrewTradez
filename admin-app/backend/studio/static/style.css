@@ -456,25 +456,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--cream);
 }
 
-.topnav-user {
-  display: flex;
-  align-items: center;
-  padding: 8px 6px 8px 14px;
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
 
-.topnav-logout-form {
-  display: flex;
-}
 
-.topnav-logout {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-}
 
 /* ---------- Buttons shared across pages ---------- */
 
@@ -2687,3 +2670,65 @@ gmp-map-3d {
 .or-stat-value { font-size: 1.35rem; font-weight: 700; }
 .or-stat-label { font-size: 0.68rem; color: var(--ink-soft); }
 .or-stats-note { flex: 1 1 240px; margin: 0; font-size: 0.72rem; color: var(--ink-soft); align-self: center; }
+
+/* ---------- Account menu in the nav ----------
+   The four page links stay visible; the account collapses to an initial so it
+   stops taking as much room as two of them. */
+
+.topnav-account { position: relative; margin-left: 6px; }
+.topnav-avatar {
+  all: unset;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.topnav-avatar:hover { background: var(--accent); }
+.topnav-avatar[aria-expanded="true"] { background: var(--accent); }
+
+.topnav-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  min-width: 210px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+.topnav-menu[hidden] { display: none; }
+.topnav-menu-who {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.topnav-menu-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.topnav-menu-email { font-size: 0.8rem; color: var(--ink); word-break: break-all; }
+.topnav-menu-item {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+.topnav-menu-item:hover { background: var(--cream-soft); color: var(--accent); }
