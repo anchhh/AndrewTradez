@@ -644,6 +644,7 @@ function ensureLightbox() {
       <figcaption class="lightbox-caption">
         <span class="lightbox-count"></span>
         <span class="lightbox-room"></span>
+        <button type="button" class="lightbox-pick" hidden></button>
       </figcaption>
     </figure>
     <button type="button" class="lightbox-nav lightbox-next" data-lb-next aria-label="Next">&#8250;</button>
@@ -664,6 +665,13 @@ function ensureLightbox() {
     if (e.key === "Escape") closeLightbox();
     else if (e.key === "ArrowLeft") stepLightbox(-1);
     else if (e.key === "ArrowRight") stepLightbox(1);
+    else if (e.key === " " && lightboxState.selection) {
+      // Space takes the current one, so a whole pass can be done from the
+      // keyboard: arrow, space, arrow, space.
+      e.preventDefault();
+      lightboxState.selection.toggle(lightboxState.photos[lightboxState.index]);
+      renderLightbox();
+    }
   });
 
   // Wheel and swipe, so "scroll through" works the way it reads.
@@ -691,7 +699,7 @@ function ensureLightbox() {
 
 function renderLightbox() {
   const box = ensureLightbox();
-  const { photos, index, rooms } = lightboxState;
+  const { photos, index, rooms, selection } = lightboxState;
   const url = photos[index];
 
   box.querySelector(".lightbox-media").innerHTML = isVideoUrl(url)
@@ -701,6 +709,22 @@ function renderLightbox() {
   box.querySelector(".lightbox-count").textContent = `${index + 1} / ${photos.length}`;
   const room = rooms && rooms[url];
   box.querySelector(".lightbox-room").textContent = room ? room.label : "";
+
+  const pick = box.querySelector(".lightbox-pick");
+  if (selection) {
+    const on = selection.isSelected(url);
+    const what = selection.label || "photo";
+    pick.hidden = false;
+    pick.className = "lightbox-pick" + (on ? " is-on" : "");
+    pick.textContent = on ? `✓ Using this ${what}` : `Use this ${what}`;
+    pick.onclick = () => {
+      selection.toggle(url);
+      renderLightbox();
+    };
+  } else {
+    pick.hidden = true;
+    pick.onclick = null;
+  }
 
   const single = photos.length < 2;
   box.querySelector(".lightbox-prev").hidden = single;
@@ -745,7 +769,8 @@ function renderLightbox() {
 
   const strip = box.querySelector(".lightbox-strip");
   strip.innerHTML = photos.map((u, i) => `
-    <button type="button" class="lightbox-thumb ${i === index ? "is-active" : ""}" data-i="${i}">
+    <button type="button" class="lightbox-thumb ${i === index ? "is-active" : ""}${
+      selection && selection.isSelected(u) ? " is-picked" : ""}" data-i="${i}">
       ${isVideoUrl(u) ? `<video src="${escapeHtml(u)}" muted></video>`
                       : `<img src="${escapeHtml(u)}" alt="" loading="lazy">`}
     </button>`).join("");
@@ -767,7 +792,16 @@ function stepLightbox(direction) {
   renderLightbox();
 }
 
-function openLightbox(photos, index = 0, rooms = null) {
+/* An optional selection hook, so a page that is choosing photos can choose
+   them full screen too rather than closing the viewer to tick a box:
+
+     openLightbox(photos, i, rooms, {
+       isSelected: (url) => bool,
+       toggle: (url) => {},   // flip it, then the caller re-renders its own grid
+       label: "room",
+     })
+*/
+function openLightbox(photos, index = 0, rooms = null, selection = null) {
   const raw = (photos || []).filter(Boolean);
   if (!raw.length) return;
 
@@ -777,7 +811,7 @@ function openLightbox(photos, index = 0, rooms = null) {
   const list = orderPhotos(raw, rooms);
   const start = Math.max(0, list.indexOf(wanted));
 
-  lightboxState = { photos: list, index: start, rooms };
+  lightboxState = { photos: list, index: start, rooms, selection };
   const box = ensureLightbox();
   box.classList.remove("hidden");
   box.setAttribute("aria-hidden", "false");

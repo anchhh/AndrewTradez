@@ -2918,3 +2918,91 @@ gmp-map-3d {
   .step { flex: 0 0 auto; }
   .step:not(:last-child)::after { width: 28px; flex: 0 0 28px; }
 }
+
+/* ---------- Scenery: click-to-select tiles and the loaded preview ---------- */
+
+.thumb.is-selectable { cursor: pointer; }
+.thumb.is-selectable:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+.thumb-zoom {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  padding: 0;
+}
+.thumb.is-selectable:hover .thumb-zoom { opacity: 1; }
+.thumb-zoom:hover { background: var(--accent); }
+
+/* Confirming what arrived, before choosing anything. */
+.scn-loaded { margin-top: 18px; }
+.scn-loaded:empty { display: none; }
+.scn-loaded-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.scn-loaded-title { font-weight: 600; font-size: 0.85rem; }
+.scn-loaded-note { font-size: 0.72rem; color: var(--ink-soft); }
+.scn-loaded-room { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.scn-loaded-label {
+  flex: 0 0 140px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* One scrollable row per room, so forty photos stay a glance rather than a
+   page of scrolling before you have chosen anything. */
+.scn-loaded-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: thin;
+}
+.scn-loaded-strip img {
+  flex: 0 0 auto;
+  width: 62px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 5px;
+  cursor: zoom-in;
+  display: block;
+}
+.scn-loaded-strip img:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Selecting from the viewer. */
+.lightbox-pick {
+  all: unset;
+  cursor: pointer;
+  margin-left: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid #4a443c;
+  color: #cfc7bb;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.lightbox-pick:hover { border-color: var(--accent); color: #fff; }
+.lightbox-pick.is-on { background: var(--accent); border-color: var(--accent); color: #17130f; }
+.lightbox-pick[hidden] { display: none; }
+.lightbox-thumb.is-picked { outline-color: #4c9a4c; opacity: 1; }

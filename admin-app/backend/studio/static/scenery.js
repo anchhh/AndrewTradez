@@ -61,6 +61,7 @@ async function applyPrefill(prefill) {
   );
 
   renderGrid();
+  renderLoaded();
   renderSummary();
 }
 
@@ -78,22 +79,57 @@ function groupedPhotos() {
   return [...buckets.values()].sort((a, b) => a.order - b.order);
 }
 
+function toggleSelected(url) {
+  if (state.selected.has(url)) state.selected.delete(url);
+  else state.selected.add(url);
+  syncTiles();
+  renderSummary();
+  renderCounts();
+}
+
+/* Repaint the ticks in place rather than rebuilding forty tiles -- selecting
+   from the viewer has to be reflected behind it without the grid flickering. */
+function syncTiles() {
+  document.querySelectorAll("#scn-grid .thumb").forEach((tile) => {
+    const on = state.selected.has(tile.dataset.url);
+    tile.classList.toggle("is-excluded", !on);
+    const box = tile.querySelector("input");
+    if (box) box.checked = on;
+  });
+}
+
 function photoTile(photo) {
   const on = state.selected.has(photo.url);
   const div = document.createElement("div");
-  div.className = "thumb" + (on ? "" : " is-excluded");
+  div.className = "thumb is-selectable" + (on ? "" : " is-excluded");
+  div.dataset.url = photo.url;
   div.innerHTML = `
     <img src="${escapeHtml(photo.url)}" alt="" loading="lazy">
     <label class="thumb-use" title="Stage this room">
       <input type="checkbox" ${on ? "checked" : ""}>
-    </label>`;
-  div.querySelector("input").addEventListener("change", (e) => {
-    if (e.target.checked) state.selected.add(photo.url);
-    else state.selected.delete(photo.url);
-    div.classList.toggle("is-excluded", !e.target.checked);
-    renderSummary();
-    renderCounts();
+    </label>
+    <button type="button" class="thumb-zoom" title="View full screen">⤢</button>`;
+
+  // The whole tile toggles it. The checkbox is left in place as the visual
+  // state, and its own change event is not wired -- clicking it bubbles here.
+  div.addEventListener("click", (e) => {
+    if (e.target.closest(".thumb-zoom")) return;
+    if (e.target.tagName === "INPUT") e.preventDefault();
+    toggleSelected(photo.url);
   });
+
+  div.querySelector(".thumb-zoom").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const all = state.photos.map((p) => p.url);
+    const rooms = {};
+    state.photos.forEach((p) => { rooms[p.url] = { room: p.room, label: p.label, order: p.order }; });
+    openLightbox(all, all.indexOf(photo.url), rooms, {
+      isSelected: (url) => state.selected.has(url),
+      toggle: (url) => toggleSelected(url),
+      label: "room",
+    });
+  });
+
   return div;
 }
 
@@ -200,6 +236,40 @@ function renderSummary() {
   renderStepGates();
 }
 
+/* What arrived, in the order the rooms actually run -- so you can see the
+   listing landed properly before moving on, without leaving step 1. */
+function renderLoaded() {
+  const box = el("scn-loaded");
+  if (!box) return;
+  if (!state.photos.length) {
+    box.innerHTML = "";
+    return;
+  }
+
+  const groups = groupedPhotos();
+  box.innerHTML = `
+    <div class="scn-loaded-head">
+      <span class="scn-loaded-title">${state.photos.length} photo${state.photos.length === 1 ? "" : "s"} loaded</span>
+      <span class="scn-loaded-note">${groups.length} room${groups.length === 1 ? "" : "s"}</span>
+    </div>
+    ${groups.map((g) => `
+      <div class="scn-loaded-room">
+        <span class="scn-loaded-label">${escapeHtml(g.label)} <span class="photo-room-count">${g.photos.length}</span></span>
+        <div class="scn-loaded-strip">
+          ${g.photos.map((p) => `<img src="${escapeHtml(p.url)}" alt="" loading="lazy" data-url="${escapeHtml(p.url)}">`).join("")}
+        </div>
+      </div>`).join("")}`;
+
+  // Same viewer as everywhere else, without the selecting -- this step is
+  // about confirming what arrived, not choosing.
+  const all = state.photos.map((p) => p.url);
+  const rooms = {};
+  state.photos.forEach((p) => { rooms[p.url] = { room: p.room, label: p.label, order: p.order }; });
+  box.querySelectorAll("img").forEach((img) => {
+    img.addEventListener("click", () => openLightbox(all, all.indexOf(img.dataset.url), rooms));
+  });
+}
+
 /* ---------- steps ----------
    Each step gates its own Next, so you cannot arrive at "choose a style" with
    no rooms picked and wonder why the button does nothing. */
@@ -301,6 +371,7 @@ initListingSource({
   onPhotos: (urls) => {
     urls.forEach((url) => state.photos.push({ url, room: null, label: "Unsorted", order: 999 }));
     renderGrid();
+    renderLoaded();
     renderSummary();
   },
 });
