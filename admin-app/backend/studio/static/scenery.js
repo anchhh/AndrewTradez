@@ -23,6 +23,7 @@ const state = {
   startedAt: null,       // when the current run began, for the ETA
   roomState: {},         // {url: "queued"|"running"|"completed"|"failed"}
   roomError: {},         // {url: message}
+  warnings: {},          // {url: {styleKey: "what the check still saw"}}
   job: null,             // the run in flight, if any
   polling: false,
   projectId: null,
@@ -302,6 +303,9 @@ function roomCard(photo) {
   const staged = variants[styleKey] || null;
   const roomState = state.roomState[photo.url] || (staged ? "completed" : "idle");
   const roomError = state.roomError[photo.url];
+  // Emptying a room is checked afterwards; anything the check still saw is
+  // said here rather than left for you to spot in the photograph.
+  const warning = staged ? ((state.warnings[photo.url] || {})[styleKey] || "") : "";
 
   const card = document.createElement("div");
   card.className = "scn-room";
@@ -328,6 +332,11 @@ function roomCard(photo) {
                   data-style="${k}" title="${escapeHtml(desc)}">${escapeHtml(n)}</button>`).join("")}
       </div>
       <button type="button" class="scn-room-open btn-tiny">View full screen</button>
+      ${warning ? `
+        <div class="scn-room-warn">
+          <span><strong>Still in the room:</strong> ${escapeHtml(warning)}</span>
+          <button type="button" class="scn-room-retry btn-tiny">Try again</button>
+        </div>` : ""}
     </div>`;
 
   const compare = card.querySelector(".scn-compare");
@@ -358,6 +367,37 @@ function roomCard(photo) {
   card.querySelector(".scn-room-open").addEventListener("click", () => {
     openCompare(photo.url, styleKey);
   });
+
+  const retry = card.querySelector(".scn-room-retry");
+  if (retry) {
+    retry.addEventListener("click", async () => {
+      if (state.polling) return;
+      retry.disabled = true;
+      retry.textContent = "Trying…";
+      // force, or reuse would hand back the same doubtful image.
+      try {
+        const res = await fetch("/studio/api/scenery/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            force: true,
+            lead_id: state.leadId,
+            address: state.address,
+            rooms: [{ photo: photo.url, label: photo.label, style: styleKey }],
+          }),
+        });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+        state.polling = true;
+        state.startedAt = Date.now();
+        pollJob(out.job.id);
+      } catch (err) {
+        retry.disabled = false;
+        retry.textContent = "Try again";
+        renderRunStatus("error", `<strong>Couldn't retry.</strong> ${escapeHtml(err.message)}`);
+      }
+    });
+  }
 
   return card;
 }
@@ -714,6 +754,9 @@ async function pollJob(jobId) {
     if (room.staged_url) {
       state.staged[room.photo] = state.staged[room.photo] || {};
       state.staged[room.photo][room.style] = room.staged_url;
+      state.warnings[room.photo] = state.warnings[room.photo] || {};
+      // Empty string clears a previous warning on a retry that succeeded.
+      state.warnings[room.photo][room.style] = room.warning || "";
     }
   });
 

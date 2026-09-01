@@ -21,7 +21,7 @@ from services.staging import (
     StagingNotConfigured,
     estimate_cost,
     load_config,
-    stage_room,
+    stage_room_with_report,
     stamp_disclosure,
 )
 
@@ -70,7 +70,10 @@ def _stage_one(job_id, index, room, cfg):
 
         # One call, whichever provider is configured -- Gemini answers with the
         # image, Atlas Cloud is uploaded to and polled. Neither shape leaks here.
-        data = stage_room(path, room.get("style"), cfg)
+        # `leftovers` is non-empty when emptying a room did not fully succeed.
+        data, leftovers = stage_room_with_report(path, room.get("style"), cfg)
+        if leftovers:
+            entry["warning"] = leftovers
 
         # Labelled before it is written, so no unlabelled copy ever exists on
         # disk to be grabbed by accident.

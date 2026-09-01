@@ -2054,9 +2054,14 @@ def api_scenery_generate():
     # Anything already generated for this exact photo and style is handed back
     # rather than bought twice. Coming back to a listing tomorrow, or after a
     # browser reload, otherwise re-pays for images that are sitting on disk.
+    # "Try again" on a flagged room has to be able to get past reuse, or the
+    # button would hand back the same doubtful image it is trying to replace.
+    force = bool(data.get("force"))
+
     reused = []
     for room in list(clean):
-        prior = _prior_staging(session["user_id"], room["photo"], room["style"])
+        prior = None if force else _prior_staging(
+            session["user_id"], room["photo"], room["style"])
         if prior:
             reused.append({**room, "status": "completed", "staged_url": prior})
             clean.remove(room)

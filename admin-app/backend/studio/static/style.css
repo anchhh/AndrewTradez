@@ -3505,3 +3505,25 @@ gmp-map-3d {
 @media (prefers-reduced-motion: reduce) {
   .lp-scenery-tile { transition: none; }
 }
+
+
+/* A staged room the checker is not happy with. Amber rather than red: the
+   image is usable, it just is not as empty as it was asked to be, and the
+   point is that you find out here rather than after you have sent it. */
+.scn-room-warn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid #e6cfa8;
+  border-left: 3px solid #c8892a;
+  border-radius: 8px;
+  background: #fdf6e9;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #6b4d1c;
+}
+.scn-room-warn strong { color: #4a3512; }
+.scn-room-warn .btn-tiny { margin-left: auto; flex: 0 0 auto; }

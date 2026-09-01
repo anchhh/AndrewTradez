@@ -199,3 +199,49 @@ def verify_connection():
         "model_available": any(cfg["model"] in n for n in names),
         "models_seen": len(names),
     }
+
+
+def ask_about_image(image_bytes, question, cfg=None, timeout=90):
+    """Ask a text question about an image and return the answer.
+
+    Used to check the model's own work. The same free tier covers it, and a
+    text answer is far cheaper than the image that prompted the question.
+    """
+    cfg = cfg or load_config()
+    if not cfg["api_key"]:
+        raise GeminiNotConfigured("Gemini isn't connected.")
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": question},
+                    {"inline_data": {"mime_type": "image/jpeg",
+                                     "data": base64.b64encode(image_bytes).decode("ascii")}},
+                ]
+            }
+        ],
+        # Text only here -- asking for IMAGE back would generate one.
+        "generationConfig": {"responseModalities": ["TEXT"]},
+    }
+
+    try:
+        resp = requests.post(
+            f"{BASE_URL}/models/{cfg['model']}:generateContent",
+            headers={"Content-Type": "application/json", "x-goog-api-key": cfg["api_key"]},
+            json=payload,
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        raise GeminiError(f"could not reach Gemini: {exc}") from exc
+
+    if resp.status_code >= 400:
+        raise GeminiError(_explain(resp))
+
+    candidates = resp.json().get("candidates") or []
+    if not candidates:
+        return ""
+    return " ".join(
+        part.get("text", "")
+        for part in (candidates[0].get("content") or {}).get("parts") or []
+    ).strip()

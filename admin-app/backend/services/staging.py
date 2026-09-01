@@ -77,8 +77,13 @@ FIDELITY = (
     "Keep the exact same camera position, angle, lens and framing. Keep the "
     "existing lighting direction, colour temperature and shadows. "
     "Photorealistic, real-estate listing quality. "
-    "No people, no pets, no text, no logos, no watermark. "
-    "If you are unsure whether something is furniture or part of the "
+    "No people, no pets, no text, no logos, no watermark."
+)
+
+# The tie-breaker, kept separate from FIDELITY because emptying a room needs
+# the opposite one -- see EMPTY_RULE. Appended only to the furnishing styles.
+WHEN_UNSURE_KEEP = (
+    " If you are unsure whether something is furniture or part of the "
     "building, treat it as part of the building and leave it alone."
 )
 
@@ -86,7 +91,45 @@ FIDELITY = (
 PREFIX = NEVER_CHANGE + " " + CHANGE_ONLY + " "
 
 # ...and again last, where it is weighted most.
-KEEP = " " + CHANGE_ONLY + " " + NEVER_CHANGE + " " + FIDELITY
+KEEP = " " + CHANGE_ONLY + " " + NEVER_CHANGE + " " + FIDELITY + WHEN_UNSURE_KEEP
+
+
+# Emptying a room needs the opposite tie-breaker to furnishing one.
+#
+# The shared rule ends "if unsure, treat it as part of the building and leave
+# it alone", which is correct for the eight furnishing styles and exactly
+# wrong here: a plant stand, an urn or a vase is precisely the ambiguous case,
+# so the model kept them and returned a room that was not empty. Observed --
+# chairs, rug, lamp and art removed, while a pampas vase and a wrought-iron
+# plant stand stayed.
+#
+# So for this one style the ambiguity resolves toward removal, bounded by a
+# physical test the model can actually apply: is it attached to the building?
+EMPTY_RULE = (
+    "The room must end up COMPLETELY EMPTY of movable objects. "
+    "Apply this test to every object: if it could be carried out of the room "
+    "by one or two people, it must be removed. "
+    "Something counts as part of the building ONLY if it is plumbed in, wired "
+    "into the electrical system, or built into the structure. "
+    "Hanging on a nail, hook, bracket or screw does NOT make something part "
+    "of the building: pictures, mirrors, clocks, wall shelves, wall racks, "
+    "hooks and wall decor all come off the wall and must be removed, leaving "
+    "the wall clean and unmarked. "
+    "When in doubt about an object, REMOVE it. "
+    "Remove in particular, and do not leave any of these behind: sofas, "
+    "chairs, stools, tables, side tables, desks, beds, dressers, shelving "
+    "units, rugs, mats, floor lamps, table lamps, televisions, artwork, "
+    "framed pictures, mirrors that merely hang or lean, clocks, vases, urns, "
+    "jars, pots, potted plants, dried flowers, decorative branches, plant "
+    "stands, baskets, boxes, books, cushions, throws, and every ornament on "
+    "every surface. "
+    "Leave window treatments alone: curtains, drapes, blinds and their rods "
+    "stay exactly as they are. An empty room is one with no furniture in it, "
+    "not one with bare windows. "
+    "When you are finished, every floor area, window sill, hearth and "
+    "countertop must be completely bare, and the only things left in the room "
+    "must be the building itself and its fixed fittings."
+)
 
 
 def _style(instruction):
@@ -94,19 +137,28 @@ def _style(instruction):
     return PREFIX + instruction + KEEP
 
 
+def _empty(instruction):
+    """Same, for emptying: the removal rule leads, and closes it out too."""
+    return (
+        NEVER_CHANGE + " " + EMPTY_RULE + " " + instruction + " "
+        + NEVER_CHANGE + " " + EMPTY_RULE + " " + FIDELITY
+    )
+
+
 STYLE_PROMPTS = {
     # The inverse job, and one agents ask for constantly: an occupied house
     # photographs as somebody else's home. Emptying it is how a buyer pictures
     # their own furniture in the room. It is also the safest of these to
     # publish, because removing furniture cannot invent a feature.
-    "unfurnished": _style(
-        "Remove all freestanding furniture, rugs, curtains, plants, artwork, "
-        "clutter and personal belongings from this room, leaving it "
-        "completely empty. Reconstruct the floor, walls and skirting that "
-        "were hidden behind them exactly as the surrounding surfaces look, so "
-        "the empty room appears naturally photographed rather than erased. "
-        "Built-in and fixed items stay: leave cabinetry, counters, sinks, "
-        "appliances, radiators and light fittings exactly where they are."
+    "unfurnished": _empty(
+        "Show this room completely empty, as it would look on the day of a "
+        "move-out inspection with nothing left in it. Reconstruct the floor, "
+        "walls and skirting that were hidden behind the removed objects so "
+        "they match the surrounding surfaces exactly, with correct perspective "
+        "and consistent shadows -- the empty room must look naturally "
+        "photographed, never smeared, blurred or patched. "
+        "Built-in and fixed items stay exactly where they are: cabinetry, "
+        "counters, sinks, taps, appliances, radiators, and every light fitting."
     ),
     "modern": _style(
         "Furnish this room in a modern style: clean lines, a neutral palette, "
@@ -386,6 +438,65 @@ def stage_room(local_path, style, cfg=None):
     cfg = cfg or load_config()
     prompt = prompt_for(style)
 
+    data, _ = stage_room_with_report(local_path, style, cfg)
+    return data
+
+
+def stage_room_with_report(local_path, style, cfg=None):
+    """(image_bytes, leftovers). `leftovers` is "" when there is nothing to say.
+
+    The caller wants both: three attempts can still come back with a wall
+    clock in the corner, and shipping that silently is the thing to avoid.
+    Knowing WHICH images are doubtful is worth more than pretending none are.
+    """
+    cfg = cfg or load_config()
+    prompt = prompt_for(style)
+
+    # Emptying is checkable, so it is checked -- see check_empty.
+    if style == "unfurnished" and cfg["provider"] == "gemini":
+        return _stage_until_empty(prompt, local_path, cfg)
+
+    return _stage_once(prompt, local_path, cfg), ""
+
+
+def _stage_until_empty(prompt, local_path, cfg):
+    """Generate, inspect, and try again naming whatever was left behind."""
+    import logging
+
+    log = logging.getLogger(__name__)
+    best = None
+    attempt_prompt = prompt
+
+    last_leftovers = ""
+    for attempt in range(MAX_EMPTY_ATTEMPTS):
+        data = _stage_once(attempt_prompt, local_path, cfg)
+        best = best or data
+
+        ok, leftovers = check_empty(data, cfg)
+        if ok:
+            if attempt:
+                log.info("room emptied on attempt %s", attempt + 1)
+            return data, ""
+
+        last_leftovers = leftovers
+        log.info("attempt %s left: %s", attempt + 1, leftovers)
+        # The specific miss, fed back. This is the part that actually works.
+        attempt_prompt = (
+            prompt
+            + " A previous attempt at this exact image failed because it left "
+            "these behind: " + leftovers + ". Remove those as well. The room "
+            "must contain no movable objects whatsoever."
+        )
+        best = data
+
+    # Out of attempts. Hand back the best we have AND what is wrong with it.
+    return best, last_leftovers
+
+
+def _stage_once(prompt, local_path, cfg):
+    """One generation, whichever provider is configured."""
+    import time
+
     if cfg["provider"] == "gemini":
         from services import gemini_image
 
@@ -399,7 +510,7 @@ def stage_room(local_path, style, cfg=None):
     from services.video import upload_image
 
     image_url = upload_image(local_path, cfg)
-    prediction_id = submit_stage(image_url, style, cfg=cfg, prompt=prompt)
+    prediction_id = submit_stage(image_url, None, cfg=cfg, prompt=prompt)
 
     deadline = time.time() + 420
     while time.time() < deadline:
@@ -477,3 +588,71 @@ def stamp_disclosure(data, text=DISCLOSURE_TEXT):
     out = _io.BytesIO()
     img.save(out, format="JPEG", quality=92)
     return out.getvalue()
+
+
+# ---------- checking the model's own work ----------
+
+# Emptying a room is the one style with an objectively checkable result: the
+# room is either empty or it is not. Prompting alone got 3 of 6 rooms clean --
+# floor furniture went reliably, wall-hung decor survived, and one room came
+# back untouched. No wording fixes the last case, because it is the model
+# ignoring the instruction rather than misreading it.
+#
+# So the result is inspected and, if anything is left, generated again with
+# the leftovers named. Naming them is the part that works: "the wall clock and
+# the dresser are still there" is a far stronger instruction than any amount
+# of up-front prohibition.
+#
+# Only unfurnished gets this. "Is this room empty" has a right answer; "is
+# this a good coastal living room" does not, and a retry loop on taste would
+# just burn quota.
+EMPTY_CHECK = (
+    "You are checking a real-estate photograph of a room that is supposed to "
+    "be completely empty. "
+    "Look ONLY at the main room in the foreground -- the one the camera is "
+    "standing in. "
+    "List every movable object still in it: furniture, rugs, mats, artwork, "
+    "framed pictures, mirrors, clocks, wall decor, wall shelves, televisions, "
+    "plants, vases, ornaments, boxes, clutter. "
+    "Do NOT list anything built into the building: fitted cabinets, counters, "
+    "sinks, taps, appliances, radiators, ceiling lights, ceiling fans, doors, "
+    "windows, fireplaces, mantels, skirting, or vents. "
+    "Do NOT list curtains, drapes, blinds or curtain rods -- those are "
+    "expected to stay. "
+    "Do NOT list anything that is in a different room or area, even if you "
+    "can see it through a doorway, an archway, a serving hatch, a window, or "
+    "across an open-plan space. Only the foreground room counts. "
+    "If the room is completely empty of movable objects, reply with exactly "
+    "the single word EMPTY. Otherwise reply with a short comma-separated list "
+    "of what remains, and nothing else."
+)
+
+MAX_EMPTY_ATTEMPTS = 3
+
+
+def check_empty(image_bytes, cfg=None):
+    """(is_empty, leftovers). Falls open: an unusable answer is not a failure.
+
+    If the check itself errors, the image is accepted rather than discarded --
+    a broken checker must not throw away a good result or spin the retry loop.
+    """
+    cfg = cfg or load_config()
+    if cfg["provider"] != "gemini":
+        return True, ""
+
+    from services import gemini_image
+
+    try:
+        answer = gemini_image.ask_about_image(image_bytes, EMPTY_CHECK, timeout=60)
+    except Exception:  # noqa: BLE001
+        return True, ""
+
+    cleaned = (answer or "").strip().strip(".").strip()
+    if not cleaned:
+        return True, ""
+    if cleaned.upper().startswith("EMPTY"):
+        return True, ""
+    # A refusal or a paragraph is not a leftovers list; do not retry on it.
+    if len(cleaned) > 300:
+        return True, ""
+    return False, cleaned
