@@ -51,6 +51,27 @@ def create_app():
         from services.backup import snapshot
         snapshot(app, "startup", skip_if_unchanged=True)
 
+        # Jobs run on background threads inside this process, so closing the
+        # app mid-run kills them with the row still saying "running". Nothing
+        # would ever move it, and the page would poll a job that no longer
+        # exists. A job in that state at boot cannot be running -- the process
+        # that owned it is gone -- so say what happened.
+        from models import StagingJob, VideoJob
+
+        for model, label in ((StagingJob, "Staging"), (VideoJob, "Video")):
+            stale = model.query.filter(model.status.in_(("queued", "running"))).all()
+            for job in stale:
+                job.status = "failed"
+                job.error = (
+                    f"{label} was interrupted when the app stopped. "
+                    "Nothing further was charged. Run it again to pick up "
+                    "where it left off -- finished rooms are reused."
+                )
+            if stale:
+                db.session.commit()
+                app.logger.warning("marked %d interrupted %s job(s) as failed",
+                                   len(stale), label.lower())
+
     return app
 
 
