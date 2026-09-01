@@ -1776,6 +1776,49 @@ def api_toggle_outreach(lead_id):
     return jsonify(lead.to_dict())
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/rooms", methods=["GET"])
+@login_required
+def api_lead_rooms(lead_id):
+    """This lead's photos grouped by room, in walkthrough order."""
+    from services.rooms import group_photos, is_configured
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    rooms = lead.photo_rooms
+    return jsonify({
+        "configured": is_configured(),
+        "sorted_count": len(rooms),
+        "photo_count": len(lead.photo_urls or []),
+        "groups": group_photos(lead.photo_urls, rooms),
+    })
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/rooms", methods=["POST"])
+@login_required
+def api_sort_rooms(lead_id):
+    """Sort this lead's photos now, rather than waiting on capture.
+
+    Runs in the background like the automatic pass; the caller polls the GET.
+    """
+    from flask import current_app
+    from services.enrichment import sort_rooms_async
+    from services.rooms import is_configured
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+    if not is_configured():
+        return jsonify({"error": "Room sorting isn't connected. Add an Anthropic "
+                                 "API key to studio/anthropic.json."}), 400
+    if not lead.photo_urls:
+        return jsonify({"error": "This lead has no photos."}), 400
+
+    sort_rooms_async(current_app._get_current_object(), lead_id)
+    return jsonify({"started": True}), 202
+
+
 @studio_bp.route("/api/video/status", methods=["GET"])
 @login_required
 def api_video_status():

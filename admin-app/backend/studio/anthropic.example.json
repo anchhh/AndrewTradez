@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy to anthropic.json and fill in. That file is gitignored - the repo is public. Get a key at console.anthropic.com. Used to sort listing photos into rooms automatically when a lead is captured.",
+  "api_key": ""
+}

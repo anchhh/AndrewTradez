@@ -83,6 +83,11 @@ class Lead(db.Model):
     # makes a lead eligible for outreach at all, since the pitch is the video.
     video_url = db.Column(db.String(500), nullable=True)
 
+    # Which room each photo shows, keyed by photo URL. Filled in automatically
+    # when a lead is captured; absent for photos the classifier skipped or
+    # could not read, which stay unsorted rather than being guessed at.
+    photo_rooms_json = db.Column(db.Text, nullable=True)
+
     # Set once this lead has been pushed to GoHighLevel, so a re-send updates
     # that contact instead of creating a second one.
     ghl_contact_id = db.Column(db.String(64), nullable=True)
@@ -93,6 +98,14 @@ class Lead(db.Model):
 
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def photo_rooms(self):
+        return json.loads(self.photo_rooms_json or "{}")
+
+    @photo_rooms.setter
+    def photo_rooms(self, value):
+        self.photo_rooms_json = json.dumps(value or {})
 
     @property
     def email_candidates(self):
@@ -159,6 +172,7 @@ class Lead(db.Model):
             "outreach_video_sent": self.outreach_video_sent_at is not None,
             "outreach_skipped": bool(self.outreach_skipped),
             "video_url": self.video_url,
+            "photo_rooms": self.photo_rooms,
             "ghl_contact_id": self.ghl_contact_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

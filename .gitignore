@@ -37,6 +37,7 @@ admin-app/backend/studio/google_maps.json
 admin-app/backend/studio/cesium_ion.json
 admin-app/backend/studio/gohighlevel.json
 admin-app/backend/studio/atlascloud.json
+admin-app/backend/studio/anthropic.json
 admin-app/backend/studio/users.json
 admin-app/backend/studio/projects.json
 admin-app/backend/studio/static/uploads/

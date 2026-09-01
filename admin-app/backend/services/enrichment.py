@@ -81,3 +81,51 @@ def enrich_lead_async(app, lead_id):
     threading.Thread(
         target=_run, args=(app, lead_id), name=f"enrich-lead-{lead_id}", daemon=True
     ).start()
+
+
+def _sort_rooms(app, lead_id):
+    from extensions import db
+    from models import Lead
+    from services.rooms import RoomsError, RoomsNotConfigured, classify_photos
+
+    with app.app_context():
+        lead = db.session.get(Lead, lead_id)
+        if lead is None:
+            return
+        photos = lead.photo_urls or []
+        if not photos:
+            return
+
+        try:
+            rooms = classify_photos(photos)
+        except RoomsNotConfigured:
+            return  # not connected; the lead keeps its photos unsorted
+        except RoomsError as exc:
+            log.warning("room sorting failed for lead %s: %s", lead_id, exc)
+            return
+        except Exception:  # noqa: BLE001 -- sorting must never break a lead
+            log.exception("room sorting crashed for lead %s", lead_id)
+            return
+
+        # Re-read: the lead may have been deleted, or had photos re-fetched,
+        # while this was running.
+        lead = db.session.get(Lead, lead_id)
+        if lead is None:
+            return
+        existing = lead.photo_rooms
+        existing.update(rooms)
+        lead.photo_rooms = existing
+        db.session.commit()
+        log.info("sorted %s of %s photos for lead %s", len(rooms), len(photos), lead_id)
+
+
+def sort_rooms_async(app, lead_id):
+    """Label a lead's photos by room, in the background.
+
+    Separate from the email lookup rather than sharing its thread: the two
+    fail independently, and the email lookup serialises behind a lock that
+    this has no reason to wait on.
+    """
+    threading.Thread(
+        target=_sort_rooms, args=(app, lead_id), name=f"sort-rooms-{lead_id}", daemon=True
+    ).start()

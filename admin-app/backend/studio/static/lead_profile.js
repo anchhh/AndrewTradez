@@ -410,6 +410,7 @@ async function load() {
   renderVideo(currentProject);
   renderPhotos(lead.photo_urls);
   initGenerator(lead.photo_urls);
+  initRooms();
 
   el("lp-refetch").addEventListener("click", () => pullPhotos(true));
   pullPhotos(false);
@@ -608,4 +609,83 @@ async function initGenerator(photos) {
   updateGenCost();
 
   await pollGenJob();
+}
+
+/* ---------- photos grouped by room ----------
+   Sorting happens automatically when a lead is captured; this just shows the
+   result, and offers a re-run for leads captured before it existed or whose
+   photos were re-fetched afterwards. Anything the classifier skipped stays
+   visible under "Unsorted" rather than disappearing. */
+
+let roomsPollTimer = null;
+
+function renderRooms(data) {
+  const box = el("lp-rooms");
+  if (!box) return;
+
+  if (!data.photo_count) {
+    box.innerHTML = "";
+    return;
+  }
+  if (!data.configured) {
+    box.innerHTML = `<p class="lp-rooms-note">Photo sorting isn't connected.</p>`;
+    return;
+  }
+
+  const pending = data.photo_count - data.sorted_count;
+  const groups = (data.groups || []).filter((g) => g.room !== "unsorted" || g.photos.length);
+
+  box.innerHTML = `
+    <div class="lp-rooms-head">
+      <span class="lp-rooms-title">By room</span>
+      <span class="lp-rooms-note">
+        ${data.sorted_count} of ${data.photo_count} sorted${pending > 0 ? "" : ""}
+      </span>
+      ${pending > 0 ? `<button type="button" id="lp-rooms-go" class="btn-tiny">Sort ${pending}</button>` : ""}
+    </div>
+    ${groups.map((g) => `
+      <details class="lp-room" ${g.room === "unsorted" ? "" : "open"}>
+        <summary>
+          ${escapeHtml(g.label)}
+          <span class="lp-room-count">${g.photos.length}</span>
+        </summary>
+        <div class="lp-room-grid">
+          ${g.photos.map((u) => `<img src="${escapeHtml(u)}" alt="" loading="lazy">`).join("")}
+        </div>
+      </details>`).join("")}`;
+
+  const go = el("lp-rooms-go");
+  if (go) {
+    go.onclick = async () => {
+      go.disabled = true;
+      go.textContent = "Sorting…";
+      try {
+        await fetchJSON(`/studio/api/leads/${LEAD_ID}/rooms`, { method: "POST" });
+        pollRooms(true);
+      } catch (err) {
+        alert(err.message || "Could not start sorting.");
+        go.disabled = false;
+      }
+    };
+  }
+}
+
+async function pollRooms(keepGoing) {
+  clearTimeout(roomsPollTimer);
+  let data;
+  try {
+    data = await fetchJSON(`/studio/api/leads/${LEAD_ID}/rooms`);
+  } catch (_) {
+    return;
+  }
+  renderRooms(data);
+  // Keep watching while a background pass is still filling rooms in.
+  if (keepGoing && data.sorted_count < data.photo_count) {
+    roomsPollTimer = setTimeout(() => pollRooms(true), 5000);
+  }
+}
+
+function initRooms() {
+  // Poll on load: a freshly captured lead is probably still being sorted.
+  pollRooms(true);
 }

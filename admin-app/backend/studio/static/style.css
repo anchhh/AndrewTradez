@@ -2422,3 +2422,47 @@ gmp-map-3d {
 .lead-card.is-pickable:hover { border-color: var(--accent); }
 .lead-card.is-unpickable { opacity: 0.55; }
 .lead-use-btn { width: auto; flex: 0 0 auto; }
+
+/* ---------- photos grouped by room (lead profile) ---------- */
+
+.lp-rooms { margin-top: 16px; }
+.lp-rooms-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.lp-rooms-title { font-weight: 600; font-size: 0.85rem; }
+.lp-rooms-note { font-size: 0.75rem; color: var(--ink-soft); }
+.lp-rooms-head button { margin-left: auto; width: auto; flex: 0 0 auto; }
+
+.lp-room { border-top: 1px solid var(--line); padding: 8px 0; }
+.lp-room summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+}
+.lp-room summary::-webkit-details-marker { display: none; }
+.lp-room summary::before { content: "▸"; color: var(--ink-soft); font-size: 0.7rem; }
+.lp-room[open] summary::before { content: "▾"; }
+.lp-room-count {
+  font-weight: 500;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.lp-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+.lp-room-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}

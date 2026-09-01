@@ -159,6 +159,19 @@ def create_lead():
 
         enrich_lead_async(current_app._get_current_object(), lead.id)
 
+    # Sort the photos into rooms while we're here. Also background: it is
+    # several API calls and a capture shouldn't wait on it. Only for photos
+    # not already labelled, so a re-capture of the same listing doesn't pay
+    # for the same work twice.
+    if lead and lead.photo_urls:
+        from flask import current_app
+        from services.enrichment import sort_rooms_async
+        from services.rooms import is_configured as rooms_configured
+
+        already = set(lead.photo_rooms)
+        if rooms_configured() and any(u not in already for u in lead.photo_urls):
+            sort_rooms_async(current_app._get_current_object(), lead.id)
+
     payload = lead.to_dict()
     payload["_merged"] = not created
     return jsonify(payload), 201
