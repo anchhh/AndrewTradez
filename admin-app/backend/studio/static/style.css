@@ -2641,3 +2641,19 @@ gmp-map-3d {
   .lightbox-nav { font-size: 2.2rem; }
   .lightbox-thumb { width: 62px; height: 46px; }
 }
+
+/* Contact sheets, shown after the Sort button builds them. */
+.lp-sheets { margin-top: 12px; }
+.lp-sheets-note { font-size: 0.8rem; color: var(--ink-soft); margin: 0 0 8px; }
+.lp-sheets-note strong { color: var(--ink); }
+.lp-sheets-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+.lp-sheets-grid a {
+  flex: 0 0 auto;
+  width: 150px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  display: block;
+}
+.lp-sheets-grid a:hover { border-color: var(--accent); }
+.lp-sheets-grid img { width: 100%; display: block; }

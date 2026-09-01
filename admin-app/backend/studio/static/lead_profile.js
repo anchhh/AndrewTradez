@@ -628,6 +628,7 @@ async function initGenerator(photos) {
    visible under "Unsorted" rather than disappearing. */
 
 let roomsPollTimer = null;
+let roomsSortRunning = false;
 
 function renderRooms(data) {
   const box = el("lp-rooms");
@@ -639,14 +640,12 @@ function renderRooms(data) {
   }
   // Not connected is not a dead end: Claude can read the photos and write the
   // labels back without any API key, which is the free route.
-  if (!data.configured && !data.sorted_count) {
-    box.innerHTML = `<p class="lp-rooms-note">Not sorted yet — ask Claude to sort these,
-      or add an Anthropic key to sort new leads automatically.</p>`;
-    return;
-  }
 
   const pending = data.photo_count - data.sorted_count;
   const groups = (data.groups || []).filter((g) => g.room !== "unsorted" || g.photos.length);
+
+  const keepResults = el("lp-rooms-results");
+  const carried = keepResults ? keepResults.innerHTML : "";
 
   box.innerHTML = `
     <div class="lp-rooms-head">
@@ -654,9 +653,7 @@ function renderRooms(data) {
       <span class="lp-rooms-note">
         ${data.sorted_count} of ${data.photo_count} sorted${pending > 0 ? "" : ""}
       </span>
-      ${pending > 0 && data.configured
-        ? `<button type="button" id="lp-rooms-go" class="btn-tiny">Sort ${pending}</button>`
-        : pending > 0 ? `<span class="lp-rooms-note">${pending} unsorted</span>` : ""}
+      ${pending > 0 ? `<button type="button" id="lp-rooms-go" class="btn-tiny">Sort ${pending} photos</button>` : ""}
     </div>
     ${groups.map((g) => `
       <details class="lp-room" ${g.room === "unsorted" ? "" : "open"}>
@@ -667,7 +664,8 @@ function renderRooms(data) {
         <div class="lp-room-grid" data-room="${escapeHtml(g.room)}">
           ${g.photos.map((u, i) => `<button type="button" data-i="${i}"><img src="${escapeHtml(u)}" alt="" loading="lazy"></button>`).join("")}
         </div>
-      </details>`).join("")}`;
+      </details>`).join("")}
+    <div id="lp-rooms-results">${carried}</div>`;
 
   // Opening from a room group shows that room's photos, not the whole
   // gallery -- you clicked "Kitchen", you want the kitchen.
@@ -688,18 +686,57 @@ function renderRooms(data) {
 
   const go = el("lp-rooms-go");
   if (go) {
-    go.onclick = async () => {
-      go.disabled = true;
-      go.textContent = "Sorting…";
-      try {
-        await fetchJSON(`/studio/api/leads/${LEAD_ID}/rooms`, { method: "POST" });
-        pollRooms(true);
-      } catch (err) {
-        alert(err.message || "Could not start sorting.");
-        go.disabled = false;
-      }
-    };
+    go.onclick = () => (data.configured ? sortViaApi(go) : sortViaSheets(go));
   }
+}
+
+/* With a key configured the app sorts the photos itself, in the background. */
+async function sortViaApi(button) {
+  button.disabled = true;
+  button.textContent = "Sorting…";
+  try {
+    await fetchJSON(`/studio/api/leads/${LEAD_ID}/rooms`, { method: "POST" });
+    roomsSortRunning = true;
+    pollRooms(true);
+  } catch (err) {
+    alert(err.message || "Could not start sorting.");
+    button.disabled = false;
+  }
+}
+
+/* Without one, it does the part a button can do: builds the contact sheets and
+   hands them over. Something still has to look at the photos, and that part is
+   Claude reading these three images rather than the app paying per photo. */
+async function sortViaSheets(button) {
+  button.disabled = true;
+  button.textContent = "Building sheets…";
+  let data;
+  try {
+    data = await fetchJSON(`/studio/api/leads/${LEAD_ID}/rooms/sheets`, { method: "POST" });
+  } catch (err) {
+    alert(err.message || "Could not build the contact sheets.");
+    button.disabled = false;
+    button.textContent = "Sort photos";
+    return;
+  }
+
+  el("lp-rooms-results").innerHTML = `
+    <div class="lp-sheets">
+      <p class="lp-sheets-note">
+        <strong>${data.sheets.length} contact sheet${data.sheets.length === 1 ? "" : "s"} ready</strong>
+        — ${data.photo_count} photos, numbered.
+        Ask Claude to sort lead ${LEAD_ID} and it will read these and fill the rooms in.
+      </p>
+      <div class="lp-sheets-grid">
+        ${data.sheets.map((u, i) => `
+          <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" title="Open sheet ${i + 1}">
+            <img src="${escapeHtml(u)}" alt="Contact sheet ${i + 1}">
+          </a>`).join("")}
+      </div>
+    </div>`;
+
+  button.disabled = false;
+  button.textContent = "Rebuild sheets";
 }
 
 async function pollRooms(keepGoing) {
@@ -711,13 +748,20 @@ async function pollRooms(keepGoing) {
     return;
   }
   renderRooms(data);
-  // Keep watching while a background pass is still filling rooms in.
-  if (keepGoing && data.sorted_count < data.photo_count) {
+  // Only while a sort is actually running. Polling merely because photos are
+  // unsorted would hit the server every five seconds forever on a lead nobody
+  // is sorting, and rebuild this panel each time.
+  if (keepGoing && roomsSortRunning && data.sorted_count < data.photo_count) {
     roomsPollTimer = setTimeout(() => pollRooms(true), 5000);
+  } else if (data.sorted_count >= data.photo_count) {
+    roomsSortRunning = false;
   }
 }
 
 function initRooms() {
-  // Poll on load: a freshly captured lead is probably still being sorted.
+  // A freshly captured lead may still be sorting in the background, so watch
+  // briefly; roomsSortRunning stops it once nothing is in flight.
+  roomsSortRunning = true;
   pollRooms(true);
+  setTimeout(() => { roomsSortRunning = false; }, 60000);
 }

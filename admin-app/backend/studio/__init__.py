@@ -1819,6 +1819,38 @@ def api_sort_rooms(lead_id):
     return jsonify({"started": True}), 202
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/rooms/sheets", methods=["POST"])
+@login_required
+def api_room_sheets(lead_id):
+    """Build numbered contact sheets of this lead's photos.
+
+    The free path for sorting: with no API key configured, the app can still do
+    everything up to the point where something has to actually look at the
+    photos. Twenty photos to a sheet, so Claude reads three images rather than
+    fifty-seven, and the numbers are the photo's index in the lead's own list.
+    """
+    from contact_sheet import build_sheets
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    photos = lead.photo_urls or []
+    if not photos:
+        return jsonify({"error": "This lead has no photos."}), 400
+
+    try:
+        paths = build_sheets(lead_id, photos)
+    except Exception as exc:  # noqa: BLE001 -- report rather than 500
+        return jsonify({"error": f"Could not build the sheets: {exc}"}), 500
+
+    return jsonify({
+        "sheets": ["/studio/static/_sheets/" + os.path.basename(p) for p in paths],
+        "photo_count": len(photos),
+        "command": f"python contact_sheet.py --lead {lead_id}",
+    })
+
+
 @studio_bp.route("/api/video/status", methods=["GET"])
 @login_required
 def api_video_status():
