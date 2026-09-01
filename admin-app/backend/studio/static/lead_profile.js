@@ -725,7 +725,9 @@ async function sortViaSheets(button) {
       <p class="lp-sheets-note">
         <strong>${data.sheets.length} contact sheet${data.sheets.length === 1 ? "" : "s"} ready</strong>
         — ${data.photo_count} photos, numbered.
-        Ask Claude to sort lead ${LEAD_ID} and it will read these and fill the rooms in.
+        ${data.queued
+          ? "Sent to Claude. If a session is watching, the rooms will fill in shortly."
+          : `Ask Claude to sort lead ${LEAD_ID}.`}
       </p>
       <div class="lp-sheets-grid">
         ${data.sheets.map((u, i) => `

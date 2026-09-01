@@ -1844,9 +1844,34 @@ def api_room_sheets(lead_id):
     except Exception as exc:  # noqa: BLE001 -- report rather than 500
         return jsonify({"error": f"Could not build the sheets: {exc}"}), 500
 
+    sheet_urls = ["/studio/static/_sheets/" + os.path.basename(p) for p in paths]
+
+    # Drop a request on disk. A Claude session watching this directory picks it
+    # up and sorts the photos -- which is what makes the button feel automatic
+    # without the app paying an API per photo. Nothing depends on anyone
+    # watching: the sheets are built and usable either way.
+    queued = False
+    try:
+        queue_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                 "_sort_queue")
+        os.makedirs(queue_dir, exist_ok=True)
+        with open(os.path.join(queue_dir, f"lead{lead_id}.json"), "w", encoding="utf-8") as fh:
+            json.dump({
+                "lead_id": lead_id,
+                "address": lead.address,
+                "photo_count": len(photos),
+                "unsorted": sum(1 for u in photos if u not in lead.photo_rooms),
+                "sheets": [os.path.basename(p) for p in paths],
+                "requested_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }, fh)
+        queued = True
+    except OSError:
+        pass  # the sheets still exist; only the hand-off is missing
+
     return jsonify({
-        "sheets": ["/studio/static/_sheets/" + os.path.basename(p) for p in paths],
+        "sheets": sheet_urls,
         "photo_count": len(photos),
+        "queued": queued,
         "command": f"python contact_sheet.py --lead {lead_id}",
     })
 

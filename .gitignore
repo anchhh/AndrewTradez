@@ -42,6 +42,7 @@ admin-app/backend/studio/users.json
 admin-app/backend/studio/projects.json
 admin-app/backend/studio/static/uploads/
 admin-app/backend/studio/static/_sheets/
+admin-app/backend/_sort_queue/
 
 # Local database snapshots (services/backup.py) -- real lead data, and the
 # repo is public.
