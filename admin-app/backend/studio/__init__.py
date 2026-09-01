@@ -2031,6 +2031,35 @@ def api_video_cancel(job_id):
     return jsonify({"job": job.to_dict()})
 
 
+@studio_bp.route("/api/outreach/stats", methods=["GET"])
+@login_required
+def api_outreach_stats():
+    """What GoHighLevel knows about the outreach, alongside what this app does."""
+    from models import Lead
+    from services.gohighlevel import (
+        GoHighLevelError,
+        GoHighLevelNotConfigured,
+        fetch_stats,
+    )
+
+    leads = owned_leads_query().all()
+    app_side = {
+        "leads": len(leads),
+        "sent": sum(1 for l in leads if l.outreach_email_sent_at),
+        "with_video": sum(1 for l in leads if l.video_url),
+        "with_email": sum(1 for l in leads if l.agent_email),
+    }
+
+    try:
+        ghl = fetch_stats()
+    except GoHighLevelNotConfigured as exc:
+        return jsonify({"app": app_side, "ghl": None, "error": str(exc)})
+    except GoHighLevelError as exc:
+        return jsonify({"app": app_side, "ghl": None, "error": str(exc)}), 200
+
+    return jsonify({"app": app_side, "ghl": ghl})
+
+
 @studio_bp.route("/api/outreach/queue", methods=["GET"])
 @login_required
 def api_outreach_queue():

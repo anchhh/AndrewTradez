@@ -217,6 +217,7 @@ GoHighLevel will deliver it. This can't be unsent.`)) return;
       try {
         await api(`/studio/api/leads/${leadIdOf(btn)}/outreach/send`, { method: "POST" });
         await load();
+        loadStats();
       } catch (err) {
         alert(`Not sent: ${err.message}`);
         btn.disabled = false;
@@ -280,8 +281,61 @@ el("ghl-test").onclick = checkConnection;
 
 // Async failures here surface as unhandled rejections rather than anything
 // visible, so say so on the page instead of failing silently.
+loadStats();
+
 load().catch((err) => {
   el("empty-ready").hidden = false;
   el("empty-ready").textContent = `Could not load the queue: ${err.message}`;
 });
 checkConnection();
+
+/* ---------- stats ----------
+   Two sources side by side: what this app has done, and what GoHighLevel has
+   seen. Opens and clicks are deliberately absent -- they live on campaign
+   sends and this app sends by tagging a contact for a workflow, which GHL
+   does not report on. An honest gap beats a confident zero. */
+
+function statTile(value, label, hint) {
+  return `<div class="or-stat" ${hint ? `title="${esc(hint)}"` : ""}>
+    <span class="or-stat-value">${esc(value)}</span>
+    <span class="or-stat-label">${esc(label)}</span>
+  </div>`;
+}
+
+async function loadStats() {
+  const box = el("or-stats");
+  if (!box) return;
+  let data;
+  try {
+    data = await api("/studio/api/outreach/stats");
+  } catch (_) {
+    box.innerHTML = "";
+    return;
+  }
+
+  const a = data.app || {};
+  const g = data.ghl;
+
+  box.innerHTML = `
+    <div class="or-stats-group">
+      <span class="or-stats-title">In Estly</span>
+      ${statTile(a.leads ?? 0, "leads")}
+      ${statTile(a.with_email ?? 0, "with an email")}
+      ${statTile(a.with_video ?? 0, "with a video")}
+      ${statTile(a.sent ?? 0, "sent")}
+    </div>
+    ${g
+      ? `<div class="or-stats-group">
+           <span class="or-stats-title">In GoHighLevel</span>
+           ${statTile(g.estly_contacts, "contacts", "Contacts tagged estly-lead")}
+           ${statTile(g.video_ready, "emails triggered", "Tagged estly-video-ready, which fires the workflow")}
+           ${statTile(g.conversations, g.conversations === 1 ? "conversation" : "conversations")}
+           ${statTile(g.replies, "replied", g.replied_names.length ? g.replied_names.join(", ") : "Nobody has written back yet")}
+         </div>
+         <p class="or-stats-note">
+           Opens and clicks aren't shown: those are reported for campaign sends,
+           and these go out through a workflow, which GoHighLevel doesn't report
+           on through the API. Replies are the number that matters anyway.
+         </p>`
+      : `<p class="or-stats-note">${esc(data.error || "GoHighLevel stats unavailable.")}</p>`}`;
+}

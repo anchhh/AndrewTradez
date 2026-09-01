@@ -288,3 +288,73 @@ def push_contact(lead, extra_tags=(), dry_run=False):
         "payload": payload,
         "dry_run": False,
     }
+
+
+def _page_contacts(cfg, limit=100, pages=10):
+    """Every contact on the location, up to a sane ceiling."""
+    out, after = [], None
+    for _ in range(pages):
+        params = {"locationId": cfg["location_id"], "limit": limit}
+        if after:
+            params["startAfterId"] = after
+        resp = _request("GET", "/contacts/", cfg, params=params)
+        if resp is None or resp.status_code >= 400:
+            break
+        try:
+            batch = resp.json().get("contacts") or []
+        except ValueError:
+            break
+        out.extend(batch)
+        if len(batch) < limit:
+            break
+        after = batch[-1].get("id")
+    return out
+
+
+def fetch_stats():
+    """What GoHighLevel knows about the outreach, read-only.
+
+    Deliberately built from what this token actually returns rather than what
+    the docs advertise. Two things are worth knowing about the gaps:
+
+      Opens and clicks are not here. Those live on *campaign* sends, and this
+      app sends by tagging a contact and letting a workflow mail it -- GHL
+      does not expose per-workflow email stats through this API. Reporting a
+      zero would be worse than reporting nothing.
+
+      Replies are here, and for cold outreach a reply is the metric that
+      matters anyway. A conversation whose last message came inbound is
+      someone who wrote back.
+    """
+    cfg = load_config()
+    if not cfg["api_key"] or not cfg["location_id"]:
+        raise GoHighLevelNotConfigured("GoHighLevel isn't connected.")
+
+    contacts = _page_contacts(cfg)
+    estly = [c for c in contacts if TAG_LEAD in (c.get("tags") or [])]
+    tagged_ready = [c for c in estly if TAG_VIDEO_READY in (c.get("tags") or [])]
+    estly_ids = {c.get("id") for c in estly}
+
+    resp = _request("GET", "/conversations/search", cfg,
+                    params={"locationId": cfg["location_id"], "limit": 100})
+    conversations = []
+    if resp is not None and resp.status_code < 400:
+        try:
+            conversations = resp.json().get("conversations") or []
+        except ValueError:
+            conversations = []
+
+    ours = [c for c in conversations if c.get("contactId") in estly_ids]
+    replied = [c for c in ours if (c.get("lastMessageDirection") or "").lower() == "inbound"]
+
+    return {
+        "ok": True,
+        "contacts_total": len(contacts),
+        "estly_contacts": len(estly),
+        "video_ready": len(tagged_ready),
+        "conversations": len(ours),
+        "replies": len(replied),
+        "replied_names": [c.get("fullName") or c.get("email") for c in replied][:8],
+        # Said out loud rather than shown as a zero.
+        "opens_available": False,
+    }
