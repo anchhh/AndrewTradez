@@ -9,6 +9,7 @@ const state = {
   lat: null,
   lon: null,
   leadId: null, // set when this project originated from an admin-pipeline Lead
+  photoRooms: null, // {url: {room, label, order}} once the lead's photos are sorted
 };
 
 const el = (id) => document.getElementById(id);
@@ -84,6 +85,27 @@ async function doAutosave(extra) {
   }
 }
 
+async function loadRoomsForLead() {
+  if (!state.leadId) return;
+  try {
+    const res = await fetch(`/studio/api/leads/${state.leadId}/rooms`);
+    const data = await res.json();
+    const rooms = {};
+    (data.groups || []).forEach((g) => {
+      if (g.room === "unsorted") return;
+      g.photos.forEach((u) => { rooms[u] = { room: g.room, label: g.label }; });
+    });
+    // Group order comes from the server, which owns the walkthrough sequence.
+    const rank = {};
+    (data.groups || []).forEach((g, i) => { rank[g.room] = i; });
+    Object.values(rooms).forEach((r) => { r.order = rank[r.room] ?? 999; });
+    state.photoRooms = Object.keys(rooms).length ? rooms : null;
+    renderPhotoGrid();
+  } catch (_) {
+    /* grouping is a nicety; a flat grid is still correct */
+  }
+}
+
 function prefillFromProject(project) {
   state.projectId = project.id;
   state.name = project.name || null;
@@ -120,6 +142,7 @@ function prefillFromProject(project) {
 // on an already-populated project instead of an empty form.
 async function applyPrefill(prefill) {
   state.leadId = prefill.lead_id ?? null;
+  state.photoRooms = prefill.photo_rooms || null;
   state.name = prefill.name || null;
   state.extracted = {
     address: prefill.address,
@@ -501,40 +524,105 @@ function closeMapModal() {
   if (document.fullscreenElement) document.exitFullscreen?.();
 }
 
+function photoThumb(photo) {
+  const use = photo.use !== false;
+  const div = document.createElement("div");
+  div.className = "thumb" + (use ? "" : " is-excluded");
+  const media = isVideoUrl(photo.url)
+    ? `<video src="${photo.url}" muted controls></video><span class="media-badge">Video</span>`
+    : `<img src="${photo.url}" alt="">`;
+  div.innerHTML = `
+    ${media}
+    <label class="thumb-use" title="Use this photo in the video">
+      <input type="checkbox" ${use ? "checked" : ""}>
+    </label>
+    <button class="remove" title="Remove from project">&times;</button>`;
+
+  // Excluding keeps the photo in the project but out of the video, so a
+  // change of mind doesn't mean importing everything again. Remove is the
+  // destructive one.
+  div.querySelector(".thumb-use input").addEventListener("change", (e) => {
+    photo.use = e.target.checked;
+    div.classList.toggle("is-excluded", !e.target.checked);
+    updatePhotoCount();
+    autosave();
+  });
+  div.querySelector(".remove").addEventListener("click", () => {
+    // By identity, not by a captured index -- grouping means position in the
+    // grid no longer matches position in state.photos.
+    const at = state.photos.indexOf(photo);
+    if (at !== -1) state.photos.splice(at, 1);
+    renderPhotoGrid();
+    autosave();
+  });
+  return div;
+}
+
+/* Photos grouped the way the finished video should run -- front exterior,
+   living, kitchen, bedrooms -- rather than the order the listing site served
+   them. This is the sequence the generator will follow, so seeing it here is
+   seeing the shape of the video. */
+function groupedPhotos() {
+  const rooms = state.photoRooms;
+  if (!rooms) return null;
+
+  const buckets = new Map();
+  const unsorted = [];
+  state.photos.forEach((photo) => {
+    const entry = rooms[photo.url];
+    if (!entry) { unsorted.push(photo); return; }
+    if (!buckets.has(entry.room)) {
+      buckets.set(entry.room, { room: entry.room, label: entry.label, order: entry.order ?? 999, photos: [] });
+    }
+    buckets.get(entry.room).photos.push(photo);
+  });
+  if (!buckets.size) return null;
+
+  const groups = [...buckets.values()].sort((a, b) => a.order - b.order);
+  if (unsorted.length) groups.push({ room: "unsorted", label: "Unsorted", order: 999, photos: unsorted });
+  return groups;
+}
+
 function renderPhotoGrid() {
   const grid = el("photo-grid");
   grid.innerHTML = "";
+  const groups = groupedPhotos();
 
-  state.photos.forEach((photo, idx) => {
-    const use = photo.use !== false;
-    const div = document.createElement("div");
-    div.className = "thumb" + (use ? "" : " is-excluded");
-    const media = isVideoUrl(photo.url)
-      ? `<video src="${photo.url}" muted controls></video><span class="media-badge">Video</span>`
-      : `<img src="${photo.url}" alt="">`;
-    div.innerHTML = `
-      ${media}
-      <label class="thumb-use" title="Use this photo in the video">
-        <input type="checkbox" ${use ? "checked" : ""}>
-      </label>
-      <button class="remove" title="Remove from project">&times;</button>`;
+  if (!groups) {
+    grid.classList.remove("is-grouped");
+    state.photos.forEach((photo) => grid.appendChild(photoThumb(photo)));
+  } else {
+    grid.classList.add("is-grouped");
+    groups.forEach((group) => {
+      const used = group.photos.filter((p) => p.use !== false).length;
+      const section = document.createElement("section");
+      section.className = "photo-room";
+      section.innerHTML = `
+        <div class="photo-room-head">
+          <span class="photo-room-label">${escapeHtml(group.label)}</span>
+          <span class="photo-room-count">${used}/${group.photos.length}</span>
+          <button type="button" class="btn-tiny photo-room-toggle">
+            ${used === group.photos.length ? "None" : "All"}
+          </button>
+        </div>`;
 
-    // Excluding keeps the photo in the project but out of the video, so a
-    // change of mind doesn't mean importing everything again. Remove is the
-    // destructive one.
-    div.querySelector(".thumb-use input").addEventListener("change", (e) => {
-      photo.use = e.target.checked;
-      div.classList.toggle("is-excluded", !e.target.checked);
-      updatePhotoCount();
-      autosave();
+      const sub = document.createElement("div");
+      sub.className = "photo-room-grid";
+      group.photos.forEach((photo) => sub.appendChild(photoThumb(photo)));
+      section.appendChild(sub);
+
+      // A whole room in or out in one click -- the usual edit is "keep two
+      // kitchen shots, drop the other four".
+      section.querySelector(".photo-room-toggle").addEventListener("click", () => {
+        const turnOn = used !== group.photos.length;
+        group.photos.forEach((p) => { p.use = turnOn; });
+        renderPhotoGrid();
+        autosave();
+      });
+
+      grid.appendChild(section);
     });
-    div.querySelector(".remove").addEventListener("click", () => {
-      state.photos.splice(idx, 1);
-      renderPhotoGrid();
-      autosave();
-    });
-    grid.appendChild(div);
-  });
+  }
 
   el("photo-empty").style.display = state.photos.length ? "none" : "";
   updatePhotoCount();
@@ -732,6 +820,7 @@ trapBrowserBack();
 if (existingProject) {
   wirePhotoSelectAll();
   prefillFromProject(existingProject);
+  loadRoomsForLead();
 } else if (prefillData) {
   wirePhotoSelectAll();
   applyPrefill(prefillData);

@@ -940,6 +940,9 @@ def _lead_prefill(lead_id):
         "url": lead.listing_url,
         "source": lead.source,
         "photos": lead.photo_urls,
+        # Room labels travel with the lead so Create Video can group the
+        # photos the way the finished video should run.
+        "photo_rooms": lead.photo_rooms,
         "beds": lead.beds,
         "baths": lead.baths,
         "sqft": lead.sqft,
