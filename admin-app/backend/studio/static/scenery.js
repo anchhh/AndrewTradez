@@ -356,11 +356,7 @@ function roomCard(photo) {
   });
 
   card.querySelector(".scn-room-open").addEventListener("click", () => {
-    const chosen = state.photos.filter((p) => state.selected.has(p.url));
-    const urls = chosen.map((p) => p.url);
-    const rooms = {};
-    chosen.forEach((p) => { rooms[p.url] = { room: p.room, label: p.label, order: p.order }; });
-    openLightbox(urls, urls.indexOf(photo.url), rooms);
+    openCompare(photo.url, styleKey);
   });
 
   return card;
@@ -822,3 +818,109 @@ if (window.__PREFILL__) {
   const open = el("lead-open");
   if (open) open.textContent = "Pick a different lead";
 }
+
+
+/* ---------- fullscreen before/after ----------
+
+   The card-sized comparer is for scanning; this is for deciding. A staged
+   room is judged on whether the architecture survived, and that is not a
+   question you can answer at 700px wide. Same wipe, same styles, whole
+   screen. */
+
+const compareState = { url: null, style: null };
+
+function comparableRooms() {
+  return state.photos.filter(
+    (p) => state.selected.has(p.url) && Object.keys(state.staged[p.url] || {}).length
+  );
+}
+
+function renderCompare() {
+  const photo = state.photos.find((p) => p.url === compareState.url);
+  if (!photo) return;
+  const variants = state.staged[photo.url] || {};
+  const style = variants[compareState.style]
+    ? compareState.style
+    : STYLES.map((s) => s[0]).find((k) => variants[k]);
+  compareState.style = style;
+
+  el("scn-full-before").src = photo.url;
+  el("scn-full-after").src = variants[style] || photo.url;
+
+  const styleName = (STYLES.find((s) => s[0] === style) || ["", ""])[1];
+  const rooms = comparableRooms();
+  const at = rooms.findIndex((p) => p.url === photo.url);
+  el("scn-full-label").textContent =
+    `${photo.label}${styleName ? " · " + styleName : ""}` +
+    (rooms.length > 1 ? `  (${at + 1} of ${rooms.length})` : "");
+
+  el("scn-full-styles").innerHTML = STYLES.map(([k, n]) => {
+    if (!variants[k]) return "";
+    return `<button type="button" class="scn-room-style ${k === style ? "is-active" : ""}"
+                    data-style="${k}">${escapeHtml(n)}</button>`;
+  }).join("");
+
+  el("scn-full-styles").querySelectorAll("button").forEach((b) => {
+    b.addEventListener("click", () => {
+      compareState.style = b.dataset.style;
+      // Keep the wipe where it is: the point of switching styles here is to
+      // compare them against each other at the same split.
+      renderCompare();
+    });
+  });
+}
+
+function moveCompare(delta) {
+  const rooms = comparableRooms();
+  if (rooms.length < 2) return;
+  const at = rooms.findIndex((p) => p.url === compareState.url);
+  compareState.url = rooms[(at + delta + rooms.length) % rooms.length].url;
+  renderCompare();
+}
+
+function openCompare(url, style) {
+  compareState.url = url;
+  compareState.style = style;
+  renderCompare();
+  const box = el("scn-full");
+  box.classList.remove("hidden");
+  box.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeCompare() {
+  const box = el("scn-full");
+  box.classList.add("hidden");
+  box.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+(function initCompare() {
+  const box = el("scn-full");
+  if (!box) return;
+
+  const slider = el("scn-full-slider");
+  const wrap = el("scn-full-after-wrap");
+  const handle = box.querySelector(".scn-handle");
+  const compare = el("scn-full-compare");
+  const split = (pct) => {
+    wrap.style.clipPath = `inset(0 0 0 ${pct}%)`;
+    handle.style.left = `${pct}%`;
+    compare.classList.toggle("is-all-before", Number(pct) >= 99);
+  };
+  split(slider.value);
+  slider.addEventListener("input", () => split(slider.value));
+
+  box.querySelector("[data-close]").addEventListener("click", closeCompare);
+  box.querySelector(".scn-full-prev").addEventListener("click", () => moveCompare(-1));
+  box.querySelector(".scn-full-next").addEventListener("click", () => moveCompare(1));
+  // Clicking the backdrop closes; clicking the image must not.
+  box.addEventListener("click", (e) => { if (e.target === box) closeCompare(); });
+
+  document.addEventListener("keydown", (e) => {
+    if (box.classList.contains("hidden")) return;
+    if (e.key === "Escape") closeCompare();
+    if (e.key === "ArrowLeft") moveCompare(-1);
+    if (e.key === "ArrowRight") moveCompare(1);
+  });
+})();

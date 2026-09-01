@@ -22,6 +22,7 @@ from services.staging import (
     estimate_cost,
     load_config,
     stage_room,
+    stamp_disclosure,
 )
 
 log = logging.getLogger(__name__)
@@ -70,6 +71,11 @@ def _stage_one(job_id, index, room, cfg):
         # One call, whichever provider is configured -- Gemini answers with the
         # image, Atlas Cloud is uploaded to and polled. Neither shape leaks here.
         data = stage_room(path, room.get("style"), cfg)
+
+        # Labelled before it is written, so no unlabelled copy ever exists on
+        # disk to be grabbed by accident.
+        if cfg.get("stamp", True):
+            data = stamp_disclosure(data)
 
         filename = "job%s-room%s-%s.jpg" % (job_id, index, room.get("style") or "x")
         dest = os.path.join(STAGED_DIRNAME, filename)

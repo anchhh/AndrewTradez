@@ -34,63 +34,121 @@ DEFAULT_RATE_PER_IMAGE = 0.08
 
 DONE_STATUSES = ("completed", "succeeded")
 
-# The half of every prompt that does not change. Repeated into each style
-# rather than concatenated loosely, and placed last, because a constraint
-# buried mid-prompt is the one that gets ignored.
-KEEP = (
-    "Keep the room's architecture exactly as it is: walls, windows, doors, "
-    "ceiling, flooring, built-ins, light fixtures, and the view through every "
-    "window must be unchanged. Do not move the camera, change the lens, or "
-    "alter the lighting direction. Photorealistic, natural light, "
-    "real-estate listing quality. No people, no pets, no text, no watermark."
+# The constraint half of every prompt. It is deliberately long, deliberately
+# specific, and repeated into every style rather than concatenated loosely.
+#
+# The reason is observed failure, not caution: earlier runs invented a door
+# that did not exist, deleted a sink, and added wall sconces to a room with
+# none. A staged photo goes to a buyer as a picture of a real property, so a
+# room that gains a door is not a style choice, it is a misrepresentation --
+# and the agent, not the model, carries that.
+#
+# Three things make it stick, all of them worth keeping:
+#   * the rule is stated before AND after the styling instruction, because a
+#     constraint buried in the middle is the one that gets dropped
+#   * the forbidden changes are enumerated rather than implied -- "keep the
+#     architecture" is agreed with and then ignored; "do not add or remove
+#     doors" is specific enough to actually bind
+#   * it names what MAY change, so the model has a clear licence and does not
+#     have to guess where the line is
+CHANGE_ONLY = (
+    "You may ONLY change loose furnishings: freestanding furniture, rugs, "
+    "cushions, throws, curtains, bedding, table lamps, floor lamps, plants, "
+    "books, and small decorative objects on surfaces."
 )
+
+NEVER_CHANGE = (
+    "You must NOT change the building in any way. Specifically, do NOT add, "
+    "remove, move, resize or restyle any of the following: walls, doors, "
+    "doorways, archways, openings, windows, window frames, glazing bars, "
+    "skylights, ceilings, ceiling height, floors, flooring material, stairs, "
+    "railings, columns, beams, fireplaces, mantels, built-in shelving, "
+    "cabinetry, countertops, islands, sinks, taps, plumbing, appliances, "
+    "radiators, vents, ducts, thermostats, light switches, power outlets, "
+    "ceiling lights, wall lights, sconces, recessed lights, skirting boards, "
+    "baseboards, trim, mouldings, or any pipe, cable or conduit on a wall. "
+    "Do not paint, retexture or re-colour any wall, ceiling or floor. "
+    "Do not change what is visible through a window or a doorway. "
+    "Do not add a mirror, a window or a doorway that is not already there."
+)
+
+FIDELITY = (
+    "This is a photograph of a real property and it must stay truthful to it. "
+    "Keep the exact same camera position, angle, lens and framing. Keep the "
+    "existing lighting direction, colour temperature and shadows. "
+    "Photorealistic, real-estate listing quality. "
+    "No people, no pets, no text, no logos, no watermark. "
+    "If you are unsure whether something is furniture or part of the "
+    "building, treat it as part of the building and leave it alone."
+)
+
+# Stated first, so the model reads the constraint before the instruction.
+PREFIX = NEVER_CHANGE + " " + CHANGE_ONLY + " "
+
+# ...and again last, where it is weighted most.
+KEEP = " " + CHANGE_ONLY + " " + NEVER_CHANGE + " " + FIDELITY
+
+
+def _style(instruction):
+    """Wrap a style instruction in the constraints, front and back."""
+    return PREFIX + instruction + KEEP
+
 
 STYLE_PROMPTS = {
     # The inverse job, and one agents ask for constantly: an occupied house
     # photographs as somebody else's home. Emptying it is how a buyer pictures
-    # their own furniture in the room.
-    "unfurnished": (
-        "Remove all furniture, rugs, curtains, plants, artwork, clutter and "
-        "personal belongings from this room, leaving it completely empty. "
-        "Reconstruct the floor and walls that were hidden behind them so the "
-        "empty room looks naturally photographed, not erased. " + KEEP
+    # their own furniture in the room. It is also the safest of these to
+    # publish, because removing furniture cannot invent a feature.
+    "unfurnished": _style(
+        "Remove all freestanding furniture, rugs, curtains, plants, artwork, "
+        "clutter and personal belongings from this room, leaving it "
+        "completely empty. Reconstruct the floor, walls and skirting that "
+        "were hidden behind them exactly as the surrounding surfaces look, so "
+        "the empty room appears naturally photographed rather than erased. "
+        "Built-in and fixed items stay: leave cabinetry, counters, sinks, "
+        "appliances, radiators and light fittings exactly where they are."
     ),
-    "modern": (
-        "Furnish this empty room in a modern style: clean lines, a neutral "
-        "palette, low-profile furniture, minimal decor. " + KEEP
+    "modern": _style(
+        "Furnish this room in a modern style: clean lines, a neutral palette, "
+        "low-profile freestanding furniture, minimal decor."
     ),
-    "scandinavian": (
-        "Furnish this empty room in a Scandinavian style: pale wood, soft "
-        "textiles, white and muted tones, uncluttered and airy. " + KEEP
+    "scandinavian": _style(
+        "Furnish this room in a Scandinavian style: pale wood freestanding "
+        "furniture, soft textiles, white and muted tones, uncluttered and airy."
     ),
-    "traditional": (
-        "Furnish this empty room in a traditional style: classic wood "
-        "furniture, warm tones, symmetrical arrangement, tailored upholstery. "
-        + KEEP
+    "traditional": _style(
+        "Furnish this room in a traditional style: classic wood freestanding "
+        "furniture, warm tones, symmetrical arrangement, tailored upholstery."
     ),
-    "coastal": (
-        "Furnish this empty room in a coastal style: light blues and whites, "
-        "natural fibres, linen, relaxed and airy. " + KEEP
+    "coastal": _style(
+        "Furnish this room in a coastal style: light blues and whites, natural "
+        "fibres, linen, rattan, relaxed and airy freestanding furniture."
     ),
-    "farmhouse": (
-        "Furnish this empty room in a modern farmhouse style: reclaimed wood, "
-        "shaker forms, warm neutrals, woven textures. " + KEEP
+    "farmhouse": _style(
+        "Furnish this room in a modern farmhouse style: reclaimed wood, shaker "
+        "forms, warm neutrals, woven textures, freestanding furniture only."
     ),
-    "industrial": (
-        "Furnish this empty room in an industrial style: metal and dark wood, "
-        "leather, exposed textures, a muted charcoal palette. " + KEEP
+    "industrial": _style(
+        "Furnish this room in an industrial style: metal and dark wood "
+        "freestanding furniture, leather, woven textures, a muted charcoal "
+        "palette."
     ),
-    "midcentury": (
-        "Furnish this empty room in a mid-century modern style: tapered legs, "
-        "walnut, olive and mustard accents, organic curves. " + KEEP
+    "midcentury": _style(
+        "Furnish this room in a mid-century modern style: tapered legs, "
+        "walnut, olive and mustard accents, organic curves, freestanding "
+        "furniture only."
     ),
-    "minimal": (
-        "Furnish this empty room minimally: very few pieces, deliberately "
-        "sparse, plenty of visible floor, restrained neutral palette. " + KEEP
+    "minimal": _style(
+        "Furnish this room minimally: very few freestanding pieces, "
+        "deliberately sparse, plenty of visible floor, restrained neutral "
+        "palette."
     ),
-    "luxury": (
-        "Furnish this empty room in a luxury style: statement furniture, rich "
-        "materials, marble and brass accents, layered lighting. " + KEEP
+    "luxury": _style(
+        "Furnish this room in a luxury style: statement freestanding "
+        "furniture, rich materials, marble and brass accents on furniture and "
+        "objects only. Do not add lighting fixtures of any kind -- layer the "
+        "look with table lamps and floor lamps that stand on the floor or on "
+        "furniture."
     ),
 }
 
@@ -155,6 +213,10 @@ def load_config():
         # name would fail the request rather than save money, and the docs are
         # not public. The first real run's response will name it.
         "params": cfg.get("image_params") or {},
+        # On by default, and it should stay that way: an unlabelled staged
+        # photo in a listing is the false-advertising exposure this exists to
+        # prevent. Set "stamp": false only for internal comparison shots.
+        "stamp": cfg.get("stamp", True),
         "config_error": config_error,
     }
 
@@ -354,3 +416,64 @@ def stage_room(local_path, style, cfg=None):
         time.sleep(4)
 
     raise StagingError("gave up after 420s; the generation was still running")
+
+
+# ---------- disclosure ----------
+
+# Burned into every generated image, not just shown in the app.
+#
+# The app's own banner protects nobody: the moment an agent saves the file and
+# sends it on, the disclosure is gone and the picture is just a photograph of a
+# house that does not look like that. Most MLS rules and state advertising law
+# want the label on the image itself, so that is where it goes.
+#
+# Bottom-LEFT on purpose -- listing photos routinely carry an MLS copyright in
+# the bottom-right, and covering someone else's notice to place your own is a
+# poor trade.
+DISCLOSURE_TEXT = "Virtually staged \u2014 for illustration only"
+
+
+def stamp_disclosure(data, text=DISCLOSURE_TEXT):
+    """Return the image with a legibility-guaranteed disclosure burned in.
+
+    Sized as a fraction of the image so it stays readable at any resolution,
+    and drawn on a dark pill so it survives a pale floor or a bright window
+    underneath -- white-on-white would be a disclosure that discloses nothing.
+    """
+    import io as _io
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.open(_io.BytesIO(data)).convert("RGB")
+    width, height = img.size
+
+    size = max(13, int(height * 0.026))
+    font = None
+    # DejaVu ships with Pillow; the rest are Windows fallbacks. The bitmap
+    # default is the last resort and ignores size, hence the explicit hunt.
+    for name in ("DejaVuSans.ttf", "arial.ttf", "segoeui.ttf", "calibri.ttf"):
+        try:
+            font = ImageFont.truetype(name, size)
+            break
+        except OSError:
+            continue
+    if font is None:
+        font = ImageFont.load_default()
+
+    draw = ImageDraw.Draw(img, "RGBA")
+    box = draw.textbbox((0, 0), text, font=font)
+    tw, th = box[2] - box[0], box[3] - box[1]
+
+    pad_x, pad_y = int(size * 0.85), int(size * 0.55)
+    margin = int(height * 0.022)
+    x0, y0 = margin, height - margin - th - pad_y * 2
+    x1, y1 = x0 + tw + pad_x * 2, height - margin
+
+    radius = int((y1 - y0) / 2)
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=radius, fill=(0, 0, 0, 170))
+    draw.text((x0 + pad_x - box[0], y0 + pad_y - box[1]), text,
+              font=font, fill=(255, 255, 255, 236))
+
+    out = _io.BytesIO()
+    img.save(out, format="JPEG", quality=92)
+    return out.getvalue()

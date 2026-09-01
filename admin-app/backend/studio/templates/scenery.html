@@ -162,6 +162,14 @@
     </p>
 
     <div id="scn-done" class="scn-done"></div>
+
+    <p class="scn-disclosure">
+      <strong>Every image here is virtually staged.</strong>
+      The furniture does not exist and the rooms are shown for illustration only.
+      Each file is saved with that notice printed on it, so it stays disclosed after
+      you send it on. Check your MLS and state advertising rules before publishing —
+      most require staged photos to be labelled as such.
+    </p>
     <div id="scn-rooms" class="scn-rooms"></div>
 
     <div class="scn-summary">
@@ -172,6 +180,30 @@
       <button type="button" class="btn-secondary step-back" data-goto="2">Stage more rooms</button>
     </div>
   </section>
+</div>
+
+<div id="scn-full" class="scn-full hidden" aria-hidden="true">
+  <button type="button" class="scn-full-x" data-close aria-label="Close">&times;</button>
+  <button type="button" class="scn-full-nav scn-full-prev" aria-label="Previous room">&#8249;</button>
+  <button type="button" class="scn-full-nav scn-full-next" aria-label="Next room">&#8250;</button>
+
+  <figure class="scn-full-stage">
+    <div class="scn-compare scn-compare-full" id="scn-full-compare">
+      <img class="scn-before" id="scn-full-before" src="" alt="Before">
+      <div class="scn-after-wrap" id="scn-full-after-wrap">
+        <img class="scn-after" id="scn-full-after" src="" alt="After">
+      </div>
+      <input class="scn-slider" id="scn-full-slider" type="range" min="0" max="100"
+             value="50" aria-label="Compare before and after">
+      <span class="scn-handle" aria-hidden="true"></span>
+      <span class="scn-tag scn-tag-before">Before</span>
+      <span class="scn-tag scn-tag-after">After</span>
+    </div>
+    <figcaption class="scn-full-bar">
+      <span class="scn-full-label" id="scn-full-label"></span>
+      <div class="scn-full-styles" id="scn-full-styles"></div>
+    </figcaption>
+  </figure>
 </div>
 
 <div id="lead-modal" class="lead-modal hidden" aria-hidden="true">
