@@ -187,7 +187,9 @@ function renderSummary() {
   const style = STYLES.find((s) => s[0] === state.style);
 
   const missing = [];
-  if (!state.leadId) missing.push("a listing");
+  // Photos, not a lead: Options 2 and 3 bring photos with no lead attached,
+  // and those are just as stageable.
+  if (!state.photos.length) missing.push("a listing");
   if (!n) missing.push("at least one room");
   if (!style) missing.push("a style");
 
@@ -229,6 +231,24 @@ el("scn-clear").addEventListener("click", () => {
 renderStyles();
 renderSummary();
 initLeadPicker({ onPick: applyPrefill });
+
+/* Options 2 and 3, shared with Create Video. Photos arriving this way have no
+   room labels -- nothing has sorted them -- so they land under "Unsorted" and
+   stay unticked until you choose them. */
+initListingSource({
+  existingPhotos: () => state.photos.map((p) => p.url),
+  onExtracted: (data) => {
+    if (!state.address && (data.address || data.title)) {
+      state.address = data.address || data.title;
+      renderSummary();
+    }
+  },
+  onPhotos: (urls) => {
+    urls.forEach((url) => state.photos.push({ url, room: null, label: "Unsorted", order: 999 }));
+    renderGrid();
+    renderSummary();
+  },
+});
 
 // Arriving from a lead's profile with ?lead_id= skips the picker.
 if (window.__PREFILL__) {

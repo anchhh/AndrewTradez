@@ -18,11 +18,70 @@
   </header>
 
   <section class="card">
-    <h2>1. Pick a listing</h2>
-    <p class="hint">Leads captured by the extension already have their photos and room labels, so the empty rooms are the ones worth staging.</p>
-    <div class="lead-open-row">
-      <button type="button" id="lead-open" class="cta-btn cta-btn-sm">Browse my leads</button>
-      <span id="lead-picked-summary" class="lead-picked-summary"></span>
+    <h2>1. Add photos for this listing</h2>
+    <p class="hint">Choose how to bring in photos. Either way, you'll pick which rooms to stage below.</p>
+
+    <div class="option-tabs">
+      <button class="tab-btn active" data-tab="lead">
+        <span class="opt-num">Option 1</span>
+        Pick a lead you've already captured
+      </button>
+      <button class="tab-btn" data-tab="link">
+        <span class="opt-num">Option 2</span>
+        Paste a link — auto-extract images
+      </button>
+      <button class="tab-btn" data-tab="upload">
+        <span class="opt-num">Option 3</span>
+        Upload images manually
+      </button>
+    </div>
+
+    <div id="tab-lead" class="tab-panel active">
+      <p class="hint">Leads captured by the extension already have their photos, address and listing details saved — picking one brings all of it in, with nothing to re-fetch or re-upload.</p>
+      <div class="lead-open-row">
+        <button type="button" id="lead-open" class="cta-btn cta-btn-sm">Browse my leads</button>
+        <span id="lead-picked-summary" class="lead-picked-summary"></span>
+      </div>
+    </div>
+
+    <div id="tab-link" class="tab-panel">
+      <p class="hint">Works with Zillow, Airbnb, Redfin, VRBO, Realtor.com, or any URL. We read the page's public HTML (image tags, structured data, preview metadata) — the same kind of access a search engine or link-unfurl uses. We don't bypass bot-detection, so some sites may return few or no images; upload manually as a fallback.</p>
+      <div class="row">
+        <input id="listing-url" type="text" placeholder="https://www.zillow.com/homedetails/..." />
+        <button id="fetch-btn">Extract images</button>
+      </div>
+      <div id="fetch-status" class="status"></div>
+      <div id="preview-card" class="preview-card hidden">
+        <img id="preview-img" src="" alt="">
+        <div class="preview-body">
+          <span id="preview-source" class="badge"></span>
+          <h3 id="preview-title"></h3>
+          <p id="preview-address" class="address"></p>
+          <p id="preview-desc"></p>
+        </div>
+      </div>
+      <div id="pick-wrap" class="hidden">
+        <p class="hint" id="pick-count"></p>
+        <div id="pick-grid" class="pick-grid"></div>
+        <button id="add-selected-btn">Add selected photos</button>
+      </div>
+
+      <div class="subsection">
+        <h3>Add more photos</h3>
+        <p class="hint">Auto-extract only pulls images from the page. Drop in any additional photos of this listing here.</p>
+        <div id="dropzone-link" class="dropzone">
+          <p>Drag photos here, or click to browse</p>
+          <input id="file-input-link" type="file" accept="image/*" multiple hidden>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-upload" class="tab-panel">
+      <p class="hint">Drag &amp; drop the photos you have for this listing — the empty rooms are the ones worth staging.</p>
+      <div id="dropzone-upload" class="dropzone">
+        <p>Drag photos here, or click to browse</p>
+        <input id="file-input-upload" type="file" accept="image/*" multiple hidden>
+      </div>
     </div>
   </section>
 
@@ -112,6 +171,7 @@
 
 <script>window.__PREFILL__ = {{ prefill | tojson if prefill else 'null' }};</script>
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='listing_source.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='scenery.js') }}"></script>
 </body>
 </html>

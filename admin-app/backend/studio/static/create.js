@@ -222,165 +222,6 @@ async function adoptLeadPhotos(prefill) {
   renderPhotoGrid();
 }
 
-async function fetchListingInfo() {
-  const urlInput = el("listing-url");
-  const url = urlInput.value.trim();
-  const status = el("fetch-status");
-  const previewCard = el("preview-card");
-  const pickWrap = el("pick-wrap");
-
-  if (!url) {
-    setStatus(status, "Paste a listing URL first.", "error");
-    return;
-  }
-
-  setStatus(status, "Reading the page…");
-  previewCard.classList.add("hidden");
-  pickWrap.classList.add("hidden");
-  state.candidates = [];
-  state.selected = new Set();
-
-  try {
-    const res = await fetch("/studio/api/extract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
-    const data = await res.json();
-
-    const imageCount = (data.images || []).length;
-    if (data.error) {
-      setStatus(status, data.error, "error");
-    } else {
-      setStatus(status, `Found ${imageCount} image(s).`, "ok");
-    }
-
-    if (data.title || data.image || imageCount) {
-      state.extracted = data;
-      el("preview-source").textContent = data.source || "listing";
-      el("preview-title").textContent = data.title || "(no title found)";
-      el("preview-address").textContent = data.address || "";
-      el("preview-desc").textContent = data.description || "";
-      const img = el("preview-img");
-      if (data.image) {
-        img.src = data.image;
-        img.style.display = "";
-      } else {
-        img.style.display = "none";
-      }
-      previewCard.classList.remove("hidden");
-
-      if (!state.name && data.title) {
-        state.name = data.address || data.title.slice(0, 60);
-      }
-      if (data.address) el("satellite-address").value = data.address;
-      if (data.satellite_image) {
-        state.satellite = { url: data.satellite_image };
-        state.lat = data.lat;
-        state.lon = data.lon;
-        renderSatelliteView();
-      }
-      autosave();
-    }
-
-    if (imageCount) {
-      state.candidates = data.images;
-      data.images.forEach((u) => state.selected.add(u));
-      renderPickGrid();
-      pickWrap.classList.remove("hidden");
-    }
-  } catch (err) {
-    setStatus(status, "Network error reaching that URL.", "error");
-  }
-}
-
-function renderPickGrid() {
-  const grid = el("pick-grid");
-  grid.innerHTML = "";
-  state.candidates.forEach((url) => {
-    const div = document.createElement("div");
-    div.className = "pick-thumb" + (state.selected.has(url) ? " selected" : "");
-    div.dataset.url = url;
-    div.innerHTML = `<img src="${url}" alt="" loading="lazy"><span class="check"></span>`;
-    div.addEventListener("click", () => {
-      if (state.selected.has(url)) {
-        state.selected.delete(url);
-      } else {
-        state.selected.add(url);
-      }
-      div.classList.toggle("selected");
-      updatePickNumbers();
-    });
-    // Drop candidates that fail to load (icons/trackers/broken links) from view
-    div.querySelector("img").addEventListener("error", () => {
-      state.selected.delete(url);
-      div.remove();
-      updatePickNumbers();
-    });
-    grid.appendChild(div);
-  });
-  el("pick-count").textContent = `${state.candidates.length} image(s) found on the page — click to deselect any you don't want. Numbers show the order they'll be added in.`;
-  updatePickNumbers();
-}
-
-function updatePickNumbers() {
-  const order = [...state.selected];
-  el("pick-grid")
-    .querySelectorAll(".pick-thumb")
-    .forEach((thumb) => {
-      const idx = order.indexOf(thumb.dataset.url);
-      thumb.querySelector(".check").textContent = idx >= 0 ? String(idx + 1) : "";
-    });
-}
-
-async function addSelectedImages() {
-  const status = el("fetch-status");
-  const chosen = state.candidates.filter((u) => state.selected.has(u));
-  if (!chosen.length) {
-    setStatus(status, "Select at least one image to add.", "error");
-    return;
-  }
-
-  const btn = el("add-selected-btn");
-  btn.disabled = true;
-  btn.textContent = "Adding…";
-
-  try {
-    const res = await fetch("/studio/api/import-images", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        images: chosen,
-        existing_photos: state.photos.map((p) => p.url),
-      }),
-    });
-    const data = await res.json();
-    (data.photos || []).forEach((url) => state.photos.push({ url }));
-    renderPhotoGrid();
-    await autosave();
-
-    const failedCount = (data.failed || []).length;
-    const dupeCount = data.duplicates || 0;
-    const notes = [];
-    if (failedCount) notes.push(`${failedCount} couldn't be downloaded`);
-    if (dupeCount) notes.push(`${dupeCount} skipped as duplicate(s) of a photo you already have`);
-    setStatus(
-      status,
-      `Added ${data.photos.length} photo(s) to this listing.` + (notes.length ? ` (${notes.join(", ")})` : ""),
-      "ok"
-    );
-
-    el("pick-wrap").classList.add("hidden");
-    state.candidates = [];
-    state.selected = new Set();
-  } catch (err) {
-    setStatus(status, "Could not add the selected images.", "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Add selected photos";
-  }
-}
-
 function renderSatelliteView() {
   const preview = el("satellite-preview");
   const formWrap = el("satellite-form-wrap");
@@ -657,42 +498,6 @@ function wirePhotoSelectAll() {
   });
 }
 
-async function uploadFiles(fileList, dropzoneId) {
-  const files = Array.from(fileList).filter(
-    (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
-  );
-  if (!files.length) return;
-
-  const formData = new FormData();
-  files.forEach((f) => formData.append("photos", f));
-  formData.append("existing_photos", JSON.stringify(state.photos.map((p) => p.url)));
-
-  const dropzone = el(dropzoneId);
-  const label = dropzone.querySelector("p");
-  const originalText = label.textContent;
-  label.textContent = "Uploading…";
-
-  let data = null;
-  try {
-    const res = await fetch("/studio/api/upload", { method: "POST", body: formData });
-    data = await res.json();
-    if (data.photos) {
-      data.photos.forEach((url) => state.photos.push({ url }));
-      renderPhotoGrid();
-      await autosave();
-    }
-  } finally {
-    if (data && data.duplicates) {
-      label.textContent = `Added ${data.photos.length}, skipped ${data.duplicates} duplicate(s)`;
-      setTimeout(() => {
-        label.textContent = originalText;
-      }, 2500);
-    } else {
-      label.textContent = originalText;
-    }
-  }
-}
-
 // Unified "leaving" modal -- opened by the top Save button, the Back button,
 // and a trapped browser-back press alike, so there's always a chance to
 // Save, Save as Draft, or Don't Save, no matter how someone tries to leave.
@@ -746,48 +551,10 @@ function trapBrowserBack() {
   });
 }
 
-function initDropzone(dropzoneId, fileInputId) {
-  const dropzone = el(dropzoneId);
-  const fileInput = el(fileInputId);
-
-  dropzone.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", (e) => uploadFiles(e.target.files, dropzoneId));
-
-  ["dragenter", "dragover"].forEach((evt) =>
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropzone.classList.add("drag-over");
-    })
-  );
-  ["dragleave", "drop"].forEach((evt) =>
-    dropzone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropzone.classList.remove("drag-over");
-    })
-  );
-  dropzone.addEventListener("drop", (e) => {
-    if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files, dropzoneId);
-  });
-}
-
-function initTabs() {
-  const buttons = document.querySelectorAll(".tab-btn");
-  buttons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      buttons.forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-      btn.classList.add("active");
-      el(`tab-${btn.dataset.tab}`).classList.add("active");
-    });
-  });
-}
-
-el("fetch-btn").addEventListener("click", fetchListingInfo);
-el("add-selected-btn").addEventListener("click", addSelectedImages);
 el("next-btn").addEventListener("click", goNext);
 el("back-btn").addEventListener("click", openLeaveModal);
 el("listing-url").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") fetchListingInfo();
+  if (e.key === "Enter") lsFetchListing();
 });
 
 el("satellite-fetch-btn").addEventListener("click", fetchSatelliteView);
@@ -812,9 +579,29 @@ el("modal-name-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") finalizeAndLeave("completed");
 });
 
-initTabs();
-initDropzone("dropzone-link", "file-input-link");
-initDropzone("dropzone-upload", "file-input-upload");
+/* Options 2 and 3 come from listing_source.js, shared with Scenery. What
+   Create Video does with the result -- name the project, fill the satellite
+   address, save -- stays here. */
+initListingSource({
+  existingPhotos: () => state.photos.map((p) => p.url),
+  onExtracted: (data) => {
+    state.extracted = data;
+    if (!state.name && data.title) state.name = data.address || data.title.slice(0, 60);
+    if (data.address) el("satellite-address").value = data.address;
+    if (data.satellite_image) {
+      state.satellite = { url: data.satellite_image };
+      state.lat = data.lat;
+      state.lon = data.lon;
+      renderSatelliteView();
+    }
+    autosave();
+  },
+  onPhotos: async (urls) => {
+    urls.forEach((url) => state.photos.push({ url }));
+    renderPhotoGrid();
+    await autosave();
+  },
+});
 trapBrowserBack();
 
 if (existingProject) {
