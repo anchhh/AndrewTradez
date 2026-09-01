@@ -12,6 +12,7 @@
 const el = (id) => document.getElementById(id);
 
 const state = {
+  step: 1,
   leadId: null,
   address: null,
   photos: [],            // [{url, room, label}]
@@ -186,23 +187,76 @@ function renderSummary() {
   const n = state.selected.size;
   const style = STYLES.find((s) => s[0] === state.style);
 
-  const missing = [];
-  // Photos, not a lead: Options 2 and 3 bring photos with no lead attached,
-  // and those are just as stageable.
-  if (!state.photos.length) missing.push("a listing");
-  if (!n) missing.push("at least one room");
-  if (!style) missing.push("a style");
-
-  if (missing.length) {
-    text.textContent = `Pick ${missing.join(", ")}.`;
+  if (!style) {
+    text.textContent = "Pick a style to finish.";
     go.disabled = true;
-    return;
+  } else {
+    text.innerHTML =
+      `<strong>${n} room${n === 1 ? "" : "s"}</strong> from ${escapeHtml(state.address || "this listing")}, ` +
+      `staged <strong>${escapeHtml(style[1].toLowerCase())}</strong>.`;
+    go.disabled = false;
   }
 
-  text.innerHTML =
-    `<strong>${n} room${n === 1 ? "" : "s"}</strong> from ${escapeHtml(state.address || "this listing")}, ` +
-    `staged <strong>${escapeHtml(style[1].toLowerCase())}</strong>.`;
-  go.disabled = false;
+  renderStepGates();
+}
+
+/* ---------- steps ----------
+   Each step gates its own Next, so you cannot arrive at "choose a style" with
+   no rooms picked and wonder why the button does nothing. */
+
+function renderStepGates() {
+  // Photos, not a lead: options 2 and 3 bring photos with no lead attached,
+  // and those are just as stageable.
+  const hasPhotos = state.photos.length > 0;
+  const next1 = document.querySelector('.step-next[data-goto="2"]');
+  if (next1) next1.disabled = !hasPhotos;
+  const note1 = el("step1-note");
+  if (note1) {
+    note1.textContent = hasPhotos
+      ? `${state.photos.length} photo${state.photos.length === 1 ? "" : "s"} ready`
+      : "Pick a listing, paste a link, or upload photos to continue.";
+  }
+
+  const n = state.selected.size;
+  const next2 = document.querySelector('.step-next[data-goto="3"]');
+  if (next2) next2.disabled = n === 0;
+  const note2 = el("step2-note");
+  if (note2) {
+    note2.textContent = n
+      ? `${n} room${n === 1 ? "" : "s"} selected`
+      : "Tick at least one room to continue.";
+  }
+}
+
+function goToStep(step) {
+  state.step = step;
+
+  document.querySelectorAll(".step-panel").forEach((panel) => {
+    panel.classList.toggle("is-active", Number(panel.dataset.panel) === step);
+  });
+  document.querySelectorAll(".step").forEach((li) => {
+    const n = Number(li.dataset.step);
+    li.classList.toggle("is-current", n === step);
+    li.classList.toggle("is-done", n < step);
+  });
+
+  // A step change moves the content well down the page, so start at the top
+  // of the new step rather than wherever the last one was scrolled to.
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function initSteps() {
+  document.querySelectorAll(".step-next, .step-back").forEach((btn) => {
+    btn.addEventListener("click", () => goToStep(Number(btn.dataset.goto)));
+  });
+  // The progress bar is navigation too, but only backwards -- clicking ahead
+  // would skip a gate.
+  document.querySelectorAll(".step").forEach((li) => {
+    li.addEventListener("click", () => {
+      const n = Number(li.dataset.step);
+      if (n < state.step) goToStep(n);
+    });
+  });
 }
 
 /* ---------- generate ---------- */
@@ -230,6 +284,7 @@ el("scn-clear").addEventListener("click", () => {
 
 renderStyles();
 renderSummary();
+initSteps();
 initLeadPicker({ onPick: applyPrefill });
 
 /* Options 2 and 3, shared with Create Video. Photos arriving this way have no

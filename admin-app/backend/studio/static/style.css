@@ -2839,3 +2839,82 @@ gmp-map-3d {
   color: var(--ink-soft);
 }
 .scn-notyet strong { color: var(--ink); }
+
+/* ---------- Step wizard (Scenery) ----------
+   One decision per screen, with the bar showing how far through you are. */
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+}
+.step {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  position: relative;
+  padding: 0 4px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+/* The connecting line runs from each step to the next, behind the numbers. */
+.step:not(:last-child)::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 2px;
+  background: var(--line);
+  margin: 0 10px 0 4px;
+}
+.step.is-done:not(:last-child)::after { background: var(--accent); }
+
+.step-num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+.step-label { white-space: nowrap; }
+
+.step.is-current { color: var(--ink); font-weight: 600; }
+.step.is-current .step-num { border-color: var(--accent); color: var(--accent); }
+.step.is-done { color: var(--ink); cursor: pointer; }
+.step.is-done .step-num {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.step.is-done:hover .step-label { color: var(--accent); }
+
+.step-panel { display: none; }
+.step-panel.is-active { display: block; }
+
+.step-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.step-nav .hint { flex: 1 1 auto; margin: 0; }
+.step-nav .btn-send, .step-nav .btn-secondary { width: auto; flex: 0 0 auto; }
+.step-nav .step-back { margin-right: auto; }
+.step-nav .step-back ~ .hint { flex: 1 1 auto; text-align: right; }
+
+@media (max-width: 620px) {
+  .step-label { display: none; }
+  .step { flex: 0 0 auto; }
+  .step:not(:last-child)::after { width: 28px; flex: 0 0 28px; }
+}

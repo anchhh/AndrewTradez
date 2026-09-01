@@ -17,8 +17,14 @@
     </div>
   </header>
 
-  <section class="card">
-    <h2>1. Add photos for this listing</h2>
+  <ol class="steps" id="steps">
+    <li class="step is-current" data-step="1"><span class="step-num">1</span><span class="step-label">Listing</span></li>
+    <li class="step" data-step="2"><span class="step-num">2</span><span class="step-label">Rooms</span></li>
+    <li class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Style &amp; generate</span></li>
+  </ol>
+
+  <section class="card step-panel is-active" data-panel="1">
+    <h2>Add photos for this listing</h2>
     <p class="hint">Choose how to bring in photos. Either way, you'll pick which rooms to stage below.</p>
 
     <div class="option-tabs">
@@ -83,10 +89,15 @@
         <input id="file-input-upload" type="file" accept="image/*" multiple hidden>
       </div>
     </div>
+
+    <div class="step-nav">
+      <span id="step1-note" class="hint">Pick a listing, paste a link, or upload photos to continue.</span>
+      <button type="button" class="btn-send step-next" data-goto="2" disabled>Next</button>
+    </div>
   </section>
 
-  <section class="card">
-    <h2>2. Choose the rooms to stage</h2>
+  <section class="card step-panel" data-panel="2">
+    <h2>Choose the rooms to stage</h2>
     <p class="hint">
       Pick the photos to furnish. Living rooms, bedrooms and dining rooms are the ones that
       sell — exteriors, bathrooms and floor plans are left unticked by default.
@@ -97,10 +108,16 @@
     </div>
     <div id="scn-grid" class="photo-grid"></div>
     <p id="scn-empty" class="empty-note">Pick a listing to see its photos.</p>
+
+    <div class="step-nav">
+      <button type="button" class="btn-secondary step-back" data-goto="1">Back</button>
+      <span id="step2-note" class="hint"></span>
+      <button type="button" class="btn-send step-next" data-goto="3" disabled>Next</button>
+    </div>
   </section>
 
-  <section class="card">
-    <h2>3. Choose a style</h2>
+  <section class="card step-panel" data-panel="3">
+    <h2>Choose a style</h2>
     <p class="hint">The furniture and finish to put in the room. The room itself stays as it is.</p>
     <div id="scn-styles" class="scn-styles"></div>
     <label class="lp-field scn-notes-field">
@@ -108,15 +125,16 @@
       <textarea id="scn-notes" class="scn-notes" rows="2"
                 placeholder="e.g. keep it sparse, warm wood tones, a rug under the table…"></textarea>
     </label>
-  </section>
 
-  <section class="card">
-    <h2>4. Generate</h2>
     <div class="scn-summary">
-      <span id="scn-summary-text" class="hint">Pick a listing, some rooms, and a style.</span>
+      <span id="scn-summary-text" class="hint">Pick a style to finish.</span>
       <button type="button" id="scn-go" class="btn-send" disabled>Generate scenes</button>
     </div>
     <div id="scn-status" class="scn-status"></div>
+
+    <div class="step-nav">
+      <button type="button" class="btn-secondary step-back" data-goto="2">Back</button>
+    </div>
   </section>
 </div>
 
