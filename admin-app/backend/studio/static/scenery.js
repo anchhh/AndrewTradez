@@ -35,20 +35,7 @@ const STAGEABLE = new Set([
   "living", "bedroom", "primary_bedroom", "dining", "office", "basement", "outdoor_space",
 ]);
 
-const STYLES = [
-  // The opposite job, and a real one: buyers often want to see the room empty,
-  // and an occupied listing photographs badly. Kept first because it is a
-  // different intent from the styles below, not another look.
-  ["unfurnished", "Unfurnished", "Clear the room out — empty walls and floor, nothing added"],
-  ["modern", "Modern", "Clean lines, neutral palette, low profile furniture"],
-  ["scandinavian", "Scandinavian", "Pale wood, white walls, soft textiles"],
-  ["farmhouse", "Farmhouse", "Warm timber, shaker forms, muted greens"],
-  ["midcentury", "Mid-century", "Walnut, tapered legs, muted oranges and teals"],
-  ["coastal", "Coastal", "Light linen, rattan, blue and sand"],
-  ["traditional", "Traditional", "Classic upholstery, warm woods, symmetry"],
-  ["minimal", "Minimal", "Very little furniture, lots of floor showing"],
-  ["luxury", "Luxury", "Statement pieces, rich materials, layered lighting"],
-];
+const STYLES = STAGE_STYLES;
 
 /* ---------- lead ---------- */
 
@@ -297,89 +284,55 @@ function roomCard(photo) {
   const styleKey =
     state.styles[photo.url] ||
     (STYLES.map((s) => s[0]).find((k) => variants[k]) || "");
-  // The style buttons pick which variant is *shown*. In all-styles mode every
-  // one of them is already generated, so switching between them is instant and
-  // free; otherwise only the chosen style exists and the rest are unmade.
   const staged = variants[styleKey] || null;
   const roomState = state.roomState[photo.url] || (staged ? "completed" : "idle");
-  const roomError = state.roomError[photo.url];
-  // Emptying a room is checked afterwards; anything the check still saw is
-  // said here rather than left for you to spot in the photograph.
-  const warning = staged ? ((state.warnings[photo.url] || {})[styleKey] || "") : "";
 
-  const card = document.createElement("div");
-  card.className = "scn-room";
-  card.innerHTML = `
-    <div class="scn-compare ${staged ? "" : "is-pending"}">
-      <img class="scn-before" src="${escapeHtml(photo.url)}" alt="Before">
-      <div class="scn-after-wrap">
-        ${staged
-          ? `<img class="scn-after" src="${escapeHtml(staged)}" alt="After">`
-          : `<div class="scn-after-pending">${escapeHtml(pendingText(roomState, roomError))}</div>`}
-      </div>
-      <input class="scn-slider" type="range" min="0" max="100" value="${staged ? 50 : 100}"
-             aria-label="Compare before and after">
-      <span class="scn-handle" aria-hidden="true"></span>
-      <span class="scn-tag scn-tag-before">Before</span>
-      <span class="scn-tag scn-tag-after">After</span>
-    </div>
-    <div class="scn-room-meta">
-      <h3 class="scn-room-label">${escapeHtml(photo.label)}</h3>
-      <span class="scn-room-prompt">Choose style</span>
-      <div class="scn-room-styles">
-        ${STYLES.map(([k, n, desc]) => `
-          <button type="button" class="scn-room-style ${k === styleKey ? "is-active" : ""}${variants[k] ? " is-ready" : ""}"
-                  data-style="${k}" title="${escapeHtml(desc)}">${escapeHtml(n)}</button>`).join("")}
-      </div>
-      <button type="button" class="scn-room-open btn-tiny">View full screen</button>
-      ${warning ? `
-        <div class="scn-room-warn">
-          <span><strong>Still in the room:</strong> ${escapeHtml(warning)}</span>
-          <button type="button" class="scn-room-retry btn-tiny">Try again</button>
-        </div>` : ""}
-    </div>`;
+  return stagedRoomPanel({
+    beforeUrl: photo.url,
+    label: photo.label,
+    variants,
+    activeStyle: styleKey,
+    pending: pendingText(roomState, state.roomError[photo.url]),
+    hint: "Choose style",
+    // Emptying a room is checked afterwards; anything the check still saw is
+    // said on the panel rather than left for you to spot in the photograph.
+    warning: staged ? ((state.warnings[photo.url] || {})[styleKey] || "") : "",
 
-  const compare = card.querySelector(".scn-compare");
-  const slider = card.querySelector(".scn-slider");
-  const wrap = card.querySelector(".scn-after-wrap");
-  const handle = card.querySelector(".scn-handle");
-  const setSplit = (pct) => {
-    // The after side is revealed from the right, so 100 means all before.
-    wrap.style.clipPath = `inset(0 0 0 ${pct}%)`;
-    handle.style.left = `${pct}%`;
-    compare.classList.toggle("is-all-before", Number(pct) >= 99);
-  };
-  setSplit(slider.value);
-  slider.addEventListener("input", () => setSplit(slider.value));
-
-  // Clicking the style already set clears it, so a room can be taken back out
-  // without hunting for a "none" entry.
-  card.querySelectorAll(".scn-room-style").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (state.styles[photo.url] === btn.dataset.style) delete state.styles[photo.url];
-      else state.styles[photo.url] = btn.dataset.style;
+    onStyle: (key) => {
+      // Clicking the style already set clears it, so a room can be taken back
+      // out without hunting for a "none" entry.
+      if (state.styles[photo.url] === key) delete state.styles[photo.url];
+      else state.styles[photo.url] = key;
       renderRooms();
       renderStyles();
       renderSummary();
-    });
-  });
+    },
 
-  card.querySelector(".scn-room-open").addEventListener("click", () => {
-    openCompare(photo.url, styleKey);
-  });
+    onOpen: () => {
+      const rooms = state.photos
+        .filter((p) => state.selected.has(p.url))
+        .map((p) => ({
+          beforeUrl: p.url,
+          label: p.label,
+          variants: state.staged[p.url] || {},
+        }));
+      openStagedCompare({
+        rooms,
+        index: rooms.findIndex((r) => r.beforeUrl === photo.url),
+        style: styleKey,
+      });
+    },
 
-  const retry = card.querySelector(".scn-room-retry");
-  if (retry) {
-    retry.addEventListener("click", async () => {
+    onRetry: async (button) => {
       if (state.polling) return;
-      retry.disabled = true;
-      retry.textContent = "Trying…";
-      // force, or reuse would hand back the same doubtful image.
+      button.disabled = true;
+      button.textContent = "Trying…";
       try {
         const res = await fetch("/studio/api/scenery/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            // force, or reuse hands back the same doubtful image.
             force: true,
             lead_id: state.leadId,
             address: state.address,
@@ -392,14 +345,12 @@ function roomCard(photo) {
         state.startedAt = Date.now();
         pollJob(out.job.id);
       } catch (err) {
-        retry.disabled = false;
-        retry.textContent = "Try again";
+        button.disabled = false;
+        button.textContent = "Try again";
         renderRunStatus("error", `<strong>Couldn't retry.</strong> ${escapeHtml(err.message)}`);
       }
-    });
-  }
-
-  return card;
+    },
+  });
 }
 
 function renderRooms() {
@@ -861,109 +812,3 @@ if (window.__PREFILL__) {
   const open = el("lead-open");
   if (open) open.textContent = "Pick a different lead";
 }
-
-
-/* ---------- fullscreen before/after ----------
-
-   The card-sized comparer is for scanning; this is for deciding. A staged
-   room is judged on whether the architecture survived, and that is not a
-   question you can answer at 700px wide. Same wipe, same styles, whole
-   screen. */
-
-const compareState = { url: null, style: null };
-
-function comparableRooms() {
-  return state.photos.filter(
-    (p) => state.selected.has(p.url) && Object.keys(state.staged[p.url] || {}).length
-  );
-}
-
-function renderCompare() {
-  const photo = state.photos.find((p) => p.url === compareState.url);
-  if (!photo) return;
-  const variants = state.staged[photo.url] || {};
-  const style = variants[compareState.style]
-    ? compareState.style
-    : STYLES.map((s) => s[0]).find((k) => variants[k]);
-  compareState.style = style;
-
-  el("scn-full-before").src = photo.url;
-  el("scn-full-after").src = variants[style] || photo.url;
-
-  const styleName = (STYLES.find((s) => s[0] === style) || ["", ""])[1];
-  const rooms = comparableRooms();
-  const at = rooms.findIndex((p) => p.url === photo.url);
-  el("scn-full-label").textContent =
-    `${photo.label}${styleName ? " · " + styleName : ""}` +
-    (rooms.length > 1 ? `  (${at + 1} of ${rooms.length})` : "");
-
-  el("scn-full-styles").innerHTML = STYLES.map(([k, n]) => {
-    if (!variants[k]) return "";
-    return `<button type="button" class="scn-room-style ${k === style ? "is-active" : ""}"
-                    data-style="${k}">${escapeHtml(n)}</button>`;
-  }).join("");
-
-  el("scn-full-styles").querySelectorAll("button").forEach((b) => {
-    b.addEventListener("click", () => {
-      compareState.style = b.dataset.style;
-      // Keep the wipe where it is: the point of switching styles here is to
-      // compare them against each other at the same split.
-      renderCompare();
-    });
-  });
-}
-
-function moveCompare(delta) {
-  const rooms = comparableRooms();
-  if (rooms.length < 2) return;
-  const at = rooms.findIndex((p) => p.url === compareState.url);
-  compareState.url = rooms[(at + delta + rooms.length) % rooms.length].url;
-  renderCompare();
-}
-
-function openCompare(url, style) {
-  compareState.url = url;
-  compareState.style = style;
-  renderCompare();
-  const box = el("scn-full");
-  box.classList.remove("hidden");
-  box.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
-}
-
-function closeCompare() {
-  const box = el("scn-full");
-  box.classList.add("hidden");
-  box.setAttribute("aria-hidden", "true");
-  document.body.style.overflow = "";
-}
-
-(function initCompare() {
-  const box = el("scn-full");
-  if (!box) return;
-
-  const slider = el("scn-full-slider");
-  const wrap = el("scn-full-after-wrap");
-  const handle = box.querySelector(".scn-handle");
-  const compare = el("scn-full-compare");
-  const split = (pct) => {
-    wrap.style.clipPath = `inset(0 0 0 ${pct}%)`;
-    handle.style.left = `${pct}%`;
-    compare.classList.toggle("is-all-before", Number(pct) >= 99);
-  };
-  split(slider.value);
-  slider.addEventListener("input", () => split(slider.value));
-
-  box.querySelector("[data-close]").addEventListener("click", closeCompare);
-  box.querySelector(".scn-full-prev").addEventListener("click", () => moveCompare(-1));
-  box.querySelector(".scn-full-next").addEventListener("click", () => moveCompare(1));
-  // Clicking the backdrop closes; clicking the image must not.
-  box.addEventListener("click", (e) => { if (e.target === box) closeCompare(); });
-
-  document.addEventListener("keydown", (e) => {
-    if (box.classList.contains("hidden")) return;
-    if (e.key === "Escape") closeCompare();
-    if (e.key === "ArrowLeft") moveCompare(-1);
-    if (e.key === "ArrowRight") moveCompare(1);
-  });
-})();

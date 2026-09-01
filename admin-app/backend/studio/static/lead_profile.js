@@ -401,6 +401,7 @@ async function load() {
   currentProject = mine.find((p) => p.kind !== "scenery") || null;
   renderVideo(currentProject);
   renderScenery(mine.filter((p) => p.kind === "scenery"));
+  initMediaTabs();
   renderPhotos(lead.photo_urls);
   initRooms();
 
@@ -560,21 +561,17 @@ function initRooms() {
 
 /* ---------- staged rooms ----------
 
-   Scenery output lives in projects.json, one entry per run. This is the way
-   back to it: the profile is where you already are when you want to send an
-   agent the staged version of their listing, and hunting through a global
-   project list for "which run was that" is the thing worth avoiding.
+   The same panels Scenery finishes on, shown again here. Deliberately not a
+   smaller, different summary: what you want on the profile is the thing you
+   were looking at when you decided it was good, and a second layout would be
+   a second thing to keep in step. stagedRoomPanel is shared for that reason.
 
-   Each run keeps its before/after pairs, so a click compares rather than just
-   showing the after -- an after on its own does not tell you whether the room
-   survived. */
+   The one difference is that nothing here generates. The style buttons switch
+   between looks that already exist; a look that was never made is simply not
+   offered, rather than being a button that would start spending. */
 
-const STYLE_NAMES = {
-  unfurnished: "Unfurnished", modern: "Modern", scandinavian: "Scandinavian",
-  farmhouse: "Farmhouse", midcentury: "Mid-century", coastal: "Coastal",
-  traditional: "Traditional", minimal: "Minimal", luxury: "Luxury",
-  industrial: "Industrial",
-};
+let sceneryRuns = [];
+let sceneryStyleByRoom = {};
 
 function sceneryWhen(project) {
   const seconds = project.created_at || project.updated_at;
@@ -587,15 +584,42 @@ function sceneryWhen(project) {
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+/* One entry per original photo, carrying every style ever made for it --
+   across runs, because restaging a listing later should add to the room, not
+   start a second disconnected list. */
+function sceneryRooms() {
+  const byPhoto = new Map();
+  sceneryRuns.forEach((run) => {
+    (run.scenes || []).forEach((scene) => {
+      if (!scene.before || !scene.after) return;
+      if (!byPhoto.has(scene.before)) {
+        byPhoto.set(scene.before, {
+          beforeUrl: scene.before,
+          label: scene.label || "Room",
+          variants: {},
+          when: sceneryWhen(run),
+        });
+      }
+      byPhoto.get(scene.before).variants[scene.style] = scene.after;
+    });
+  });
+  return [...byPhoto.values()];
+}
+
 function renderScenery(projects) {
   const box = el("lp-scenery");
+  const count = el("lp-tab-count");
   if (!box) return;
 
-  if (!projects.length) {
+  sceneryRuns = [...(projects || [])].sort(
+    (a, b) => (b.created_at || 0) - (a.created_at || 0)
+  );
+  const rooms = sceneryRooms();
+  const images = rooms.reduce((n, r) => n + Object.keys(r.variants).length, 0);
+  if (count) count.textContent = images ? String(images) : "";
+
+  if (!rooms.length) {
     box.innerHTML = `
-      <div class="lp-panel-head">
-        <h2>Staged rooms</h2>
-      </div>
       <div class="lp-scenery-empty">
         <span>No rooms staged for this listing yet.</span>
         <a class="cta-btn cta-btn-sm" href="/studio/scenery?lead_id=${LEAD_ID}">Stage rooms</a>
@@ -603,74 +627,59 @@ function renderScenery(projects) {
     return;
   }
 
-  // Newest first, and every run kept rather than only the latest: restaging a
-  // listing in a different look is normal, and the earlier set is still the
-  // one that might already have been sent.
-  const runs = [...projects].sort(
-    (a, b) => (b.created_at || 0) - (a.created_at || 0)
-  );
-
-  const total = runs.reduce((n, p) => n + (p.scenes || []).length, 0);
   box.innerHTML = `
-    <div class="lp-panel-head">
-      <h2>Staged rooms</h2>
+    <div class="lp-scenery-head">
+      <p class="lp-scenery-note">
+        ${images} image${images === 1 ? "" : "s"} across ${rooms.length} room${rooms.length === 1 ? "" : "s"}.
+        Drag the divider to compare with the original. Every image is virtually
+        staged and saved with that notice printed on it.
+      </p>
       <a class="btn-secondary btn-tiny" href="/studio/scenery?lead_id=${LEAD_ID}">Stage more</a>
     </div>
-    <p class="lp-scenery-note">
-      ${total} image${total === 1 ? "" : "s"} across ${runs.length} run${runs.length === 1 ? "" : "s"}.
-      Every one is virtually staged and saved with that notice printed on it.
-    </p>
-    ${runs.map((run, runIndex) => `
-      <div class="lp-scenery-run">
-        <div class="lp-scenery-run-head">
-          <span class="lp-scenery-when">${escapeHtml(sceneryWhen(run))}</span>
-          <span class="lp-scenery-count">${(run.scenes || []).length} image${(run.scenes || []).length === 1 ? "" : "s"}</span>
-        </div>
-        <div class="lp-scenery-strip">
-          ${(run.scenes || []).map((scene, i) => `
-            <button type="button" class="lp-scenery-tile"
-                    data-run="${runIndex}" data-scene="${i}"
-                    title="${escapeHtml((scene.label || "Room") + " · " + (STYLE_NAMES[scene.style] || scene.style || ""))}">
-              <img src="${escapeHtml(scene.after)}" alt="" loading="lazy">
-              <span class="lp-scenery-tag">${escapeHtml(STYLE_NAMES[scene.style] || scene.style || "")}</span>
-            </button>`).join("")}
-        </div>
-      </div>`).join("")}`;
+    <div id="lp-scenery-rooms" class="scn-rooms"></div>`;
 
-  box.querySelectorAll(".lp-scenery-tile").forEach((tile) => {
-    tile.addEventListener("click", () => {
-      const run = runs[Number(tile.dataset.run)];
-      const scenes = run.scenes || [];
+  renderSceneryRooms();
+}
 
-      // Each room's original once, followed by its styles -- so flicking
-      // right walks that room's looks, and the original is always the frame
-      // before them. Emitting before/after per scene instead would repeat the
-      // same original three times and collide in a map keyed by URL.
-      const urls = [];
-      const rooms = {};
-      const order = new Map();
-      scenes.forEach((scene) => {
-        if (!order.has(scene.before)) order.set(scene.before, []);
-        order.get(scene.before).push(scene);
-      });
+function renderSceneryRooms() {
+  const list = el("lp-scenery-rooms");
+  if (!list) return;
+  const rooms = sceneryRooms();
+  list.innerHTML = "";
 
-      let n = 0;
-      order.forEach((group, before) => {
-        const label = group[0].label || "Room";
-        rooms[before] = { room: "orig" + n, label: label + " — original", order: n++ };
-        urls.push(before);
-        group.forEach((scene) => {
-          rooms[scene.after] = {
-            room: "styled" + n,
-            label: label + " — " + (STYLE_NAMES[scene.style] || scene.style || ""),
-            order: n++,
-          };
-          urls.push(scene.after);
-        });
-      });
+  rooms.forEach((room, index) => {
+    const made = Object.keys(room.variants);
+    const active = sceneryStyleByRoom[room.beforeUrl] && room.variants[sceneryStyleByRoom[room.beforeUrl]]
+      ? sceneryStyleByRoom[room.beforeUrl]
+      : made[0];
 
-      const want = scenes[Number(tile.dataset.scene)].after;
-      openLightbox(urls, Math.max(0, urls.indexOf(want)), rooms);
+    list.appendChild(stagedRoomPanel({
+      beforeUrl: room.beforeUrl,
+      label: room.label,
+      variants: room.variants,
+      activeStyle: active,
+      hint: made.length > 1 ? `${made.length} looks · staged ${room.when}` : `Staged ${room.when}`,
+      // Only what exists: an unmade style here would be a button that spends.
+      styles: made,
+      onStyle: (key) => {
+        sceneryStyleByRoom[room.beforeUrl] = key;
+        renderSceneryRooms();
+      },
+      onOpen: () => openStagedCompare({ rooms, index, style: active }),
+    }));
+  });
+}
+
+/* ---------- media tabs ---------- */
+
+function initMediaTabs() {
+  document.querySelectorAll(".lp-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".lp-tab").forEach((t) => t.classList.remove("is-active"));
+      document.querySelectorAll(".lp-media").forEach((m) => m.classList.remove("is-active"));
+      tab.classList.add("is-active");
+      const panel = el("lp-media-" + tab.dataset.media);
+      if (panel) panel.classList.add("is-active");
     });
   });
 }

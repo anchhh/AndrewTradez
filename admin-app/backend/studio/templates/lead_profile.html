@@ -60,9 +60,22 @@
         <span id="lp-source"></span>
       </div>
 
-      <div id="lp-video" class="lp-video"></div>
+      <div class="lp-tabs" role="tablist">
+        <button type="button" class="lp-tab is-active" role="tab" data-media="video">
+          Video
+        </button>
+        <button type="button" class="lp-tab" role="tab" data-media="scenery">
+          Staged rooms <span id="lp-tab-count" class="lp-tab-count"></span>
+        </button>
+      </div>
 
-      <div id="lp-scenery" class="lp-scenery"></div>
+      <div id="lp-media-video" class="lp-media is-active">
+        <div id="lp-video" class="lp-video"></div>
+      </div>
+
+      <div id="lp-media-scenery" class="lp-media">
+        <div id="lp-scenery" class="lp-scenery"></div>
+      </div>
 
     </section>
 
@@ -81,6 +94,7 @@
 </div>
 <script>window.LEAD_ID = {{ lead_id }};</script>
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='staged_rooms.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='lead_profile.js') }}"></script>
 </body>
 </html>

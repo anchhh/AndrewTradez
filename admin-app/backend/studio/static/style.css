@@ -3431,11 +3431,61 @@ gmp-map-3d {
 }
 
 
-/* ---------- staged rooms on the lead profile ---------- */
-.lp-scenery { margin-top: 22px; }
+/* ---------- staged rooms on the lead profile ----------
+   The panels themselves are Scenery's (.scn-room and friends) -- this is only
+   the wrapper the profile puts around them. */
+.lp-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 22px 0 0;
+  border-bottom: 1px solid var(--line);
+}
+.lp-tab {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 9px 14px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.lp-tab:hover { color: var(--ink); }
+.lp-tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.lp-tab-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.lp-tab-count:empty { display: none; }
+
+.lp-media { display: none; padding-top: 16px; }
+.lp-media.is-active { display: block; }
+
+.lp-scenery-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
 .lp-scenery-note {
-  margin: 0 0 12px;
+  flex: 1 1 auto;
+  margin: 0;
   font-size: 0.8rem;
+  line-height: 1.5;
   color: var(--ink-soft);
 }
 .lp-scenery-empty {
@@ -3444,68 +3494,12 @@ gmp-map-3d {
   justify-content: space-between;
   gap: 14px;
   flex-wrap: wrap;
-  padding: 14px;
+  padding: 16px;
   border: 1px dashed var(--line);
   border-radius: 10px;
   font-size: 0.84rem;
   color: var(--ink-soft);
 }
-
-.lp-scenery-run + .lp-scenery-run { margin-top: 16px; }
-.lp-scenery-run-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 7px;
-  font-size: 0.76rem;
-  color: var(--ink-soft);
-}
-.lp-scenery-when { font-weight: 600; color: var(--ink); }
-
-/* A scrolling strip rather than a grid: a run can be ninety images, and the
-   profile is not where you browse all of them -- it is where you find one. */
-.lp-scenery-strip {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-}
-.lp-scenery-tile {
-  position: relative;
-  flex: 0 0 auto;
-  width: 148px;
-  height: 104px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  background: none;
-  transition: border-color 0.15s ease, transform 0.15s ease;
-}
-.lp-scenery-tile:hover {
-  border-color: var(--accent);
-  transform: translateY(-1px);
-}
-.lp-scenery-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lp-scenery-tag {
-  position: absolute;
-  left: 5px;
-  bottom: 5px;
-  font-size: 0.6rem;
-  letter-spacing: 0.03em;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  padding: 2px 7px;
-  border-radius: 999px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lp-scenery-tile { transition: none; }
-}
-
 
 /* A staged room the checker is not happy with. Amber rather than red: the
    image is usable, it just is not as empty as it was asked to be, and the
