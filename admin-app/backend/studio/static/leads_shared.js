@@ -840,12 +840,18 @@ function leadRowHtml(lead) {
       <span class="lm-row-dots">${outreachDotsHtml(lead)}</span>
       <button type="button" class="lm-row-qualify ${lead.qualified ? "is-qualified" : ""}"
               title="${lead.qualified ? "Qualified" : "Mark qualified"}">★</button>
-      <a class="lm-row-open" href="/studio/leads/${lead.id}" title="Open profile">›</a>
+      <span class="lm-row-open" aria-hidden="true">›</span>
     </div>`;
 }
 
 function wireLeadRow(row, lead, handlers = {}) {
   const changed = () => handlers.onChanged && handlers.onChanged(lead);
+
+  // The whole row opens the profile. makeRowOpenProfile ignores clicks that
+  // land on a control (checkbox, status select, the outreach toggles, the
+  // thumbnail) and clicks that finish a text selection, so the row is
+  // clickable without swallowing what is on it.
+  makeRowOpenProfile(row, lead.id);
 
   const box = row.querySelector(".lead-select-box");
   box.addEventListener("change", () => {

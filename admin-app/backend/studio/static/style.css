@@ -2711,23 +2711,6 @@ gmp-map-3d {
    One line per lead. Enough to recognise and triage; the profile is a click
    away for everything else. */
 
-.lm-viewbar { display: flex; justify-content: flex-end; margin: 0 0 10px; }
-.lm-viewtoggle {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--cream-soft);
-}
-.lm-viewbtn {
-  all: unset;
-  cursor: pointer;
-  padding: 5px 14px;
-  font-size: 0.76rem;
-  color: var(--ink-soft);
-}
-.lm-viewbtn.is-active { background: var(--ink); color: var(--cream); font-weight: 600; }
-
 .lm-rows { display: flex; flex-direction: column; gap: 3px; }
 .lm-row {
   display: flex;
@@ -2740,7 +2723,13 @@ gmp-map-3d {
   border-radius: 8px;
   font-size: 0.84rem;
 }
+.lm-row { cursor: pointer; }
+.lm-row:hover { border-color: var(--accent); }
 .lm-row.is-selected { background: #fdefea; border-color: var(--accent); }
+/* The controls on the row are not the row: clicking them should not navigate,
+   and they should not look like they would. */
+.lm-row-select, .lm-row-thumb, .lm-row-statusselect, .lm-dot, .lm-row-qualify { cursor: pointer; }
+.lm-row-thumb { cursor: zoom-in; }
 /* The status colour lives on the left edge, so a long list scans by colour. */
 .lm-row.group-hot { border-left-color: #e8573f; }
 .lm-row.group-new { border-left-color: #4a90c2; }

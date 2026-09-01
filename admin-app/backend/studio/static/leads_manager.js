@@ -1,7 +1,8 @@
-/* Lead Manager: every lead as a card, with filters. Same card component the
-   Dashboard uses, plus the status dropdown and Mark Qualified button that
-   only make sense here. Filtering runs client-side over the set already
-   fetched, so changing a filter is instant and never re-requests. */
+/* Lead Manager: one compact row per lead, with filters and sorting. The card
+   component the Dashboard uses is deliberately not used here -- at the scale
+   this page is for, a card per lead is six times the scrolling for the same
+   information. Filtering and sorting run client-side over the set already
+   fetched, so changing either is instant and never re-requests. */
 
 let allLeads = [];
 let shownLeads = [];
@@ -16,25 +17,6 @@ const filters = {
   sort: "newest",
 };
 
-/* Cards read well at five leads and are unusable at three hundred, so the
-   view is a choice and the choice is remembered. Compact is the default once
-   there are enough leads for it to matter. */
-const VIEW_KEY = "estly.leadView";
-let view = "cards";
-
-function loadView(leadCount) {
-  let stored = null;
-  try { stored = localStorage.getItem(VIEW_KEY); } catch (_) { /* private window */ }
-  view = stored || (leadCount > 12 ? "compact" : "cards");
-}
-
-function setView(next) {
-  view = next;
-  try { localStorage.setItem(VIEW_KEY, next); } catch (_) { /* not worth failing over */ }
-  document.getElementById("view-compact").classList.toggle("is-active", next === "compact");
-  document.getElementById("view-cards").classList.toggle("is-active", next === "cards");
-  render();
-}
 
 const SORTERS = {
   newest: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
@@ -127,15 +109,9 @@ function render() {
     onSelectionChange: () => bulkRefresh && bulkRefresh(),
   };
 
-  list.className = view === "compact" ? "lm-rows" : "lead-card-list";
+  list.className = "lm-rows";
   list.innerHTML = "";
-  shown.forEach((lead) => {
-    list.appendChild(
-      view === "compact"
-        ? buildLeadRow(lead, handlers)
-        : buildLeadCard(lead, { showStatusSelect: true, showQualify: true, showNotes: true }, handlers)
-    );
-  });
+  shown.forEach((lead) => list.appendChild(buildLeadRow(lead, handlers)));
 
   if (bulkRefresh) bulkRefresh();
 
@@ -197,13 +173,10 @@ async function loadLeads() {
     setStatus("Couldn't load leads.", "error");
     return;
   }
-  loadView(allLeads.length);
-  setView(view);
+  render();
 }
 
 wireFilters();
-document.getElementById("view-compact").addEventListener("click", () => setView("compact"));
-document.getElementById("view-cards").addEventListener("click", () => setView("cards"));
 
 bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
   getVisibleLeads: () => shownLeads,
