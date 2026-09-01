@@ -271,3 +271,44 @@ def download(video_url, dest_path):
         for chunk in resp.iter_content(chunk_size=65536):
             fh.write(chunk)
     return dest_path
+
+
+def verify_connection():
+    """Check the key works, without generating anything.
+
+    Uploads a tiny throwaway image. That exercises authentication for real --
+    a wrong key fails here exactly as it would on a generation -- but upload
+    is not metered, so confirming the setup costs nothing.
+    """
+    import io as _io
+
+    cfg = load_config()
+    if cfg.get("config_error"):
+        raise VideoNotConfigured(cfg["config_error"])
+    _require(cfg)
+
+    from PIL import Image
+
+    buf = _io.BytesIO()
+    Image.new("RGB", (16, 16), (200, 200, 200)).save(buf, format="JPEG")
+    buf.seek(0)
+
+    try:
+        resp = requests.post(
+            f"{BASE_URL}/model/uploadMedia",
+            headers=_headers(cfg),
+            files={"file": ("check.jpg", buf, "image/jpeg")},
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        raise VideoError(f"could not reach Atlas Cloud: {exc}") from exc
+
+    if resp.status_code >= 400:
+        raise VideoError(_explain(resp))
+
+    return {
+        "ok": True,
+        "model": cfg["model"],
+        "rate_per_second": cfg["rate_per_second"],
+        "cost_5s": estimate_cost(5, cfg),
+    }

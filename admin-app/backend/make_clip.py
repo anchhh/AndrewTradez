@@ -55,6 +55,8 @@ def list_leads(app):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true",
+                        help="verify the API key works (generates nothing, costs nothing)")
     parser.add_argument("--list", action="store_true", help="show leads and photo counts")
     parser.add_argument("--lead", type=int, help="lead id to pull a photo from")
     parser.add_argument("--photo", type=int, default=0, help="which photo (default: first)")
@@ -67,6 +69,21 @@ def main():
                         help="let the model generate audio (off by default; costs more)")
     parser.add_argument("--yes", action="store_true", help="don't ask before spending")
     args = parser.parse_args()
+
+    if args.check:
+        from services.video import verify_connection
+
+        try:
+            info = verify_connection()
+        except (VideoNotConfigured, VideoError) as exc:
+            print(f"Not working: {exc}")
+            return 1
+        print("Connected to Atlas Cloud.")
+        print(f"  model: {info['model']}")
+        print(f"  a 5s clip would cost about ${info['cost_5s']}")
+        print()
+        print("Nothing was generated and nothing was charged.")
+        return 0
 
     from app import create_app
     from models import Lead
