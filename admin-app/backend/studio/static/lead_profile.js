@@ -627,8 +627,11 @@ function renderRooms(data) {
     box.innerHTML = "";
     return;
   }
-  if (!data.configured) {
-    box.innerHTML = `<p class="lp-rooms-note">Photo sorting isn't connected.</p>`;
+  // Not connected is not a dead end: Claude can read the photos and write the
+  // labels back without any API key, which is the free route.
+  if (!data.configured && !data.sorted_count) {
+    box.innerHTML = `<p class="lp-rooms-note">Not sorted yet — ask Claude to sort these,
+      or add an Anthropic key to sort new leads automatically.</p>`;
     return;
   }
 
@@ -641,7 +644,9 @@ function renderRooms(data) {
       <span class="lp-rooms-note">
         ${data.sorted_count} of ${data.photo_count} sorted${pending > 0 ? "" : ""}
       </span>
-      ${pending > 0 ? `<button type="button" id="lp-rooms-go" class="btn-tiny">Sort ${pending}</button>` : ""}
+      ${pending > 0 && data.configured
+        ? `<button type="button" id="lp-rooms-go" class="btn-tiny">Sort ${pending}</button>`
+        : pending > 0 ? `<span class="lp-rooms-note">${pending} unsorted</span>` : ""}
     </div>
     ${groups.map((g) => `
       <details class="lp-room" ${g.room === "unsorted" ? "" : "open"}>
