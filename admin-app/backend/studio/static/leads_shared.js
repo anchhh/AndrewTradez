@@ -217,7 +217,9 @@ function leadCardHtml(lead, opts = {}) {
         ${sourceBadgeHtml(lead.source)}
       </header>
       <div class="lead-card-body">
-        <div class="lead-card-media">${thumbHtml(photo)}</div>
+        <div class="lead-card-media">${photo
+          ? `<button type="button" class="lead-card-media-btn" title="View photos">${thumbHtml(photo)}</button>`
+          : thumbHtml(photo)}</div>
         <div class="lead-card-info">
           <h3 class="lead-card-address">${escapeHtml(addressLine(lead))}</h3>
           ${contactLine(lead) ? `<div class="lead-card-contact">${escapeHtml(contactLine(lead))}</div>` : ""}
@@ -253,6 +255,16 @@ function wireLeadCard(card, lead, handlers = {}) {
   const changed = () => handlers.onChanged && handlers.onChanged(lead);
 
   makeRowOpenProfile(card.querySelector(".lead-card-body"), lead.id);
+
+  // The thumbnail opens the whole gallery rather than the profile. It is a
+  // button, so makeRowOpenProfile's interactive-element check skips it and no
+  // event needs stopping.
+  const media = card.querySelector(".lead-card-media-btn");
+  if (media) {
+    media.addEventListener("click", () => {
+      openLightbox(lead.photo_urls || [], 0, lead.photo_rooms || null);
+    });
+  }
 
   const box = card.querySelector(".lead-select-box");
   if (box) {
@@ -544,4 +556,139 @@ function wireFindEmail(card, lead, handlers) {
     button.disabled = false;
     button.textContent = "Find email";
   });
+}
+
+/* ---------------------------------------------------------------
+   Fullscreen photo viewer
+
+   Shared by the Lead Manager, the Dashboard and the lead profile, so a
+   photo behaves the same wherever it is clicked. One overlay is built
+   once and reused; opening it is just handing it a list and a starting
+   index.
+
+   Room labels, where a lead has them, are shown alongside the counter --
+   the sorting work is only useful if it is visible where the photos are.
+   --------------------------------------------------------------- */
+
+let lightboxState = null;
+
+function ensureLightbox() {
+  let box = document.getElementById("photo-lightbox");
+  if (box) return box;
+
+  box = document.createElement("div");
+  box.id = "photo-lightbox";
+  box.className = "lightbox hidden";
+  box.setAttribute("aria-hidden", "true");
+  box.innerHTML = `
+    <div class="lightbox-backdrop" data-lb-close></div>
+    <button type="button" class="lightbox-x" data-lb-close aria-label="Close">&times;</button>
+    <button type="button" class="lightbox-nav lightbox-prev" data-lb-prev aria-label="Previous">&#8249;</button>
+    <figure class="lightbox-stage">
+      <div class="lightbox-media"></div>
+      <figcaption class="lightbox-caption">
+        <span class="lightbox-count"></span>
+        <span class="lightbox-room"></span>
+      </figcaption>
+    </figure>
+    <button type="button" class="lightbox-nav lightbox-next" data-lb-next aria-label="Next">&#8250;</button>
+    <div class="lightbox-strip"></div>`;
+  document.body.appendChild(box);
+
+  box.querySelectorAll("[data-lb-close]").forEach((n) =>
+    n.addEventListener("click", closeLightbox));
+  box.querySelector("[data-lb-prev]").addEventListener("click", () => stepLightbox(-1));
+  box.querySelector("[data-lb-next]").addEventListener("click", () => stepLightbox(1));
+
+  document.addEventListener("keydown", (e) => {
+    if (!lightboxState) return;
+    if (e.key === "Escape") closeLightbox();
+    else if (e.key === "ArrowLeft") stepLightbox(-1);
+    else if (e.key === "ArrowRight") stepLightbox(1);
+  });
+
+  // Wheel and swipe, so "scroll through" works the way it reads.
+  let wheelLock = 0;
+  box.addEventListener("wheel", (e) => {
+    if (!lightboxState) return;
+    e.preventDefault();
+    const now = Date.now();
+    if (now - wheelLock < 220) return;      // one photo per gesture, not fifty
+    wheelLock = now;
+    stepLightbox(Math.sign(e.deltaY || e.deltaX));
+  }, { passive: false });
+
+  let touchX = null;
+  box.addEventListener("touchstart", (e) => { touchX = e.changedTouches[0].clientX; }, { passive: true });
+  box.addEventListener("touchend", (e) => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) stepLightbox(dx < 0 ? 1 : -1);
+    touchX = null;
+  }, { passive: true });
+
+  return box;
+}
+
+function renderLightbox() {
+  const box = ensureLightbox();
+  const { photos, index, rooms } = lightboxState;
+  const url = photos[index];
+
+  box.querySelector(".lightbox-media").innerHTML = isVideoUrl(url)
+    ? `<video src="${escapeHtml(url)}" controls autoplay muted></video>`
+    : `<img src="${escapeHtml(url)}" alt="">`;
+
+  box.querySelector(".lightbox-count").textContent = `${index + 1} / ${photos.length}`;
+  const room = rooms && rooms[url];
+  box.querySelector(".lightbox-room").textContent = room ? room.label : "";
+
+  const single = photos.length < 2;
+  box.querySelector(".lightbox-prev").hidden = single;
+  box.querySelector(".lightbox-next").hidden = single;
+
+  const strip = box.querySelector(".lightbox-strip");
+  strip.innerHTML = photos.map((u, i) => `
+    <button type="button" class="lightbox-thumb ${i === index ? "is-active" : ""}" data-i="${i}">
+      ${isVideoUrl(u) ? `<video src="${escapeHtml(u)}" muted></video>`
+                      : `<img src="${escapeHtml(u)}" alt="" loading="lazy">`}
+    </button>`).join("");
+  strip.querySelectorAll(".lightbox-thumb").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      lightboxState.index = Number(btn.dataset.i);
+      renderLightbox();
+    });
+  });
+  const active = strip.querySelector(".is-active");
+  if (active) active.scrollIntoView({ block: "nearest", inline: "center" });
+}
+
+function stepLightbox(direction) {
+  if (!lightboxState || !direction) return;
+  const n = lightboxState.photos.length;
+  // Wraps, so the end of a 57-photo gallery isn't a dead stop.
+  lightboxState.index = (lightboxState.index + direction + n) % n;
+  renderLightbox();
+}
+
+function openLightbox(photos, index = 0, rooms = null) {
+  const list = (photos || []).filter(Boolean);
+  if (!list.length) return;
+
+  lightboxState = { photos: list, index: Math.max(0, Math.min(index, list.length - 1)), rooms };
+  const box = ensureLightbox();
+  box.classList.remove("hidden");
+  box.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  renderLightbox();
+}
+
+function closeLightbox() {
+  const box = document.getElementById("photo-lightbox");
+  if (!box) return;
+  box.classList.add("hidden");
+  box.setAttribute("aria-hidden", "true");
+  box.querySelector(".lightbox-media").innerHTML = "";  // stop any playing video
+  document.body.style.overflow = "";
+  lightboxState = null;
 }

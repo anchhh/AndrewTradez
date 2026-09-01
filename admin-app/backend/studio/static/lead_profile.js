@@ -26,12 +26,22 @@ function renderPhotos(photos) {
     return;
   }
 
+  let heroIndex = 0;
   const showHero = (url) => {
+    heroIndex = Math.max(0, list.indexOf(url));
     hero.innerHTML = isVideoUrl(url)
       ? `<video src="${escapeHtml(url)}" controls muted></video>`
       : `<img src="${escapeHtml(url)}" alt="">`;
   };
   showHero(list[0]);
+
+  hero.onclick = (e) => {
+    // A video in the hero has its own controls; clicking those shouldn't
+    // yank the user into a lightbox.
+    if (e.target.tagName === "VIDEO") return;
+    openLightbox(list, heroIndex, (lead && lead.photo_rooms) || null);
+  };
+  hero.classList.add("is-zoomable");
 
   thumbs.innerHTML = list
     .map(
@@ -654,10 +664,22 @@ function renderRooms(data) {
           ${escapeHtml(g.label)}
           <span class="lp-room-count">${g.photos.length}</span>
         </summary>
-        <div class="lp-room-grid">
-          ${g.photos.map((u) => `<img src="${escapeHtml(u)}" alt="" loading="lazy">`).join("")}
+        <div class="lp-room-grid" data-room="${escapeHtml(g.room)}">
+          ${g.photos.map((u, i) => `<button type="button" data-i="${i}"><img src="${escapeHtml(u)}" alt="" loading="lazy"></button>`).join("")}
         </div>
       </details>`).join("")}`;
+
+  // Opening from a room group shows that room's photos, not the whole
+  // gallery -- you clicked "Kitchen", you want the kitchen.
+  box.querySelectorAll(".lp-room-grid").forEach((grid) => {
+    const group = groups.find((g) => g.room === grid.dataset.room);
+    if (!group) return;
+    grid.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openLightbox(group.photos, Number(btn.dataset.i), (lead && lead.photo_rooms) || null);
+      });
+    });
+  });
 
   const go = el("lp-rooms-go");
   if (go) {
