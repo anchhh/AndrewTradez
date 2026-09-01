@@ -13,6 +13,37 @@ const filters = {
   source: "all",
   outreach: "all",
   search: "",
+  sort: "newest",
+};
+
+/* Cards read well at five leads and are unusable at three hundred, so the
+   view is a choice and the choice is remembered. Compact is the default once
+   there are enough leads for it to matter. */
+const VIEW_KEY = "estly.leadView";
+let view = "cards";
+
+function loadView(leadCount) {
+  let stored = null;
+  try { stored = localStorage.getItem(VIEW_KEY); } catch (_) { /* private window */ }
+  view = stored || (leadCount > 12 ? "compact" : "cards");
+}
+
+function setView(next) {
+  view = next;
+  try { localStorage.setItem(VIEW_KEY, next); } catch (_) { /* not worth failing over */ }
+  document.getElementById("view-compact").classList.toggle("is-active", next === "compact");
+  document.getElementById("view-cards").classList.toggle("is-active", next === "cards");
+  render();
+}
+
+const SORTERS = {
+  newest: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
+  oldest: (a, b) => (a.created_at || "").localeCompare(b.created_at || ""),
+  address: (a, b) => (a.address || "").localeCompare(b.address || ""),
+  agent: (a, b) => (a.agent_name || "~").localeCompare(b.agent_name || "~"),
+  // Leads with no price sort last either way rather than pretending to be 0.
+  "price-high": (a, b) => (b.price || -1) - (a.price || -1),
+  "price-low": (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity),
 };
 
 function setStatus(message, cls) {
@@ -54,14 +85,19 @@ function matchesSearch(lead) {
 }
 
 function visibleLeads() {
-  return allLeads.filter((lead) => {
+  return sortLeads(allLeads.filter((lead) => {
     if (filters.qualified !== "all" && String(!!lead.qualified) !== filters.qualified) return false;
     if (filters.status !== "all" && lead.status !== filters.status) return false;
     if (filters.source !== "all" && lead.source !== filters.source) return false;
     if (!matchesOutreach(lead)) return false;
     if (!matchesSearch(lead)) return false;
     return true;
-  });
+  }));
+}
+
+function sortLeads(list) {
+  const cmp = SORTERS[filters.sort] || SORTERS.newest;
+  return [...list].sort(cmp);
 }
 
 const anyFilterActive = () =>
@@ -80,23 +116,24 @@ function render() {
   shownLeads = shown;
   pruneSelection(shown);
 
+  const handlers = {
+    // A change can move a lead out of the current filter, so re-evaluate the
+    // list instead of leaving a stale card behind.
+    onChanged: () => {
+      if (anyFilterActive()) render();
+      else updateCount(shown.length);
+    },
+    onDeleted: loadLeads,
+    onSelectionChange: () => bulkRefresh && bulkRefresh(),
+  };
+
+  list.className = view === "compact" ? "lm-rows" : "lead-card-list";
   list.innerHTML = "";
   shown.forEach((lead) => {
     list.appendChild(
-      buildLeadCard(
-        lead,
-        { showStatusSelect: true, showQualify: true, showNotes: true },
-        {
-          // A change can move a lead out of the current filter, so
-          // re-evaluate the list instead of leaving a stale card behind.
-          onChanged: () => {
-            if (anyFilterActive()) render();
-            else updateCount(shown.length);
-          },
-          onDeleted: loadLeads,
-          onSelectionChange: () => bulkRefresh && bulkRefresh(),
-        }
-      )
+      view === "compact"
+        ? buildLeadRow(lead, handlers)
+        : buildLeadCard(lead, { showStatusSelect: true, showQualify: true, showNotes: true }, handlers)
     );
   });
 
@@ -115,10 +152,14 @@ function updateCount(shownCount) {
     count.textContent = "";
     return;
   }
-  count.textContent =
+  const base =
     shownCount !== allLeads.length
       ? `Showing ${shownCount} of ${allLeads.length} leads`
       : `${allLeads.length} lead${allLeads.length === 1 ? "" : "s"}`;
+  // The server caps the fetch; say so rather than quietly showing a subset.
+  count.textContent = allLeads.length >= 2000
+    ? `${base} — only the most recent 2000 are loaded`
+    : base;
 }
 
 function wireFilters() {
@@ -137,6 +178,7 @@ function wireFilters() {
   bind("filter-source", "source");
   bind("filter-outreach", "outreach");
   bind("filter-search", "search", (v) => v.trim().toLowerCase());
+  bind("filter-sort", "sort");
 
   document.getElementById("filter-reset").addEventListener("click", () => {
     ["filter-qualified", "filter-status", "filter-source", "filter-outreach"].forEach((id) => {
@@ -155,10 +197,13 @@ async function loadLeads() {
     setStatus("Couldn't load leads.", "error");
     return;
   }
-  render();
+  loadView(allLeads.length);
+  setView(view);
 }
 
 wireFilters();
+document.getElementById("view-compact").addEventListener("click", () => setView("compact"));
+document.getElementById("view-cards").addEventListener("click", () => setView("cards"));
 
 bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
   getVisibleLeads: () => shownLeads,

@@ -1432,7 +1432,10 @@ def api_list_leads():
     if qualified_param is not None:
         query = query.filter(Lead.qualified == (qualified_param.lower() in ("1", "true", "yes")))
 
-    leads = query.order_by(Lead.created_at.desc()).limit(200).all()
+    # Filtering and sorting happen in the browser over whatever is fetched, so
+    # a cap here silently hides leads rather than paginating them. Raised well
+    # past the plausible working set; the client reports if it is ever hit.
+    leads = query.order_by(Lead.created_at.desc()).limit(2000).all()
     return jsonify([lead.to_dict() for lead in leads])
 
 

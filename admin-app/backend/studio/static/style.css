@@ -2706,3 +2706,120 @@ gmp-map-3d {
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 10px;
 }
+
+/* ---------- Lead Manager: compact rows ----------
+   One line per lead. Enough to recognise and triage; the profile is a click
+   away for everything else. */
+
+.lm-viewbar { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+.lm-viewtoggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--cream-soft);
+}
+.lm-viewbtn {
+  all: unset;
+  cursor: pointer;
+  padding: 5px 14px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+.lm-viewbtn.is-active { background: var(--ink); color: var(--cream); font-weight: 600; }
+
+.lm-rows { display: flex; flex-direction: column; gap: 3px; }
+.lm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+}
+.lm-row.is-selected { background: #fdefea; border-color: var(--accent); }
+/* The status colour lives on the left edge, so a long list scans by colour. */
+.lm-row.group-hot { border-left-color: #e8573f; }
+.lm-row.group-new { border-left-color: #4a90c2; }
+.lm-row.group-contacted { border-left-color: #d9a441; }
+.lm-row.group-converted { border-left-color: #5aa35a; }
+.lm-row.group-cold { border-left-color: #a49c90; }
+
+.lm-row-select { flex: 0 0 auto; display: flex; align-items: center; }
+.lm-row-thumb {
+  all: unset;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 34px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #ddd6cc;
+  cursor: zoom-in;
+}
+.lm-row-thumb.is-empty { cursor: default; }
+.lm-row-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.lm-row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.lm-row-address {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lm-row-sub {
+  font-size: 0.73rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lm-row-status { flex: 0 0 auto; font-size: 0.95rem; }
+.lm-row-statusselect {
+  flex: 0 0 auto;
+  width: auto;
+  font-size: 0.72rem;
+  padding: 3px 6px;
+}
+.lm-row-dots { flex: 0 0 auto; display: flex; gap: 3px; }
+.lm-dot {
+  all: unset;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 0.63rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lm-dot.is-done { background: #2f6b2c; border-color: #2f6b2c; color: #fff; }
+
+.lm-row-qualify {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 1rem;
+  color: var(--line);
+  padding: 0 2px;
+}
+.lm-row-qualify.is-qualified { color: #e0a32a; }
+.lm-row-open {
+  flex: 0 0 auto;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 0 4px;
+}
+.lm-row-open:hover { color: var(--accent); }
+
+@media (max-width: 780px) {
+  .lm-row-statusselect, .lm-row-status { display: none; }
+}

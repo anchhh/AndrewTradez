@@ -792,3 +792,112 @@ function closeLightbox() {
   document.body.style.overflow = "";
   lightboxState = null;
 }
+
+/* ---------------------------------------------------------------
+   Compact row
+
+   A card per lead reads well at five and is unusable at three hundred --
+   roughly 200px each means scrolling a mile to find anything. This is the
+   same lead in one line: enough to recognise and trage it, with the profile
+   one click away for everything else.
+
+   Deliberately not a <table>: the rows carry the same selection checkbox,
+   status select and outreach toggles as the cards, and reusing those means
+   reusing their handlers rather than writing a second set.
+   --------------------------------------------------------------- */
+
+function outreachDotsHtml(lead) {
+  return [["email", "E", "Email sent"], ["phone", "P", "Phone called"], ["video", "V", "Video made"]]
+    .map(([field, letter, title]) => {
+      const done = !!lead[OUTREACH_KEY[field]];
+      return `<button type="button" class="lm-dot ${done ? "is-done" : ""}"
+                data-field="${field}" title="${title}">${letter}</button>`;
+    })
+    .join("");
+}
+
+function leadRowHtml(lead) {
+  const meta = STATUS_GROUPS[groupKeyFor(lead)];
+  const photo = (lead.photo_urls || [])[0] || null;
+  const place = [lead.city, lead.state].filter(Boolean).join(", ");
+
+  return `
+    <div class="lm-row ${meta.className} ${selectedLeadIds.has(lead.id) ? "is-selected" : ""}">
+      <label class="lm-row-select" title="Select this lead">
+        <input type="checkbox" class="lead-select-box" ${selectedLeadIds.has(lead.id) ? "checked" : ""}>
+      </label>
+      <button type="button" class="lm-row-thumb ${photo ? "" : "is-empty"}" title="View photos">
+        ${photo ? `<img src="${escapeHtml(photo)}" alt="" loading="lazy">` : ""}
+      </button>
+      <div class="lm-row-main">
+        <span class="lm-row-address">${escapeHtml(lead.address || "Untitled listing")}</span>
+        <span class="lm-row-sub">${escapeHtml([place, lead.agent_name].filter(Boolean).join(" · "))}</span>
+      </div>
+      <span class="lm-row-status" title="${escapeHtml(meta.label)}">${meta.icon}</span>
+      <select class="lead-status-select lm-row-statusselect" aria-label="Lead status">
+        ${LEAD_STATUSES.map((s) => `<option value="${s}" ${s === lead.status ? "selected" : ""}>${s}</option>`).join("")}
+      </select>
+      <span class="lm-row-dots">${outreachDotsHtml(lead)}</span>
+      <button type="button" class="lm-row-qualify ${lead.qualified ? "is-qualified" : ""}"
+              title="${lead.qualified ? "Qualified" : "Mark qualified"}">★</button>
+      <a class="lm-row-open" href="/studio/leads/${lead.id}" title="Open profile">›</a>
+    </div>`;
+}
+
+function wireLeadRow(row, lead, handlers = {}) {
+  const changed = () => handlers.onChanged && handlers.onChanged(lead);
+
+  const box = row.querySelector(".lead-select-box");
+  box.addEventListener("change", () => {
+    if (box.checked) selectedLeadIds.add(lead.id);
+    else selectedLeadIds.delete(lead.id);
+    row.classList.toggle("is-selected", box.checked);
+    if (handlers.onSelectionChange) handlers.onSelectionChange();
+  });
+
+  const thumb = row.querySelector(".lm-row-thumb");
+  if (thumb && (lead.photo_urls || []).length) {
+    thumb.addEventListener("click", () =>
+      openLightbox(lead.photo_urls, 0, lead.photo_rooms || null));
+  }
+
+  row.querySelector(".lm-row-statusselect").addEventListener("change", async (e) => {
+    const updated = await fetchJSON(`/studio/api/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: e.target.value }),
+    });
+    Object.assign(lead, updated);
+    changed();
+  });
+
+  row.querySelectorAll(".lm-dot").forEach((dot) => {
+    dot.addEventListener("click", async () => {
+      const updated = await fetchJSON(`/studio/api/leads/${lead.id}/outreach`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: dot.dataset.field }),
+      });
+      Object.assign(lead, updated);
+      dot.classList.toggle("is-done", !!lead[OUTREACH_KEY[dot.dataset.field]]);
+      changed();
+    });
+  });
+
+  const star = row.querySelector(".lm-row-qualify");
+  star.addEventListener("click", async () => {
+    const updated = await fetchJSON(`/studio/api/leads/${lead.id}/qualify`, { method: "PATCH" });
+    Object.assign(lead, updated);
+    star.classList.toggle("is-qualified", !!lead.qualified);
+    star.title = lead.qualified ? "Qualified" : "Mark qualified";
+    changed();
+  });
+
+  return row;
+}
+
+function buildLeadRow(lead, handlers = {}) {
+  const host = document.createElement("div");
+  host.innerHTML = leadRowHtml(lead);
+  return wireLeadRow(host.firstElementChild, lead, handlers);
+}

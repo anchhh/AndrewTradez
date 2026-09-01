@@ -19,6 +19,17 @@
 
   <div class="lm-filters">
     <label class="lm-filter">
+      <span class="lm-filter-label">Sort</span>
+      <select id="filter-sort">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="address">Address A–Z</option>
+        <option value="agent">Agent A–Z</option>
+        <option value="price-high">Price, high first</option>
+        <option value="price-low">Price, low first</option>
+      </select>
+    </label>
+    <label class="lm-filter">
       <span class="lm-filter-label">Qualification</span>
       <select id="filter-qualified">
         <option value="all">All leads</option>
@@ -70,6 +81,12 @@
   <div id="leads-status" class="status"></div>
   <div id="lm-count" class="lm-count"></div>
 
+  <div class="lm-viewbar">
+    <div class="lm-viewtoggle" role="group" aria-label="View">
+      <button type="button" id="view-compact" class="lm-viewbtn">Compact</button>
+      <button type="button" id="view-cards" class="lm-viewbtn">Cards</button>
+    </div>
+  </div>
   <div id="bulk-bar-host"></div>
 
   <div id="lmg-list" class="lead-card-list"></div>
