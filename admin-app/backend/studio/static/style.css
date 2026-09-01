@@ -2196,6 +2196,74 @@ gmp-map-3d {
 .outreach-sent-mark { color: #2f6b2c; font-weight: 600; font-size: 0.78rem; }
 .outreach-skipped-note:empty { display: none; }
 
+/* ---------- Option 1: lead browser (Create Video) ----------
+   The cards are the Lead Manager's own, so there is deliberately almost no
+   card styling here -- only the shell it opens in, and the picking states. */
+
+.lead-open-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.lead-picked-summary { font-size: 0.85rem; color: var(--ink-soft); }
+.lead-picked-summary.is-set { color: #2f6b2c; font-weight: 600; }
+
+.lead-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
+.lead-modal.hidden { display: none; }
+.lead-modal-backdrop { position: absolute; inset: 0; background: rgba(23, 19, 15, 0.5); }
+
+.lead-modal-panel {
+  position: relative;
+  width: min(1180px, calc(100vw - 32px));
+  max-height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  border-radius: var(--radius);
+  padding: 20px 22px 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.lead-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lead-modal-head h2 { margin: 0; font-size: 1.1rem; }
+.lead-modal-x {
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink-soft);
+  padding: 0 4px;
+  width: auto;
+}
+.lead-modal-x:hover { color: var(--ink); }
+
+#lead-search {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+}
+.lead-modal-filters { margin-top: 12px; margin-bottom: 0; }
+.lead-modal-count { margin: 10px 0 0; font-size: 0.78rem; color: var(--ink-soft); }
+
+/* The list scrolls inside the panel; the search and filters stay put. */
+#lead-picker {
+  overflow-y: auto;
+  margin-top: 12px;
+  padding-right: 4px;
+}
+/* Flex items shrink by default, so in a height-capped column the cards were
+   squashed to fit -- 80px tall holding 172px of content, clipped by the
+   card's own overflow:hidden -- instead of the list scrolling. Let them keep
+   their height and let the container scroll, which is the point of it. */
+#lead-picker > * { flex: 0 0 auto; }
+
+.lead-card.is-pickable { cursor: pointer; }
+.lead-card.is-pickable:hover { border-color: var(--accent); }
+.lead-card.is-unpickable { opacity: 0.55; }
+.lead-use-btn { width: auto; flex: 0 0 auto; }
+
 /* ---------- photos grouped by room (lead profile) ---------- */
 
 .lp-rooms { margin-top: 16px; }
