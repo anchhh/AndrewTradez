@@ -2236,175 +2236,6 @@ gmp-map-3d {
 .lp-video-link-row button { flex: 0 0 auto; width: auto; }
 .lp-video-link-hint { margin: 5px 0 0; font-size: 0.75rem; color: var(--ink-soft); }
 
-/* ---------- Video generator (lead profile) ----------
-   Every clip costs money, so the cost sits next to the button rather than
-   somewhere the eye can skip. */
-
-.lp-gen { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 18px; }
-.lp-gen-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-.lp-gen-head h2 { margin: 0; font-size: 1rem; }
-.lp-gen-state { font-size: 0.75rem; color: var(--ink-soft); }
-.lp-gen-state.is-warn { color: var(--accent); font-weight: 600; }
-
-.lp-gen-photos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 8px;
-  margin: 10px 0 14px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-.lp-gen-photo { position: relative; cursor: pointer; display: block; }
-.lp-gen-photo img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 2px solid transparent;
-  display: block;
-}
-.lp-gen-photo input { position: absolute; top: 6px; left: 6px; margin: 0; z-index: 1; cursor: pointer; }
-.lp-gen-photo input:checked ~ img { border-color: var(--accent); }
-.lp-gen-photo-n {
-  position: absolute;
-  bottom: 4px;
-  right: 6px;
-  font-size: 0.65rem;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 4px;
-  padding: 0 4px;
-}
-
-.lp-gen-controls { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
-.lp-gen-controls .lp-field { flex: 0 0 auto; }
-.lp-gen-controls input, .lp-gen-controls select {
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font: inherit;
-  font-size: 0.85rem;
-}
-.lp-gen-controls input { width: 90px; }
-.lp-gen-prompt-field { display: block; margin-bottom: 6px; }
-.lp-gen-prompt {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font: inherit;
-  font-size: 0.8rem;
-  resize: vertical;
-}
-
-.lp-gen-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 10px;
-}
-.lp-gen-actions > button { width: auto; flex: 0 0 auto; }
-.lp-gen-cost { font-size: 0.85rem; font-weight: 600; }
-
-.lp-gen-progress {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: var(--cream-soft);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  font-size: 0.85rem;
-}
-.lp-gen-progress button { margin-left: auto; width: auto; flex: 0 0 auto; }
-.lp-gen-spin {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--line);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: lp-gen-spin 0.8s linear infinite;
-  flex: 0 0 auto;
-}
-@keyframes lp-gen-spin { to { transform: rotate(360deg); } }
-
-.lp-gen-error { color: var(--accent); font-size: 0.85rem; margin: 10px 0 0; }
-.lp-gen-clips {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
-.lp-gen-clip { margin: 0; }
-.lp-gen-clip video { width: 100%; border-radius: 10px; display: block; background: #000; }
-.lp-gen-clip figcaption { margin-top: 6px; text-align: center; }
-.lp-gen-clip figcaption button { width: auto; }
-
-/* ---------- Option 1: lead browser (Create Video) ----------
-   The cards are the Lead Manager's own, so there is deliberately almost no
-   card styling here -- only the shell it opens in, and the picking states. */
-
-.lead-open-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
-.lead-picked-summary { font-size: 0.85rem; color: var(--ink-soft); }
-.lead-picked-summary.is-set { color: #2f6b2c; font-weight: 600; }
-
-.lead-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
-.lead-modal.hidden { display: none; }
-.lead-modal-backdrop { position: absolute; inset: 0; background: rgba(23, 19, 15, 0.5); }
-
-.lead-modal-panel {
-  position: relative;
-  width: min(1180px, calc(100vw - 32px));
-  max-height: calc(100vh - 56px);
-  display: flex;
-  flex-direction: column;
-  background: var(--cream);
-  border-radius: var(--radius);
-  padding: 20px 22px 22px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.lead-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.lead-modal-head h2 { margin: 0; font-size: 1.1rem; }
-.lead-modal-x {
-  background: none;
-  border: none;
-  font-size: 1.6rem;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--ink-soft);
-  padding: 0 4px;
-  width: auto;
-}
-.lead-modal-x:hover { color: var(--ink); }
-
-#lead-search {
-  width: 100%;
-  margin-top: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  font: inherit;
-  font-size: 0.9rem;
-  background: #fff;
-}
-.lead-modal-filters { margin-top: 12px; margin-bottom: 0; }
-.lead-modal-count { margin: 10px 0 0; font-size: 0.78rem; color: var(--ink-soft); }
-
-/* The list scrolls inside the panel; the search and filters stay put. */
-#lead-picker {
-  overflow-y: auto;
-  margin-top: 12px;
-  padding-right: 4px;
-}
-
-.lead-card.is-pickable { cursor: pointer; }
-.lead-card.is-pickable:hover { border-color: var(--accent); }
-.lead-card.is-unpickable { opacity: 0.55; }
-.lead-use-btn { width: auto; flex: 0 0 auto; }
-
 /* ---------- photos grouped by room (lead profile) ---------- */
 
 .lp-rooms { margin-top: 16px; }
@@ -2548,42 +2379,35 @@ gmp-map-3d {
 }
 .lightbox-x:hover { color: #fff; }
 
-/* Jump straight to a room rather than scrolling past everything between. */
+/* Jump straight to a room rather than scrolling past everything between.
+   One dropdown rather than a strip of chips: fifteen rooms of chips is a wall,
+   and this stays one line however many rooms a listing has. */
 .lightbox-rooms {
   position: relative;
   z-index: 1;
   grid-column: 1 / -1;
   grid-row: 2;
   display: flex;
-  gap: 6px;
+  align-items: center;
   justify-content: center;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding: 4px 16px 0;
-  scrollbar-width: none;
+  gap: 8px;
+  padding: 6px 16px 0;
 }
-.lightbox-rooms::-webkit-scrollbar { display: none; }
 .lightbox-rooms[hidden] { display: none; }
-.lightbox-room-chip {
-  all: unset;
-  flex: 0 0 auto;
+.lightbox-rooms-label { font-size: 0.72rem; color: #8b8378; }
+.lightbox-room-select {
+  background: #1c1815;
+  color: #e8e2d8;
+  border: 1px solid #3a342d;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.76rem;
   cursor: pointer;
-  font-size: 0.74rem;
-  color: #b8b0a4;
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid #34302a;
-  white-space: nowrap;
+  max-width: 240px;
 }
-.lightbox-room-chip:hover { color: #fff; border-color: #5a534a; }
-.lightbox-room-chip.is-active {
-  color: #17130f;
-  background: var(--accent);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-.lightbox-chip-count { opacity: 0.65; margin-left: 2px; }
-.lightbox-room-chip.is-active .lightbox-chip-count { opacity: 0.75; }
+.lightbox-room-select:hover { border-color: #5a534a; }
+.lightbox-room-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .lightbox-strip {
   position: relative;

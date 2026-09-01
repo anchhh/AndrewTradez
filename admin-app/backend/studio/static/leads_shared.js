@@ -647,7 +647,10 @@ function ensureLightbox() {
       </figcaption>
     </figure>
     <button type="button" class="lightbox-nav lightbox-next" data-lb-next aria-label="Next">&#8250;</button>
-    <nav class="lightbox-rooms" aria-label="Jump to a room"></nav>
+    <div class="lightbox-rooms">
+      <label class="lightbox-rooms-label" for="lightbox-room-select">Jump to</label>
+      <select id="lightbox-room-select" class="lightbox-room-select"></select>
+    </div>
     <div class="lightbox-strip"></div>`;
   document.body.appendChild(box);
 
@@ -718,27 +721,26 @@ function renderLightbox() {
     counts[key] += 1;
   });
 
-  // Only worth showing when there is more than one room to move between.
+  // A dropdown rather than a strip of chips: fifteen rooms of chips is a wall,
+  // and this stays one line however many rooms a listing has.
+  const select = box.querySelector(".lightbox-room-select");
   if (order.length > 1) {
+    nav.hidden = false;
     const currentEntry = rooms && rooms[url];
     const currentKey = currentEntry ? currentEntry.room : "unsorted";
-    nav.hidden = false;
-    nav.innerHTML = order.map((r) => `
-      <button type="button" class="lightbox-room-chip ${r.key === currentKey ? "is-active" : ""}"
-              data-i="${firstIndex[r.key]}">
-        ${escapeHtml(r.label)} <span class="lightbox-chip-count">${counts[r.key]}</span>
-      </button>`).join("");
-    nav.querySelectorAll(".lightbox-room-chip").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        lightboxState.index = Number(btn.dataset.i);
-        renderLightbox();
-      });
-    });
-    const activeChip = nav.querySelector(".is-active");
-    if (activeChip) activeChip.scrollIntoView({ block: "nearest", inline: "center" });
+    select.innerHTML = order
+      .map((r) => `<option value="${firstIndex[r.key]}" ${r.key === currentKey ? "selected" : ""}>
+                     ${escapeHtml(r.label)} (${counts[r.key]})
+                   </option>`)
+      .join("");
+    // Rebuilt every render, so the handler goes on fresh each time.
+    select.onchange = () => {
+      lightboxState.index = Number(select.value);
+      renderLightbox();
+    };
   } else {
     nav.hidden = true;
-    nav.innerHTML = "";
+    select.innerHTML = "";
   }
 
   const strip = box.querySelector(".lightbox-strip");
