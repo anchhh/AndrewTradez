@@ -2657,3 +2657,19 @@ gmp-map-3d {
 }
 .lp-sheets-grid a:hover { border-color: var(--accent); }
 .lp-sheets-grid img { width: 100%; display: block; }
+
+/* Dismiss an email candidate you have judged, so the reasoning behind the
+   ones you rejected stops taking up the screen. */
+.lead-candidate-drop {
+  all: unset;
+  margin-left: auto;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 5px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+}
+.lead-candidate-drop:hover { color: var(--accent); background: rgba(0, 0, 0, 0.05); }
+.lead-candidate-drop:disabled { opacity: 0.4; cursor: default; }

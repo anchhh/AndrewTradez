@@ -490,6 +490,8 @@ function candidateRowHtml(candidate, index, currentEmail) {
             ? '<span class="lead-candidate-badge is-inuse">in use</span>'
             : `<button type="button" class="btn-secondary btn-tiny lead-candidate-use" data-email="${escapeHtml(candidate.email)}">Use this</button>`
         }
+        <button type="button" class="lead-candidate-drop" data-email="${escapeHtml(candidate.email)}"
+                title="Not this one" aria-label="Dismiss ${escapeHtml(candidate.email)}">&times;</button>
       </div>
       ${(candidate.supports || []).length
         ? `<ul class="lead-candidate-why for">${candidate.supports
@@ -526,8 +528,44 @@ function wireFindEmail(card, lead, handlers) {
           body: JSON.stringify({ agent_email: use.dataset.email }),
         });
         Object.assign(lead, updated);
+
+        // Picking one answers the question, so the reasoning behind the
+        // others stops earning its space. Check email brings it all back.
+        const cleared = await fetchJSON(`/studio/api/leads/${lead.id}/candidates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clear: true }),
+        });
+        Object.assign(lead, cleared);
+        box.classList.add("hidden");
+        box.innerHTML = "";
+
+        // Update the address on the card itself. onChanged only re-renders
+        // when a filter is active, so without this the card keeps showing the
+        // old address until a reload -- which used to be masked by the
+        // candidate list re-rendering underneath it.
+        const contact = card.querySelector(".lead-card-contact");
+        if (contact) contact.textContent = contactLine(lead);
+
         if (handlers.onChanged) handlers.onChanged(lead);
-        show(list, message);
+      });
+    });
+
+    box.querySelectorAll(".lead-candidate-drop").forEach((drop) => {
+      drop.addEventListener("click", async () => {
+        drop.disabled = true;
+        const updated = await fetchJSON(`/studio/api/leads/${lead.id}/candidates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ remove: drop.dataset.email }),
+        });
+        Object.assign(lead, updated);
+        if (!(lead.email_candidates || []).length) {
+          box.classList.add("hidden");
+          box.innerHTML = "";
+        } else {
+          show(lead.email_candidates, message);
+        }
       });
     });
   };

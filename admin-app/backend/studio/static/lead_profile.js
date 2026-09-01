@@ -227,6 +227,8 @@ function renderCandidates(candidates, note) {
                   c.email
                 )}">Use this</button>`
           }
+          <button type="button" class="lead-candidate-drop lp-drop" data-email="${escapeHtml(c.email)}"
+                  title="Not this one" aria-label="Dismiss ${escapeHtml(c.email)}">&times;</button>
         </div>
         ${(c.supports || []).length
           ? `<ul class="lp-candidate-why for">${c.supports.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
@@ -243,9 +245,33 @@ function renderCandidates(candidates, note) {
     btn.addEventListener("click", async () => {
       el("lp-agent-email").value = btn.dataset.email;
       await saveContactField("agent_email", el("lp-agent-email"));
-      renderCandidates(lead.email_candidates, note);
+      // The question is answered; the reasoning behind the rejected options
+      // stops earning its space. Check email brings it all back.
+      await dropCandidates({ clear: true });
     });
   });
+
+  box.querySelectorAll(".lp-drop").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      await dropCandidates({ remove: btn.dataset.email }, note);
+    });
+  });
+}
+
+async function dropCandidates(body, note) {
+  try {
+    const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}/candidates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    Object.assign(lead, updated);
+  } catch (err) {
+    alert(err.message || "Could not update the options.");
+    return;
+  }
+  renderCandidates(lead.email_candidates, (lead.email_candidates || []).length ? note : null);
 }
 
 async function runEmailResearch() {

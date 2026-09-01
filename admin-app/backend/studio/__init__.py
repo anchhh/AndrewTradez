@@ -1663,6 +1663,37 @@ def api_find_email(lead_id):
     return jsonify(found)
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/candidates", methods=["POST"])
+@login_required
+def api_email_candidates(lead_id):
+    """Drop email candidates you have judged.
+
+    Either one address ("not that person") or all of them, which is what
+    picking an address means -- the question is answered and the reasoning
+    behind it is just taking up the screen. Nothing is lost that cannot be
+    recovered: Check email re-runs the research at any time.
+    """
+    from extensions import db
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    data = request.get_json(force=True, silent=True) or {}
+    if data.get("clear"):
+        lead.email_candidates = []
+    elif data.get("remove"):
+        target = (data["remove"] or "").strip().lower()
+        lead.email_candidates = [
+            c for c in lead.email_candidates if (c.get("email") or "").lower() != target
+        ]
+    else:
+        return jsonify({"error": "Nothing to do."}), 400
+
+    db.session.commit()
+    return jsonify(lead.to_dict())
+
+
 @studio_bp.route("/api/leads/bulk", methods=["POST"])
 @login_required
 def api_bulk_leads():
