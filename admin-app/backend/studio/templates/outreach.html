@@ -25,26 +25,27 @@
   <section class="outreach-section">
     <h2 class="outreach-heading">Ready to send <span id="count-ready" class="outreach-count">0</span></h2>
     <p class="hint">These have an agent email and a finished video. Check the address looks right, then send.</p>
-    <div id="list-ready" class="lead-card-list"></div>
+    <div id="list-ready" class="lm-rows"></div>
     <p id="empty-ready" class="empty-note">Nothing is ready yet — a lead needs both an agent email and a video link.</p>
   </section>
 
   <section class="outreach-section">
     <h2 class="outreach-heading">Waiting <span id="count-waiting" class="outreach-count">0</span></h2>
     <p class="hint">Held back for the reason shown. Paste a video link to move one into the ready list.</p>
-    <div id="list-waiting" class="outreach-waiting"></div>
+    <div id="list-waiting" class="lm-rows"></div>
     <p id="empty-waiting" class="empty-note">No leads waiting.</p>
   </section>
 
   <section class="outreach-section">
     <h2 class="outreach-heading">Sent <span id="count-sent" class="outreach-count">0</span></h2>
-    <div id="list-sent" class="outreach-waiting"></div>
+    <div id="list-sent" class="lm-rows"></div>
     <p id="empty-sent" class="empty-note">Nothing sent yet.</p>
   </section>
 
   <p id="skipped-note" class="hint outreach-skipped-note"></p>
 </div>
 
+<script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='outreach.js') }}"></script>
 </body>
 </html>

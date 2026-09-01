@@ -70,9 +70,11 @@ async function checkConnection() {
 
 /* ---------- cards ---------- */
 
-function confidenceBadge(conf) {
+function confidenceBadge(conf, clickable) {
   const cls = { high: "conf-high", direct: "conf-high", low: "conf-low", none: "conf-none" }[conf.level] || "conf-low";
-  return `<span class="conf-badge ${cls}">${esc(conf.label)}</span>`;
+  return clickable
+    ? `<button type="button" class="conf-badge ${cls} act-why" title="Why this address?">${esc(conf.label)} <span class="conf-caret">▾</span></button>`
+    : `<span class="conf-badge ${cls}">${esc(conf.label)}</span>`;
 }
 
 function confidenceDetail(conf) {
@@ -83,79 +85,75 @@ function confidenceDetail(conf) {
   return `<ul class="conf-list">${bits.join("")}</ul>`;
 }
 
-function readyCard(item) {
+/* One row per lead, matching the Lead Manager. The reasoning behind an
+   address is the thing worth reading before sending, but not the thing worth
+   reading forty times -- so it collapses, and opens on the badge. */
+
+function outreachRow(item, kind) {
   const lead = item.lead;
   const conf = item.confidence;
   const photo = (lead.photo_urls || [])[0];
+  const place = [lead.city, lead.state].filter(Boolean).join(", ");
+  const sub = [lead.agent_name, lead.brokerage || place].filter(Boolean).join(" · ");
+  const hasWhy = (conf.supports || []).length || (conf.concerns || []).length;
+
+  const right =
+    kind === "ready"
+      ? `<span class="or-email"><code>${esc(lead.agent_email)}</code></span>
+         ${confidenceBadge(conf, hasWhy)}
+         <a class="or-video" href="${esc(lead.video_url)}" target="_blank"
+            rel="noopener noreferrer" title="Watch the video">▶</a>
+         <button class="btn-tiny act-preview" type="button">Preview</button>
+         <button class="btn-tiny act-skip" type="button">Skip</button>
+         <button class="btn-send act-send" type="button">Send</button>`
+      : kind === "waiting"
+      ? `<span class="or-blockers">${item.blockers
+           .map((b) => `<span class="outreach-blocker">${esc(b)}</span>`)
+           .join("")}</span>`
+      : `<span class="or-email"><code>${esc(lead.agent_email || "")}</code></span>
+         <span class="outreach-sent-mark">Sent${lead.ghl_contact_id ? " · in GHL" : ""}</span>`;
+
+  const needsVideo = kind === "waiting" && item.blockers.includes("no finished video for this listing");
 
   return `
-    <article class="lead-card outreach-card" data-id="${lead.id}">
-      <div class="lead-card-head">
-        <a class="lead-card-address" href="/studio/leads/${lead.id}">${esc(lead.address || "Untitled listing")}</a>
-        ${confidenceBadge(conf)}
+    <div class="lm-row or-row ${kind === "sent" ? "is-sent" : ""}" data-id="${lead.id}">
+      <button type="button" class="lm-row-thumb ${photo ? "" : "is-empty"}" title="View photos">
+        ${photo ? `<img src="${esc(photo)}" alt="" loading="lazy">` : ""}
+      </button>
+      <div class="lm-row-main">
+        <a class="lm-row-address" href="/studio/leads/${lead.id}">${esc(lead.address || "Untitled listing")}</a>
+        <span class="lm-row-sub">${esc(sub)}</span>
       </div>
-      <div class="lead-card-body">
-        <div class="lead-card-media">
-          ${photo ? `<img src="${esc(photo)}" alt="">` : `<div class="lead-card-media-empty"></div>`}
-        </div>
-        <div class="lead-card-info">
-          <p class="lead-card-contact">
-            <strong>${esc(lead.agent_name || "Unknown agent")}</strong>
-            ${lead.brokerage ? ` · ${esc(lead.brokerage)}` : ""}
-          </p>
-          <p class="outreach-to">To: <code>${esc(lead.agent_email)}</code></p>
-          ${confidenceDetail(conf)}
-          <p class="outreach-video">
-            Video: <a href="${esc(lead.video_url)}" target="_blank" rel="noopener noreferrer">${esc(lead.video_url)}</a>
-          </p>
-        </div>
-      </div>
-      <div class="lead-card-actions">
-        <button class="btn-tiny act-preview" type="button">Preview payload</button>
-        <button class="btn-tiny act-skip" type="button">Skip</button>
-        <button class="btn-send act-send" type="button">Send via GoHighLevel</button>
-      </div>
-      <pre class="outreach-preview" hidden></pre>
-    </article>`;
+      ${right}
+    </div>
+    ${hasWhy && kind === "ready"
+      ? `<div class="or-why" data-for="${lead.id}" hidden>${confidenceDetail(conf)}</div>`
+      : ""}
+    ${needsVideo
+      ? `<div class="or-videoinput" data-id="${lead.id}">
+           <input class="video-input" type="url" placeholder="Paste the finished video link…"
+                  value="${esc(lead.video_url || "")}">
+           <button class="btn-tiny act-save-video" type="button">Save</button>
+         </div>`
+      : ""}`;
 }
 
-function waitingRow(item) {
-  const lead = item.lead;
-  const needsVideo = item.blockers.includes("no finished video for this listing");
-  return `
-    <div class="outreach-row" data-id="${lead.id}">
-      <div class="outreach-row-main">
-        <a href="/studio/leads/${lead.id}">${esc(lead.address || "Untitled listing")}</a>
-        <span class="outreach-row-agent">${esc(lead.agent_name || "no agent")}</span>
-      </div>
-      <div class="outreach-row-blockers">
-        ${item.blockers.map((b) => `<span class="outreach-blocker">${esc(b)}</span>`).join("")}
-      </div>
-      ${needsVideo ? `
-        <div class="outreach-row-video">
-          <input class="video-input" type="url" placeholder="Paste the finished video link…"
-                 value="${esc(lead.video_url || "")}">
-          <button class="btn-tiny act-save-video" type="button">Save</button>
-        </div>` : ""}
-    </div>`;
-}
-
-function sentRow(item) {
-  const lead = item.lead;
-  return `
-    <div class="outreach-row outreach-row-sent" data-id="${lead.id}">
-      <div class="outreach-row-main">
-        <a href="/studio/leads/${lead.id}">${esc(lead.address || "Untitled listing")}</a>
-        <span class="outreach-row-agent">${esc(lead.agent_name || "")} · ${esc(lead.agent_email || "")}</span>
-      </div>
-      <span class="outreach-sent-mark">Sent${lead.ghl_contact_id ? " · in GHL" : ""}</span>
-    </div>`;
-}
+const readyCard = (item) => outreachRow(item, "ready");
+const waitingRow = (item) => outreachRow(item, "waiting");
+const sentRow = (item) => outreachRow(item, "sent");
 
 /* ---------- load + wire ---------- */
 
+let lastQueue = { ready: [], waiting: [], sent: [] };
+
+function findItem(id) {
+  return [...lastQueue.ready, ...lastQueue.waiting, ...lastQueue.sent]
+    .find((i) => String(i.lead.id) === String(id));
+}
+
 async function load() {
   const data = await api("/studio/api/outreach/queue");
+  lastQueue = data;
 
   el("list-ready").innerHTML = data.ready.map(readyCard).join("");
   el("list-waiting").innerHTML = data.waiting.map(waitingRow).join("");
@@ -181,12 +179,38 @@ function leadIdOf(node) {
 }
 
 function wire() {
+  // The whole row opens the profile, as in the Lead Manager. Controls on it
+  // are skipped by makeRowOpenProfile.
+  document.querySelectorAll(".or-row").forEach((row) => {
+    makeRowOpenProfile(row, row.dataset.id);
+    const thumb = row.querySelector(".lm-row-thumb:not(.is-empty)");
+    if (thumb) {
+      thumb.addEventListener("click", () => {
+        const item = findItem(row.dataset.id);
+        if (item) openLightbox(item.lead.photo_urls || [], 0, item.lead.photo_rooms || null);
+      });
+    }
+  });
+
+  // The reasoning behind an address: worth reading once, not forty times.
+  document.querySelectorAll(".act-why").forEach((btn) => {
+    btn.onclick = () => {
+      const id = leadIdOf(btn);
+      const why = document.querySelector(`.or-why[data-for="${id}"]`);
+      if (!why) return;
+      why.hidden = !why.hidden;
+      btn.classList.toggle("is-open", !why.hidden);
+    };
+  });
+
   document.querySelectorAll(".act-send").forEach((btn) => {
     btn.onclick = async () => {
-      const card = btn.closest(".outreach-card");
-      const address = card.querySelector(".outreach-to code").textContent;
-      const agent = card.querySelector(".lead-card-contact strong").textContent;
-      if (!confirm(`Send the video email to ${agent} at ${address}?\n\nGoHighLevel will deliver it. This can't be unsent.`)) return;
+      const row = btn.closest(".or-row");
+      const address = row.querySelector(".or-email code").textContent;
+      const agent = row.querySelector(".lm-row-sub").textContent.split(" · ")[0];
+      if (!confirm(`Send the video email to ${agent} at ${address}?
+
+GoHighLevel will deliver it. This can't be unsent.`)) return;
 
       btn.disabled = true;
       btn.textContent = "Sending…";
@@ -196,22 +220,23 @@ function wire() {
       } catch (err) {
         alert(`Not sent: ${err.message}`);
         btn.disabled = false;
-        btn.textContent = "Send via GoHighLevel";
+        btn.textContent = "Send";
       }
     };
   });
 
   document.querySelectorAll(".act-preview").forEach((btn) => {
     btn.onclick = async () => {
-      const box = btn.closest(".outreach-card").querySelector(".outreach-preview");
-      if (!box.hidden) {
-        box.hidden = true;
-        return;
-      }
+      const id = leadIdOf(btn);
+      let box = document.querySelector(`.outreach-preview[data-for="${id}"]`);
+      if (box) { box.remove(); return; }
       try {
-        const result = await api(`/studio/api/leads/${leadIdOf(btn)}/outreach/preview`, { method: "POST" });
+        const result = await api(`/studio/api/leads/${id}/outreach/preview`, { method: "POST" });
+        box = document.createElement("pre");
+        box.className = "outreach-preview";
+        box.dataset.for = id;
         box.textContent = JSON.stringify(result.payload, null, 2);
-        box.hidden = false;
+        btn.closest(".or-row").after(box);
       } catch (err) {
         alert(err.message);
       }
@@ -234,10 +259,11 @@ function wire() {
 
   document.querySelectorAll(".act-save-video").forEach((btn) => {
     btn.onclick = async () => {
-      const input = btn.closest(".outreach-row-video").querySelector(".video-input");
+      const wrap = btn.closest(".or-videoinput");
+      const input = wrap.querySelector(".video-input");
       btn.disabled = true;
       try {
-        await api(`/studio/api/leads/${leadIdOf(btn)}`, {
+        await api(`/studio/api/leads/${wrap.dataset.id}`, {
           method: "PATCH",
           body: JSON.stringify({ video_url: input.value.trim() }),
         });

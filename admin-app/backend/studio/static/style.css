@@ -2812,3 +2812,66 @@ gmp-map-3d {
 @media (max-width: 780px) {
   .lm-row-statusselect, .lm-row-status { display: none; }
 }
+
+/* ---------- Outreach rows ----------
+   The same row as the Lead Manager, with what a send decision needs on the
+   right: the address, how much it can be trusted, the video, and the button. */
+
+.or-row { border-left-color: var(--accent); }
+.or-row.is-sent { opacity: 0.7; border-left-color: #5aa35a; }
+.or-email { flex: 0 1 auto; min-width: 0; font-size: 0.78rem; }
+.or-email code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 240px;
+  vertical-align: bottom;
+}
+.or-video {
+  flex: 0 0 auto;
+  text-decoration: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  padding: 0 3px;
+}
+.or-blockers { flex: 0 1 auto; display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.or-row .btn-tiny, .or-row .btn-send { flex: 0 0 auto; width: auto; }
+
+.conf-badge.act-why { cursor: pointer; border: none; font: inherit; font-size: 0.72rem; font-weight: 600; }
+.conf-caret { font-size: 0.6rem; opacity: 0.7; }
+.act-why.is-open .conf-caret { transform: rotate(180deg); display: inline-block; }
+
+/* The reasoning, when opened -- tucked under its row rather than beside it. */
+.or-why {
+  margin: -1px 0 3px 58px;
+  padding: 8px 12px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.or-why .conf-list { margin: 0; }
+.or-videoinput {
+  display: flex;
+  gap: 6px;
+  margin: -1px 0 3px 58px;
+  padding: 8px 12px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.or-videoinput .video-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.78rem;
+}
+.outreach-preview[data-for] { margin: -1px 0 3px 58px; border-radius: 0 0 8px 8px; }
