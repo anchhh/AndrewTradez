@@ -322,55 +322,6 @@ function renderVideo(project) {
       </div>`;
   }
 
-  // Outside the video frame: .lp-video is a fixed 16:9 centred flex box, so
-  // anything appended inside it gets squeezed alongside the player.
-  const linkBox = el("lp-video-link-box");
-  if (linkBox) {
-    linkBox.innerHTML = finishedVideoHtml();
-    wireFinishedVideo();
-  }
-}
-
-/* The finished video, wherever it ended up being hosted. Nothing in this app
-   renders video yet, so this is pasted in by hand -- and it is what makes the
-   lead sendable, since the outreach email exists to show the agent this. */
-function finishedVideoHtml() {
-  return `
-    <div class="lp-video-link">
-      <label class="lp-video-link-label" for="lp-video-url">Finished video link</label>
-      <div class="lp-video-link-row">
-        <input id="lp-video-url" type="url" placeholder="https://…"
-               value="${escapeHtml(lead.video_url || "")}">
-        <button id="lp-video-save" class="btn-tiny" type="button">Save</button>
-      </div>
-      <p class="lp-video-link-hint">${
-        lead.video_url
-          ? `Ready to send from the <a href="/studio/outreach">outreach queue</a>.`
-          : `Paste the link an agent can watch it at. Until then this lead can't be sent.`
-      }</p>
-    </div>`;
-}
-
-function wireFinishedVideo() {
-  const input = el("lp-video-url");
-  const button = el("lp-video-save");
-  if (!input || !button) return;
-
-  button.addEventListener("click", async () => {
-    button.disabled = true;
-    try {
-      const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ video_url: input.value.trim() }),
-      });
-      Object.assign(lead, updated);
-      renderVideo(currentProject);
-    } catch (err) {
-      alert(err.message || "Could not save that link.");
-      button.disabled = false;
-    }
-  });
 }
 
 /* ---------- header ---------- */
