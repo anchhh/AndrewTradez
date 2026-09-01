@@ -592,6 +592,7 @@ function ensureLightbox() {
       </figcaption>
     </figure>
     <button type="button" class="lightbox-nav lightbox-next" data-lb-next aria-label="Next">&#8250;</button>
+    <nav class="lightbox-rooms" aria-label="Jump to a room"></nav>
     <div class="lightbox-strip"></div>`;
   document.body.appendChild(box);
 
@@ -646,6 +647,44 @@ function renderLightbox() {
   const single = photos.length < 2;
   box.querySelector(".lightbox-prev").hidden = single;
   box.querySelector(".lightbox-next").hidden = single;
+
+  const nav = box.querySelector(".lightbox-rooms");
+  const order = [];
+  const counts = {};
+  const firstIndex = {};
+  photos.forEach((u, i) => {
+    const entry = rooms && rooms[u];
+    const key = entry ? entry.room : "unsorted";
+    if (!(key in counts)) {
+      counts[key] = 0;
+      firstIndex[key] = i;
+      order.push({ key, label: entry ? entry.label : "Unsorted" });
+    }
+    counts[key] += 1;
+  });
+
+  // Only worth showing when there is more than one room to move between.
+  if (order.length > 1) {
+    const currentEntry = rooms && rooms[url];
+    const currentKey = currentEntry ? currentEntry.room : "unsorted";
+    nav.hidden = false;
+    nav.innerHTML = order.map((r) => `
+      <button type="button" class="lightbox-room-chip ${r.key === currentKey ? "is-active" : ""}"
+              data-i="${firstIndex[r.key]}">
+        ${escapeHtml(r.label)} <span class="lightbox-chip-count">${counts[r.key]}</span>
+      </button>`).join("");
+    nav.querySelectorAll(".lightbox-room-chip").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        lightboxState.index = Number(btn.dataset.i);
+        renderLightbox();
+      });
+    });
+    const activeChip = nav.querySelector(".is-active");
+    if (activeChip) activeChip.scrollIntoView({ block: "nearest", inline: "center" });
+  } else {
+    nav.hidden = true;
+    nav.innerHTML = "";
+  }
 
   const strip = box.querySelector(".lightbox-strip");
   strip.innerHTML = photos.map((u, i) => `

@@ -676,7 +676,12 @@ function renderRooms(data) {
     if (!group) return;
     grid.querySelectorAll("button").forEach((btn) => {
       btn.addEventListener("click", () => {
-        openLightbox(group.photos, Number(btn.dataset.i), (lead && lead.photo_rooms) || null);
+        // The full gallery, positioned at this photo -- the viewer's room
+        // directory then lets you move on to another room, which scoping it
+        // to one group would prevent.
+        const all = lead.photo_urls || [];
+        const url = group.photos[Number(btn.dataset.i)];
+        openLightbox(all, Math.max(0, all.indexOf(url)), lead.photo_rooms || null);
       });
     });
   });

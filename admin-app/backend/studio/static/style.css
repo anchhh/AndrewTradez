@@ -2485,12 +2485,13 @@ gmp-map-3d {
   z-index: 200;
   display: grid;
   grid-template-columns: 64px 1fr 64px;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: 1fr auto auto;   /* photo, room directory, thumbnails */
   align-items: center;
 }
 .lightbox.hidden { display: none; }
-/* Near-solid: a photo viewer should isolate the photo, not tint the page. */
-.lightbox-backdrop { position: absolute; inset: 0; background: rgba(10, 8, 6, 0.97); }
+/* Fully opaque. Even at 97% a light page ghosts through, and a photo viewer
+   should isolate the photo rather than tint what is behind it. */
+.lightbox-backdrop { position: absolute; inset: 0; background: #0a0806; }
 
 .lightbox-stage {
   grid-column: 2;
@@ -2565,11 +2566,48 @@ gmp-map-3d {
 }
 .lightbox-x:hover { color: #fff; }
 
-.lightbox-strip {
+/* Jump straight to a room rather than scrolling past everything between. */
+.lightbox-rooms {
   position: relative;
   z-index: 1;
   grid-column: 1 / -1;
   grid-row: 2;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 4px 16px 0;
+  scrollbar-width: none;
+}
+.lightbox-rooms::-webkit-scrollbar { display: none; }
+.lightbox-rooms[hidden] { display: none; }
+.lightbox-room-chip {
+  all: unset;
+  flex: 0 0 auto;
+  cursor: pointer;
+  font-size: 0.74rem;
+  color: #b8b0a4;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #34302a;
+  white-space: nowrap;
+}
+.lightbox-room-chip:hover { color: #fff; border-color: #5a534a; }
+.lightbox-room-chip.is-active {
+  color: #17130f;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.lightbox-chip-count { opacity: 0.65; margin-left: 2px; }
+.lightbox-room-chip.is-active .lightbox-chip-count { opacity: 0.75; }
+
+.lightbox-strip {
+  position: relative;
+  z-index: 1;
+  grid-column: 1 / -1;
+  grid-row: 3;
   display: flex;
   gap: 6px;
   overflow-x: auto;
