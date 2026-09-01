@@ -736,5 +736,79 @@ if (existingProject) {
   applyPrefill(prefillData);
 } else {
   renderSatelliteView();
+  // Only when starting fresh: an open project, or a lead arriving via
+  // ?lead_id=, has already chosen its source.
+  loadLeadPicker();
 }
 renderPhotoGrid();
+
+/* ---------- Option 1: pick a lead ----------
+   A captured lead already has its photos on disk and its address and listing
+   details saved, so this loads all of it rather than re-fetching a page that
+   may since have changed or started refusing us. It feeds applyPrefill(), the
+   same path the ?lead_id= query param uses -- one behaviour, not two. */
+
+async function loadLeadPicker() {
+  const box = el("lead-picker");
+  const empty = el("lead-picker-empty");
+  if (!box) return;
+
+  let leads = [];
+  try {
+    const res = await fetch("/studio/api/leads");
+    leads = await res.json();
+  } catch (_) {
+    box.innerHTML = `<p class="hint">Couldn't load your leads.</p>`;
+    return;
+  }
+
+  if (!Array.isArray(leads) || !leads.length) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  box.innerHTML = leads.map((lead) => {
+    const photos = lead.photo_urls || [];
+    const facts = [
+      lead.beds ? `${lead.beds} bd` : null,
+      lead.baths ? `${lead.baths} ba` : null,
+      lead.sqft ? `${Number(lead.sqft).toLocaleString()} sqft` : null,
+    ].filter(Boolean).join(" · ");
+    return `
+      <button type="button" class="lead-pick" data-id="${lead.id}" ${photos.length ? "" : "disabled"}>
+        <span class="lead-pick-thumb">
+          ${photos[0] ? `<img src="${photos[0]}" alt="">` : `<span class="lead-pick-noimg">no photos</span>`}
+        </span>
+        <span class="lead-pick-body">
+          <span class="lead-pick-address">${lead.address || "Untitled listing"}</span>
+          <span class="lead-pick-meta">
+            ${photos.length} photo${photos.length === 1 ? "" : "s"}${facts ? ` · ${facts}` : ""}
+          </span>
+          ${lead.agent_name ? `<span class="lead-pick-agent">${lead.agent_name}</span>` : ""}
+        </span>
+      </button>`;
+  }).join("");
+
+  box.querySelectorAll(".lead-pick").forEach((btn) => {
+    btn.addEventListener("click", () => pickLead(btn));
+  });
+}
+
+async function pickLead(btn) {
+  const box = el("lead-picker");
+  box.querySelectorAll(".lead-pick").forEach((b) => b.classList.remove("is-picked"));
+  btn.classList.add("is-picked");
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`/studio/api/leads/${btn.dataset.id}/prefill`);
+    if (!res.ok) throw new Error((await res.json()).error || "Could not load that lead.");
+    await applyPrefill(await res.json());
+  } catch (err) {
+    alert(err.message || "Could not load that lead.");
+    btn.classList.remove("is-picked");
+  } finally {
+    btn.disabled = false;
+  }
+}

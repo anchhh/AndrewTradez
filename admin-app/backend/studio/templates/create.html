@@ -24,17 +24,29 @@
     <p class="hint">Choose how to bring in photos. Either way, you'll review and confirm which ones to keep before saving.</p>
 
     <div class="option-tabs">
-      <button class="tab-btn active" data-tab="link">
+      <button class="tab-btn active" data-tab="lead">
         <span class="opt-num">Option 1</span>
+        Pick a lead you've already captured
+      </button>
+      <button class="tab-btn" data-tab="link">
+        <span class="opt-num">Option 2</span>
         Paste a link — auto-extract images
       </button>
       <button class="tab-btn" data-tab="upload">
-        <span class="opt-num">Option 2</span>
+        <span class="opt-num">Option 3</span>
         Upload images manually
       </button>
     </div>
 
-    <div id="tab-link" class="tab-panel active">
+    <div id="tab-lead" class="tab-panel active">
+      <p class="hint">Leads captured by the extension already have their photos, address and listing details saved — picking one brings all of it in, with nothing to re-fetch or re-upload.</p>
+      <div id="lead-picker" class="lead-picker"></div>
+      <p id="lead-picker-empty" class="empty-note hidden">
+        No leads yet. Capture some with the extension, or use Option 2 or 3.
+      </p>
+    </div>
+
+    <div id="tab-link" class="tab-panel">
       <p class="hint">Works with Zillow, Airbnb, Redfin, VRBO, Realtor.com, or any URL. We read the page's public HTML (image tags, structured data, preview metadata) — the same kind of access a search engine or link-unfurl uses. We don't bypass bot-detection, so some sites may return few or no images; upload manually as a fallback.</p>
       <div class="row">
         <input id="listing-url" type="text" placeholder="https://www.zillow.com/homedetails/..." />
@@ -77,7 +89,7 @@
 
   <section class="card">
     <h2>2. Overhead / satellite view</h2>
-    <p class="hint">Reference context for drone-style and aerial video generation. Auto-fetched from the listing's address (Option 1) — or provide one manually if you used manual upload.</p>
+    <p class="hint">Reference context for drone-style and aerial video generation. Auto-fetched from the listing's address (Options 1 and 2) — or provide one manually if you used manual upload.</p>
     <div id="satellite-preview" class="satellite-preview hidden">
       <img id="satellite-img" src="" alt="Overhead satellite view — click to explore">
       <div class="satellite-explore-hint">Click to explore &#128269;</div>

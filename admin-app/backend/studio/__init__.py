@@ -1433,6 +1433,20 @@ def api_list_leads():
     return jsonify([lead.to_dict() for lead in leads])
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/prefill", methods=["GET"])
+@login_required
+def api_lead_prefill(lead_id):
+    """A lead shaped the way Create Video wants it.
+
+    Same data the ?lead_id= query param uses, over JSON, so picking a lead on
+    the page loads it without a reload and without a second code path.
+    """
+    prefill = _lead_prefill(lead_id)
+    if prefill is None:
+        return jsonify({"error": "Lead not found."}), 404
+    return jsonify(prefill)
+
+
 @studio_bp.route("/api/leads/<int:lead_id>", methods=["PATCH"])
 @login_required
 def api_update_lead_status(lead_id):
