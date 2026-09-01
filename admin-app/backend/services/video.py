@@ -152,7 +152,16 @@ def upload_image(path, cfg=None):
     except ValueError as exc:
         raise VideoError("Atlas Cloud returned a response we could not read") from exc
 
-    url = body.get("url") or (body.get("data") or {}).get("url")
+    # Their upload returns the address under `download_url`, not `url` --
+    # confirmed against a live upload. Both names are accepted because the
+    # docs use `url` and this is exactly the kind of thing they rename.
+    data = body.get("data") or {}
+    url = (
+        body.get("url")
+        or data.get("url")
+        or body.get("download_url")
+        or data.get("download_url")
+    )
     if not url:
         raise VideoError(f"no URL in the upload response: {body}")
     return url

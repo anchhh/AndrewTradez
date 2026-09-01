@@ -1932,6 +1932,96 @@ def api_room_sheets(lead_id):
     })
 
 
+@studio_bp.route("/api/scenery/status", methods=["GET"])
+@login_required
+def api_scenery_status():
+    """Whether staging is connected, and what one room costs."""
+    from services.staging import STYLE_PROMPTS, estimate_cost, load_config
+    from services.staging_jobs import is_busy
+
+    cfg = load_config()
+    return jsonify({
+        "configured": bool(cfg["api_key"]),
+        "config_error": cfg.get("config_error"),
+        "model": cfg["model"],
+        "cost_per_image": estimate_cost(1, cfg),
+        "styles": sorted(STYLE_PROMPTS.keys()),
+        "busy": is_busy(),
+    })
+
+
+@studio_bp.route("/api/scenery/jobs/<int:job_id>", methods=["GET"])
+@login_required
+def api_scenery_job(job_id):
+    """One staging run, for polling. Scoped to its owner like everything else."""
+    from extensions import db
+    from models import StagingJob
+
+    job = db.session.get(StagingJob, job_id)
+    if job is None or job.owner_id != session["user_id"]:
+        return jsonify({"error": "Job not found."}), 404
+    return jsonify({"job": job.to_dict()})
+
+
+@studio_bp.route("/api/scenery/generate", methods=["POST"])
+@login_required
+def api_scenery_generate():
+    """Stage the given rooms.
+
+    Every room must arrive carrying its own style. There is deliberately no
+    default applied here: the page starts this on its own once the styles are
+    set, so a missing style would mean spending money on a guess.
+    """
+    from flask import current_app
+
+    from services.staging import STYLE_PROMPTS, estimate_cost, load_config
+    from services.staging_jobs import StagingJobBusy, start_job
+
+    cfg = load_config()
+    if not cfg["api_key"]:
+        return jsonify({"error": cfg.get("config_error") or
+                        "Staging isn't connected. Add an Atlas Cloud key to "
+                        "studio/atlascloud.json."}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    rooms = data.get("rooms") or []
+    if not rooms:
+        return jsonify({"error": "Pick at least one room to stage."}), 400
+
+    clean = []
+    for room in rooms:
+        photo = (room.get("photo") or "").strip()
+        style = (room.get("style") or "").strip()
+        if not photo:
+            return jsonify({"error": "A room arrived without a photo."}), 400
+        if style not in STYLE_PROMPTS:
+            return jsonify({"error": "Unknown style: %s" % (style or "(none)")}), 400
+        clean.append({"photo": photo, "label": room.get("label"), "style": style})
+
+    lead_id = data.get("lead_id")
+    if lead_id:
+        # Only to confirm it belongs to this user; the photos came with the
+        # request either way.
+        if get_owned_lead(int(lead_id)) is None:
+            return jsonify({"error": "Lead not found."}), 404
+
+    try:
+        job = start_job(
+            current_app._get_current_object(),
+            session["user_id"],
+            clean,
+            lead_id=int(lead_id) if lead_id else None,
+            address=data.get("address"),
+        )
+    except StagingJobBusy as exc:
+        return jsonify({"error": str(exc)}), 409
+
+    return jsonify({
+        "job": job.to_dict(),
+        "estimated_cost": estimate_cost(len(clean), cfg),
+    }), 201
+
+
 @studio_bp.route("/api/video/status", methods=["GET"])
 @login_required
 def api_video_status():

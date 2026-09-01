@@ -18,7 +18,12 @@ const state = {
   photos: [],            // [{url, room, label}]
   selected: new Set(),   // photo urls
   styles: {},            // {url: styleKey} -- each room can differ
-  staged: {},            // {url: stagedImageUrl} once generated
+  staged: {},            // {url: {image, style}} -- style, so a restyle marks it stale
+  roomState: {},         // {url: "queued"|"running"|"completed"|"failed"}
+  roomError: {},         // {url: message}
+  job: null,             // the run in flight, if any
+  polling: false,
+  projectId: null,
 };
 
 /* Rooms worth staging: an empty living room sells, an empty bathroom does not
@@ -28,6 +33,10 @@ const STAGEABLE = new Set([
 ]);
 
 const STYLES = [
+  // The opposite job, and a real one: buyers often want to see the room empty,
+  // and an occupied listing photographs badly. Kept first because it is a
+  // different intent from the styles below, not another look.
+  ["unfurnished", "Unfurnished", "Clear the room out — empty walls and floor, nothing added"],
   ["modern", "Modern", "Clean lines, neutral palette, low profile furniture"],
   ["scandinavian", "Scandinavian", "Pale wood, white walls, soft textiles"],
   ["farmhouse", "Farmhouse", "Warm timber, shaker forms, muted greens"],
@@ -225,13 +234,28 @@ function renderStyles() {
 
 /* ---------- the rooms being staged ---------- */
 
+/* What the after side says before there is an after. Four states rather than
+   one, because "queued" and "failed" are very different news. */
+function pendingText(roomState, error) {
+  if (roomState === "queued") return "Waiting to start…";
+  if (roomState === "running") return "Staging this room…";
+  if (roomState === "failed") return error || "This room failed.";
+  return "Not staged yet";
+}
+
+
 /* Before and after in one frame, dragged rather than toggled -- for staging,
    the question is always "is that the same room", and a slider answers it in
    a way two images side by side do not. Until a room is generated the after
    side says so rather than showing the original twice. */
 function roomCard(photo) {
   const styleKey = state.styles[photo.url] || "";
-  const staged = state.staged[photo.url];
+  const entry = state.staged[photo.url];
+  // A result only counts as this room's if it was made with the style now
+  // selected. Change the style and the old image is stale, not the answer.
+  const staged = entry && entry.style === styleKey ? entry.image : null;
+  const roomState = state.roomState[photo.url] || (staged ? "completed" : "idle");
+  const roomError = state.roomError[photo.url];
 
   const card = document.createElement("div");
   card.className = "scn-room";
@@ -241,7 +265,7 @@ function roomCard(photo) {
       <div class="scn-after-wrap">
         ${staged
           ? `<img class="scn-after" src="${escapeHtml(staged)}" alt="After">`
-          : `<div class="scn-after-pending">Not staged yet</div>`}
+          : `<div class="scn-after-pending">${escapeHtml(pendingText(roomState, roomError))}</div>`}
       </div>
       <input class="scn-slider" type="range" min="0" max="100" value="${staged ? 50 : 100}"
              aria-label="Compare before and after">
@@ -313,17 +337,14 @@ function renderRooms() {
 
 function renderSummary() {
   const text = el("scn-summary-text");
-  const go = el("scn-go");
   const chosen = [...state.selected];
   const styled = chosen.filter((u) => state.styles[u]);
   const without = chosen.length - styled.length;
 
   if (!chosen.length) {
     text.textContent = "No rooms picked.";
-    go.disabled = true;
   } else if (!styled.length) {
-    text.textContent = "Pick a style to finish.";
-    go.disabled = true;
+    text.textContent = "Pick a style to start.";
   } else {
     // Name the styles in play, so a mixed set is legible without reading
     // every dropdown.
@@ -337,12 +358,12 @@ function renderSummary() {
       `${parts.join(", ")}` +
       (without ? ` — <strong>${without}</strong> still need${without === 1 ? "s" : ""} a style` : "") +
       `.`;
-    // Every picked room needs a style; a room with none would silently be
-    // skipped, which is worse than saying so.
-    go.disabled = without > 0;
   }
 
   renderStepGates();
+  // Every picked room needs a style before anything runs; a room with none
+  // would silently be skipped, which is worse than waiting.
+  if (state.step === 3 && chosen.length && !without) maybeGenerate();
 }
 
 /* What arrived, in the order the rooms actually run -- so you can see the
@@ -447,18 +468,122 @@ function initSteps() {
 
 /* ---------- generate ---------- */
 
-el("scn-go").addEventListener("click", () => {
-  // Nothing generates yet: no image model is wired up, and saying so is
-  // better than a button that silently does nothing.
-  const n = state.selected.size;
-  el("scn-status").innerHTML = `
-    <div class="scn-notyet">
-      <strong>Not wired up yet.</strong>
-      Staging ${n} room${n === 1 ? "" : "s"} needs an image model connected — the same
-      shape as the video generator, pointed at stills instead of clips. The
-      before/after sliders above will fill in as rooms come back.
-    </div>`;
-});
+/* Nothing here is behind a button on purpose: reaching step 3 with every room
+   styled *is* the instruction. What that costs is shown while it runs and
+   again when it lands, because "it started on its own" is only acceptable if
+   you can see what it spent. */
+
+function roomsToStage() {
+  // Only rooms with no current result for the style now selected. Restyling
+  // one room after a run regenerates that room and leaves the rest alone --
+  // the alternative is paying for nine images again to change the tenth.
+  return state.photos
+    .filter((p) => state.selected.has(p.url))
+    .filter((p) => {
+      const done = state.staged[p.url];
+      return !(done && done.style === state.styles[p.url]);
+    })
+    .map((p) => ({ photo: p.url, label: p.label, style: state.styles[p.url] }));
+}
+
+function renderRunStatus(kind, html) {
+  el("scn-status").innerHTML = `<div class="scn-run scn-run-${kind}">${html}</div>`;
+}
+
+async function maybeGenerate() {
+  if (state.polling) return;
+  const rooms = roomsToStage();
+  if (!rooms.length) return;
+
+  state.polling = true;
+  rooms.forEach((r) => {
+    state.roomState[r.photo] = "queued";
+    delete state.roomError[r.photo];
+  });
+  renderRooms();
+  renderRunStatus("busy",
+    `<span class="scn-spin" aria-hidden="true"></span>` +
+    `<span>Staging <strong>${rooms.length}</strong> room${rooms.length === 1 ? "" : "s"}…</span>`);
+
+  let data;
+  try {
+    const res = await fetch("/studio/api/scenery/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rooms,
+        lead_id: state.leadId,
+        address: state.address,
+      }),
+    });
+    data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  } catch (err) {
+    state.polling = false;
+    rooms.forEach((r) => { state.roomState[r.photo] = "idle"; });
+    renderRooms();
+    renderRunStatus("error",
+      `<strong>Couldn't start staging.</strong> ${escapeHtml(err.message)}`);
+    return;
+  }
+
+  state.job = data.job;
+  pollJob(data.job.id);
+}
+
+async function pollJob(jobId) {
+  let data;
+  try {
+    const res = await fetch(`/studio/api/scenery/jobs/${jobId}`);
+    data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  } catch (err) {
+    state.polling = false;
+    renderRunStatus("error", `<strong>Lost track of the run.</strong> ${escapeHtml(err.message)}`);
+    return;
+  }
+
+  const job = data.job;
+  state.job = job;
+
+  (job.rooms || []).forEach((room) => {
+    state.roomState[room.photo] = room.status || "running";
+    if (room.error) state.roomError[room.photo] = room.error;
+    if (room.staged_url) {
+      state.staged[room.photo] = { image: room.staged_url, style: room.style };
+    }
+  });
+  renderRooms();
+
+  if (job.status === "queued" || job.status === "running") {
+    renderRunStatus("busy",
+      `<span class="scn-spin" aria-hidden="true"></span>` +
+      `<span><strong>${job.done}</strong> of <strong>${job.total}</strong> rooms staged…</span>`);
+    setTimeout(() => pollJob(jobId), 2500);
+    return;
+  }
+
+  state.polling = false;
+
+  if (job.status === "failed") {
+    renderRunStatus("error",
+      `<strong>Staging failed.</strong> ${escapeHtml(job.error || "No rooms came back.")}`);
+    return;
+  }
+
+  state.projectId = job.project_id || null;
+  const failed = job.total - job.done;
+  const cost = job.estimated_cost != null ? ` · about $${job.estimated_cost.toFixed(2)}` : "";
+  // Deliberately not a redirect. The results are on this page, and being
+  // thrown to a project list the moment they land is the opposite of useful.
+  renderRunStatus("done",
+    `<strong>Complete.</strong> ${job.done} room${job.done === 1 ? "" : "s"} staged and saved ` +
+    `to your projects${cost}.` +
+    (failed ? ` <span class="scn-run-warn">${failed} didn't come back — restyle to retry.</span>` : "") +
+    (state.projectId
+      ? ` <a class="scn-run-link" href="/studio/dashboard">See it in Projects</a>`
+      : ""));
+}
 
 el("scn-clear").addEventListener("click", () => {
   state.selected.clear();

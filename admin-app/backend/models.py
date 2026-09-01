@@ -278,3 +278,67 @@ class DailyGoal(db.Model):
             "emails_target": self.emails_target,
             "videos_target": self.videos_target,
         }
+
+
+class StagingJob(db.Model):
+    """One Scenery run: several rooms staged from one listing.
+
+    Unlike a video job, the rooms here are independent of each other -- there
+    is no stitching step and no order that matters -- so they generate in
+    parallel and each one's state lives in its own entry. That is also why a
+    single failure is recorded on the room rather than the job: nine good
+    rooms should not be thrown away because the tenth came back badly.
+
+    `lead_id` is nullable on purpose. Photos can arrive from a pasted link or
+    a manual upload with no lead behind them, and refusing to stage those
+    would make two of the three ways in dead ends.
+    """
+
+    __tablename__ = "staging_jobs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, index=True, nullable=True)
+    owner_id = db.Column(db.String(64), index=True, nullable=True)
+
+    # queued -> running -> completed | failed | cancelled
+    status = db.Column(db.String(20), nullable=False, default="queued")
+    error = db.Column(db.Text, nullable=True)
+
+    model = db.Column(db.String(120), nullable=True)
+    address = db.Column(db.String(300), nullable=True)
+
+    # [{photo, label, style, status, prediction_id, staged_url, error}, ...]
+    rooms_json = db.Column(db.Text, nullable=False, default="[]")
+
+    # The project this run was filed under, created when the run completes.
+    project_id = db.Column(db.String(64), nullable=True)
+
+    estimated_cost = db.Column(db.Float, nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def rooms(self):
+        return json.loads(self.rooms_json or "[]")
+
+    @rooms.setter
+    def rooms(self, value):
+        self.rooms_json = json.dumps(value or [])
+
+    def to_dict(self):
+        rooms = self.rooms
+        done = [r for r in rooms if r.get("staged_url")]
+        return {
+            "id": self.id,
+            "lead_id": self.lead_id,
+            "status": self.status,
+            "error": self.error,
+            "model": self.model,
+            "address": self.address,
+            "rooms": rooms,
+            "project_id": self.project_id,
+            "estimated_cost": self.estimated_cost,
+            "done": len(done),
+            "total": len(rooms),
+        }
