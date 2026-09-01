@@ -31,40 +31,62 @@ async function api(url, options) {
 
 /* ---------- connection banner ---------- */
 
+/* Connection state lives in the corner as a dot: it matters when it is wrong,
+   and the rest of the time it should not be the loudest thing on the page.
+   The detail is on hover, and clicking re-tests. */
+
+/* Lines are joined rather than written with escapes: a tooltip is the one
+   place multi-line strings are unavoidable, and every editing pass through a
+   shell has mangled the escapes in them. */
+const lines = (...parts) => parts.filter((p) => p !== null && p !== undefined).join("\n");
+
 async function checkConnection() {
-  const box = el("ghl-status");
-  const text = box.querySelector(".ghl-status-text");
-  box.className = "ghl-status ghl-status-checking";
-  text.textContent = "Checking the GoHighLevel connection…";
+  const pip = el("ghl-status");
+  if (!pip) return;
+  pip.className = "ghl-pip is-checking";
+  pip.title = "Checking the GoHighLevel connection…";
 
   let info;
   try {
     info = await api("/studio/api/outreach/status");
   } catch (err) {
-    box.className = "ghl-status ghl-status-bad";
-    text.textContent = `Could not check the connection: ${err.message}`;
+    pip.className = "ghl-pip is-bad";
+    pip.title = lines(`Could not check the connection: ${err.message}`, "", "Click to retry.");
     return;
   }
 
   if (!info.ok) {
-    box.className = "ghl-status ghl-status-bad";
-    const fields = (info.expected_fields || []).map((f) => `<code>${esc(f)}</code>`).join(", ");
-    text.innerHTML =
-      `<strong>GoHighLevel isn't connected.</strong> ${esc(info.error || "")}` +
-      (fields ? `<br>Once connected, create these custom fields in GHL: ${fields}` : "");
+    pip.className = "ghl-pip is-bad";
+    const fields = (info.expected_fields || []).join(", ");
+    pip.title = lines(
+      // The server's message already says it isn't connected, so don't say it twice.
+      info.error || "GoHighLevel isn't connected.",
+      fields ? "" : null,
+      fields ? `Once connected, create these custom fields: ${fields}` : null,
+      "",
+      "Click to retry."
+    );
     return;
   }
 
   const missing = info.custom_fields_missing || [];
   if (missing.length) {
-    box.className = "ghl-status ghl-status-warn";
-    text.innerHTML =
-      `<strong>Connected</strong>, but ${missing.length} merge field${missing.length > 1 ? "s are" : " is"} ` +
-      `missing in GHL: ${missing.map((f) => `<code>${esc(f)}</code>`).join(", ")}.<br>` +
-      `Emails will send with those left blank. Add them under Settings → Custom Fields.`;
+    pip.className = "ghl-pip is-warn";
+    pip.title = lines(
+      `Connected, but ${missing.length} merge field${missing.length > 1 ? "s are" : " is"} missing:`,
+      missing.join(", "),
+      "",
+      "Emails will send with those left blank. Add them under Settings → Custom Fields.",
+      "",
+      "Click to re-check."
+    );
   } else {
-    box.className = "ghl-status ghl-status-good";
-    text.innerHTML = `<strong>Connected to GoHighLevel.</strong> All merge fields present.`;
+    pip.className = "ghl-pip is-good";
+    pip.title = lines(
+      "Connected to GoHighLevel. All merge fields present.",
+      "",
+      "Click to re-check."
+    );
   }
 }
 
@@ -277,7 +299,7 @@ GoHighLevel will deliver it. This can't be unsent.`)) return;
   });
 }
 
-el("ghl-test").onclick = checkConnection;
+el("ghl-status").onclick = checkConnection;
 
 // Async failures here surface as unhandled rejections rather than anything
 // visible, so say so on the page instead of failing silently.

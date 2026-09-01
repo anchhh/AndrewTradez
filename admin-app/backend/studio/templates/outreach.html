@@ -10,17 +10,16 @@
 <body>
 {% include "_nav.html" %}
 <div class="wrap wrap-wide">
-  <header class="page-header">
+  <header class="page-header or-header">
     <div>
       <h1 class="page-title">Outreach</h1>
       <p class="sub">Every email is sent by GoHighLevel, and only after you click send here. Nothing goes out on its own.</p>
     </div>
+    <button type="button" id="ghl-status" class="ghl-pip is-checking"
+            title="Checking the GoHighLevel connection…">
+      <span class="ghl-pip-dot"></span><span class="ghl-pip-label">GoHighLevel</span>
+    </button>
   </header>
-
-  <div id="ghl-status" class="ghl-status ghl-status-checking">
-    <span class="ghl-status-text">Checking the GoHighLevel connection…</span>
-    <button id="ghl-test" class="btn-tiny" type="button">Test connection</button>
-  </div>
 
   <div id="or-stats" class="or-stats"></div>
 
