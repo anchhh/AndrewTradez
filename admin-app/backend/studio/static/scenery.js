@@ -18,7 +18,8 @@ const state = {
   photos: [],            // [{url, room, label}]
   selected: new Set(),   // photo urls
   styles: {},            // {url: styleKey} -- each room can differ
-  staged: {},            // {url: {image, style}} -- style, so a restyle marks it stale
+  staged: {},            // {url: {styleKey: imageUrl}} -- a room can hold every style at once
+  allStyles: false,      // generate every style for every room, not just the chosen one
   roomState: {},         // {url: "queued"|"running"|"completed"|"failed"}
   roomError: {},         // {url: message}
   job: null,             // the run in flight, if any
@@ -285,10 +286,11 @@ function pendingText(roomState, error) {
    side says so rather than showing the original twice. */
 function roomCard(photo) {
   const styleKey = state.styles[photo.url] || "";
-  const entry = state.staged[photo.url];
-  // A result only counts as this room's if it was made with the style now
-  // selected. Change the style and the old image is stale, not the answer.
-  const staged = entry && entry.style === styleKey ? entry.image : null;
+  const variants = state.staged[photo.url] || {};
+  // The style buttons pick which variant is *shown*. In all-styles mode every
+  // one of them is already generated, so switching between them is instant and
+  // free; otherwise only the chosen style exists and the rest are unmade.
+  const staged = variants[styleKey] || null;
   const roomState = state.roomState[photo.url] || (staged ? "completed" : "idle");
   const roomError = state.roomError[photo.url];
 
@@ -313,7 +315,7 @@ function roomCard(photo) {
       <span class="scn-room-prompt">Choose style</span>
       <div class="scn-room-styles">
         ${STYLES.map(([k, n, desc]) => `
-          <button type="button" class="scn-room-style ${k === styleKey ? "is-active" : ""}"
+          <button type="button" class="scn-room-style ${k === styleKey ? "is-active" : ""}${variants[k] ? " is-ready" : ""}"
                   data-style="${k}" title="${escapeHtml(desc)}">${escapeHtml(n)}</button>`).join("")}
       </div>
       <button type="button" class="scn-room-open btn-tiny">View full screen</button>
@@ -393,6 +395,14 @@ function renderSummary() {
       `${parts.join(", ")}` +
       (without ? ` — <strong>${without}</strong> still need${without === 1 ? "s" : ""} a style` : "") +
       `.`;
+  }
+
+  const everyCost = el("scn-all-styles-cost");
+  if (everyCost) {
+    const n = chosen.length * STYLES.length;
+    everyCost.textContent = chosen.length
+      ? `${n} images, about ${money(n)}.`
+      : "";
   }
 
   renderStepGates();
@@ -509,16 +519,23 @@ function initSteps() {
    you can see what it spent. */
 
 function roomsToStage() {
-  // Only rooms with no current result for the style now selected. Restyling
-  // one room after a run regenerates that room and leaves the rest alone --
-  // the alternative is paying for nine images again to change the tenth.
-  return state.photos
+  // Whatever is missing, and only that. Normally one style per room; in
+  // all-styles mode every style for every room. Either way an image already
+  // generated is never bought again -- which is what makes switching a room
+  // back to a style you tried earlier free.
+  const out = [];
+  state.photos
     .filter((p) => state.selected.has(p.url))
-    .filter((p) => {
-      const done = state.staged[p.url];
-      return !(done && done.style === state.styles[p.url]);
-    })
-    .map((p) => ({ photo: p.url, label: p.label, style: state.styles[p.url] }));
+    .forEach((p) => {
+      const variants = state.staged[p.url] || {};
+      const wanted = state.allStyles
+        ? STYLES.map((s) => s[0])
+        : [state.styles[p.url]].filter(Boolean);
+      wanted.forEach((style) => {
+        if (!variants[style]) out.push({ photo: p.url, label: p.label, style });
+      });
+    });
+  return out;
 }
 
 function renderRunStatus(kind, html) {
@@ -565,7 +582,8 @@ async function maybeGenerate() {
   // Anything the server already had is applied straight away -- it cost
   // nothing and there is nothing to wait for.
   (data.reused || []).forEach((room) => {
-    state.staged[room.photo] = { image: room.staged_url, style: room.style };
+    state.staged[room.photo] = state.staged[room.photo] || {};
+    state.staged[room.photo][room.style] = room.staged_url;
     state.roomState[room.photo] = "completed";
   });
   if (data.reused && data.reused.length) renderRooms();
@@ -602,7 +620,8 @@ async function pollJob(jobId) {
     state.roomState[room.photo] = room.status || "running";
     if (room.error) state.roomError[room.photo] = room.error;
     if (room.staged_url) {
-      state.staged[room.photo] = { image: room.staged_url, style: room.style };
+      state.staged[room.photo] = state.staged[room.photo] || {};
+      state.staged[room.photo][room.style] = room.staged_url;
     }
   });
   renderRooms();
@@ -636,6 +655,24 @@ async function pollJob(jobId) {
       ? ` <a class="scn-run-link" href="/studio/dashboard">See it in Projects</a>`
       : ""));
 }
+
+/* Turning this on is a nine-fold spend, so it never fires on its own from the
+   click that enables it: the rooms still need a style set, which is the same
+   gate as a normal run. What it changes is how many images that gate buys. */
+el("scn-all-styles").addEventListener("change", (e) => {
+  state.allStyles = e.target.checked;
+  // The style buttons become a variant switcher in this mode, so every room
+  // needs one selected to have something to show. Modern is the least
+  // opinionated starting view; every other style is generated regardless.
+  if (state.allStyles) {
+    state.photos
+      .filter((p) => state.selected.has(p.url) && !state.styles[p.url])
+      .forEach((p) => { state.styles[p.url] = "modern"; });
+  }
+  renderRooms();
+  renderStyles();
+  renderSummary();
+});
 
 el("scn-clear").addEventListener("click", () => {
   state.selected.clear();

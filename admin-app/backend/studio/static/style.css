@@ -2820,6 +2820,41 @@ gmp-map-3d {
 .scn-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .scn-summary .hint { flex: 1 1 240px; margin: 0; }
 .scn-status:empty { display: none; }
+/* Nine times the spend sits behind this one checkbox, so it is laid out as a
+   paragraph that has to be read rather than a control that can be brushed
+   past, and the number is in it. */
+.scn-everystyle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cream-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.scn-everystyle input { margin-top: 3px; flex: 0 0 auto; }
+.scn-everystyle strong { color: var(--ink); }
+.scn-everystyle-cost { color: var(--accent); font-weight: 600; }
+
+/* A style that has already been generated for this room. Switching to it is
+   instant and costs nothing, which is worth showing. */
+.scn-room-style.is-ready::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: #2f8f4e;
+}
+.scn-room-style.is-active.is-ready::after { background: currentColor; }
+
 /* The run's own line. Since nothing was clicked to start it, this is the only
    place that says what is happening and what it cost -- so it is stated
    plainly rather than tucked into a corner. */
