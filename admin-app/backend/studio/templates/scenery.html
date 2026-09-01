@@ -120,14 +120,18 @@
   </section>
 
   <section class="card step-panel" data-panel="3">
-    <h2>Choose a style</h2>
-    <p class="hint">The furniture and finish to put in the room. The room itself stays as it is.</p>
-    <div id="scn-styles" class="scn-styles"></div>
-    <label class="lp-field scn-notes-field">
-      <span class="lp-field-label">Anything specific</span>
-      <textarea id="scn-notes" class="scn-notes" rows="2"
-                placeholder="e.g. keep it sparse, warm wood tones, a rug under the table…"></textarea>
-    </label>
+    <h2>Style each room</h2>
+    <p class="hint">
+      Every room can take its own style. Set one for all of them, then change any that
+      should differ. Drag the divider on a staged room to compare it with the original.
+    </p>
+
+    <div class="scn-applyall">
+      <span class="scn-applyall-label">Set all to</span>
+      <div id="scn-styles" class="scn-styles"></div>
+    </div>
+
+    <div id="scn-rooms" class="scn-rooms"></div>
 
     <div class="scn-summary">
       <span id="scn-summary-text" class="hint">Pick a style to finish.</span>

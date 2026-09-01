@@ -2789,23 +2789,16 @@ gmp-map-3d {
 .photo-room.is-secondary { opacity: 0.72; }
 .photo-room.is-secondary .photo-room-label { font-weight: 500; }
 
-.scn-styles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 10px;
-  margin: 12px 0 16px;
-}
+.scn-styles { display: flex; flex-wrap: wrap; gap: 8px; }
 .scn-style {
   all: unset;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 12px 14px;
+  padding: 6px 13px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 999px;
   background: var(--cream-soft);
   box-sizing: border-box;
+  font-size: 0.8rem;
 }
 .scn-style:hover { border-color: var(--ink-soft); }
 .scn-style.is-active { border-color: var(--accent); background: #fdefea; }
@@ -3006,3 +2999,118 @@ gmp-map-3d {
 .lightbox-pick.is-on { background: var(--accent); border-color: var(--accent); color: #17130f; }
 .lightbox-pick[hidden] { display: none; }
 .lightbox-thumb.is-picked { outline-color: #4c9a4c; opacity: 1; }
+
+/* ---------- Scenery step 3: per-room styling with before/after ---------- */
+
+.scn-applyall { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0 20px; }
+.scn-applyall-label { font-size: 0.76rem; color: var(--ink-soft); flex: 0 0 auto; }
+
+.scn-rooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.scn-room {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--cream-soft);
+}
+
+/* Before and after in one frame: the after image is clipped from the left by
+   the slider, so dragging wipes between them in place. */
+.scn-compare { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #ddd6cc; }
+.scn-compare img,
+.scn-after-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.scn-compare img { object-fit: cover; display: block; }
+.scn-after-wrap { clip-path: inset(0 0 0 50%); }
+.scn-after-pending {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(45deg, #e6dfd4, #e6dfd4 8px, #ded6ca 8px, #ded6ca 16px);
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+}
+
+/* A real range input, so it is keyboard and touch accessible; the visible
+   handle is drawn separately and the input itself is invisible over the top. */
+.scn-slider {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  appearance: none;
+  background: none;
+}
+.scn-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+.scn-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+/* Nothing to compare against until it is generated. */
+.scn-compare.is-pending .scn-slider,
+.scn-compare.is-pending .scn-handle { display: none; }
+
+.scn-tag {
+  position: absolute;
+  bottom: 6px;
+  z-index: 2;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 7px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.scn-tag-before { left: 6px; }
+.scn-tag-after { right: 6px; }
+.scn-compare.is-pending .scn-tag-after,
+.scn-compare.is-all-before .scn-tag-after { display: none; }
+
+.scn-room-meta { display: flex; align-items: center; gap: 8px; padding: 9px 11px; }
+.scn-room-label { font-weight: 600; font-size: 0.82rem; flex: 0 0 auto; }
+.scn-room-style {
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 0.75rem;
+  background: var(--cream);
+  cursor: pointer;
+}

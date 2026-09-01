@@ -17,7 +17,8 @@ const state = {
   address: null,
   photos: [],            // [{url, room, label}]
   selected: new Set(),   // photo urls
-  style: null,
+  styles: {},            // {url: styleKey} -- each room can differ
+  staged: {},            // {url: stagedImageUrl} once generated
 };
 
 /* Rooms worth staging: an empty living room sells, an empty bathroom does not
@@ -198,21 +199,98 @@ function renderCounts() {
 
 /* ---------- style ---------- */
 
+/* The style grid sets every room at once. Individual rooms then override it
+   from the dropdown on their own row, which is the usual shape of this: one
+   look for the house, one or two rooms that want something else. */
 function renderStyles() {
   const box = el("scn-styles");
+  const chosen = [...state.selected].map((u) => state.styles[u]);
+  const allSame = chosen.length && chosen.every((c) => c && c === chosen[0]) ? chosen[0] : null;
+
   box.innerHTML = STYLES.map(([key, name, desc]) => `
-    <button type="button" class="scn-style ${state.style === key ? "is-active" : ""}" data-style="${key}">
+    <button type="button" class="scn-style ${allSame === key ? "is-active" : ""}" data-style="${key}"
+            title="${escapeHtml(desc)}">
       <span class="scn-style-name">${escapeHtml(name)}</span>
-      <span class="scn-style-desc">${escapeHtml(desc)}</span>
     </button>`).join("");
 
   box.querySelectorAll(".scn-style").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.style = state.style === btn.dataset.style ? null : btn.dataset.style;
+      state.selected.forEach((url) => { state.styles[url] = btn.dataset.style; });
       renderStyles();
+      renderRooms();
       renderSummary();
     });
   });
+}
+
+/* ---------- the rooms being staged ---------- */
+
+/* Before and after in one frame, dragged rather than toggled -- for staging,
+   the question is always "is that the same room", and a slider answers it in
+   a way two images side by side do not. Until a room is generated the after
+   side says so rather than showing the original twice. */
+function roomCard(photo) {
+  const styleKey = state.styles[photo.url] || "";
+  const staged = state.staged[photo.url];
+
+  const card = document.createElement("div");
+  card.className = "scn-room";
+  card.innerHTML = `
+    <div class="scn-compare ${staged ? "" : "is-pending"}">
+      <img class="scn-before" src="${escapeHtml(photo.url)}" alt="Before">
+      <div class="scn-after-wrap">
+        ${staged
+          ? `<img class="scn-after" src="${escapeHtml(staged)}" alt="After">`
+          : `<div class="scn-after-pending">Not staged yet</div>`}
+      </div>
+      <input class="scn-slider" type="range" min="0" max="100" value="${staged ? 50 : 100}"
+             aria-label="Compare before and after">
+      <span class="scn-handle" aria-hidden="true"></span>
+      <span class="scn-tag scn-tag-before">Before</span>
+      <span class="scn-tag scn-tag-after">After</span>
+    </div>
+    <div class="scn-room-meta">
+      <span class="scn-room-label">${escapeHtml(photo.label)}</span>
+      <select class="scn-room-style" aria-label="Style for this room">
+        <option value="">Choose a style…</option>
+        ${STYLES.map(([k, n]) => `<option value="${k}" ${k === styleKey ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}
+      </select>
+    </div>`;
+
+  const compare = card.querySelector(".scn-compare");
+  const slider = card.querySelector(".scn-slider");
+  const wrap = card.querySelector(".scn-after-wrap");
+  const handle = card.querySelector(".scn-handle");
+  const setSplit = (pct) => {
+    // The after side is revealed from the right, so 100 means all before.
+    wrap.style.clipPath = `inset(0 0 0 ${pct}%)`;
+    handle.style.left = `${pct}%`;
+    compare.classList.toggle("is-all-before", Number(pct) >= 99);
+  };
+  setSplit(slider.value);
+  slider.addEventListener("input", () => setSplit(slider.value));
+
+  card.querySelector(".scn-room-style").addEventListener("change", (e) => {
+    state.styles[photo.url] = e.target.value || undefined;
+    if (!e.target.value) delete state.styles[photo.url];
+    renderStyles();
+    renderSummary();
+  });
+
+  return card;
+}
+
+function renderRooms() {
+  const box = el("scn-rooms");
+  if (!box) return;
+  const chosen = state.photos.filter((p) => state.selected.has(p.url));
+
+  if (!chosen.length) {
+    box.innerHTML = `<p class="empty-note">No rooms picked — go back a step and choose some.</p>`;
+    return;
+  }
+  box.innerHTML = "";
+  chosen.forEach((photo) => box.appendChild(roomCard(photo)));
 }
 
 /* ---------- summary ---------- */
@@ -220,17 +298,32 @@ function renderStyles() {
 function renderSummary() {
   const text = el("scn-summary-text");
   const go = el("scn-go");
-  const n = state.selected.size;
-  const style = STYLES.find((s) => s[0] === state.style);
+  const chosen = [...state.selected];
+  const styled = chosen.filter((u) => state.styles[u]);
+  const without = chosen.length - styled.length;
 
-  if (!style) {
+  if (!chosen.length) {
+    text.textContent = "No rooms picked.";
+    go.disabled = true;
+  } else if (!styled.length) {
     text.textContent = "Pick a style to finish.";
     go.disabled = true;
   } else {
+    // Name the styles in play, so a mixed set is legible without reading
+    // every dropdown.
+    const counts = {};
+    styled.forEach((u) => { counts[state.styles[u]] = (counts[state.styles[u]] || 0) + 1; });
+    const parts = Object.entries(counts).map(([key, n]) => {
+      const name = (STYLES.find((x) => x[0] === key) || [key, key])[1];
+      return `<strong>${n}</strong> ${escapeHtml(name.toLowerCase())}`;
+    });
     text.innerHTML =
-      `<strong>${n} room${n === 1 ? "" : "s"}</strong> from ${escapeHtml(state.address || "this listing")}, ` +
-      `staged <strong>${escapeHtml(style[1].toLowerCase())}</strong>.`;
-    go.disabled = false;
+      `${parts.join(", ")}` +
+      (without ? ` — <strong>${without}</strong> still need${without === 1 ? "s" : ""} a style` : "") +
+      `.`;
+    // Every picked room needs a style; a room with none would silently be
+    // skipped, which is worse than saying so.
+    go.disabled = without > 0;
   }
 
   renderStepGates();
@@ -300,6 +393,13 @@ function renderStepGates() {
 
 function goToStep(step) {
   state.step = step;
+  // Step 2's selection is only settled when you leave it, so build step 3's
+  // list on arrival rather than trying to keep it in sync throughout.
+  if (step === 3) {
+    renderRooms();
+    renderStyles();
+    renderSummary();
+  }
 
   document.querySelectorAll(".step-panel").forEach((panel) => {
     panel.classList.toggle("is-active", Number(panel.dataset.panel) === step);
@@ -334,13 +434,13 @@ function initSteps() {
 el("scn-go").addEventListener("click", () => {
   // Nothing generates yet: no image model is wired up, and saying so is
   // better than a button that silently does nothing.
+  const n = state.selected.size;
   el("scn-status").innerHTML = `
     <div class="scn-notyet">
       <strong>Not wired up yet.</strong>
-      Staging ${state.selected.size} room${state.selected.size === 1 ? "" : "s"} in
-      ${escapeHtml((STYLES.find((s) => s[0] === state.style) || ["", "that style"])[1])}
-      needs an image model connected — the same shape as the video generator,
-      pointed at stills instead of clips.
+      Staging ${n} room${n === 1 ? "" : "s"} needs an image model connected — the same
+      shape as the video generator, pointed at stills instead of clips. The
+      before/after sliders above will fill in as rooms come back.
     </div>`;
 });
 
