@@ -137,6 +137,13 @@ def load_config():
             or DEFAULT_MODEL
         ),
         "rate_per_image": cfg.get("rate_per_image", DEFAULT_RATE_PER_IMAGE),
+        # Merged into every generation request. This is where a resolution
+        # goes once we know what the field is called: nano-banana-2 is $0.08
+        # at 1K but $0.12 at 2K and $0.16 at 4K, so pinning it to 1K is worth
+        # up to half the bill. Nothing is sent by default -- inventing a field
+        # name would fail the request rather than save money, and the docs are
+        # not public. The first real run's response will name it.
+        "params": cfg.get("image_params") or {},
         "config_error": config_error,
     }
 
@@ -196,6 +203,7 @@ def submit_stage(image_url, style, cfg=None, prompt=None, **extra):
         # Same field name the video endpoint uses -- "image", not "image_url".
         "image": image_url,
     }
+    payload.update(cfg.get("params") or {})
     payload.update({k: v for k, v in extra.items() if v is not None})
 
     try:

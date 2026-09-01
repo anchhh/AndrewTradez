@@ -1932,6 +1932,39 @@ def api_room_sheets(lead_id):
     })
 
 
+def _prior_staging(owner_id, photo, style):
+    """A staged image this user already paid for, for this photo and style.
+
+    Matching on both is the point: the same room in a different style is a
+    different image and has to be generated. Only completed runs count, and
+    the file has to still be on disk -- a database row pointing at a deleted
+    file would show a broken image instead of costing $0.08.
+    """
+    import os
+
+    from models import StagingJob
+
+    jobs = (
+        StagingJob.query.filter_by(owner_id=owner_id, status="completed")
+        .order_by(StagingJob.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    for job in jobs:
+        for room in job.rooms:
+            if (
+                room.get("photo") == photo
+                and room.get("style") == style
+                and room.get("staged_url")
+            ):
+                local = os.path.join(
+                    "studio", "static", *room["staged_url"].split("/studio/static/")[-1].split("/")
+                )
+                if os.path.exists(local):
+                    return room["staged_url"]
+    return None
+
+
 @studio_bp.route("/api/scenery/status", methods=["GET"])
 @login_required
 def api_scenery_status():
@@ -2005,6 +2038,23 @@ def api_scenery_generate():
         if get_owned_lead(int(lead_id)) is None:
             return jsonify({"error": "Lead not found."}), 404
 
+    # Anything already generated for this exact photo and style is handed back
+    # rather than bought twice. Coming back to a listing tomorrow, or after a
+    # browser reload, otherwise re-pays for images that are sitting on disk.
+    reused = []
+    for room in list(clean):
+        prior = _prior_staging(session["user_id"], room["photo"], room["style"])
+        if prior:
+            reused.append({**room, "status": "completed", "staged_url": prior})
+            clean.remove(room)
+
+    if not clean:
+        return jsonify({
+            "job": None,
+            "reused": reused,
+            "estimated_cost": 0,
+        }), 200
+
     try:
         job = start_job(
             current_app._get_current_object(),
@@ -2018,6 +2068,7 @@ def api_scenery_generate():
 
     return jsonify({
         "job": job.to_dict(),
+        "reused": reused,
         "estimated_cost": estimate_cost(len(clean), cfg),
     }), 201
 

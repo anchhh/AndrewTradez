@@ -64,10 +64,22 @@ async function applyPrefill(prefill) {
     };
   });
 
-  // Default to the rooms worth staging. A first-time user gets a sensible
-  // selection rather than an empty one or forty ticked boxes.
+  // One photo per room worth staging -- not every photo of it. A listing with
+  // six shots of the living room needs one staged, and the old default ticked
+  // all six: 33 of 57 photos on a real lead, which is $2.64 rather than $0.40.
+  //
+  // That mattered less when a button started the run. Now that reaching step 3
+  // starts it, the default selection is what gets *spent*, so it errs low --
+  // adding the second angle of a room is one click, un-spending is not.
+  const firstOfRoom = new Set();
   state.selected = new Set(
-    state.photos.filter((p) => STAGEABLE.has(p.room)).map((p) => p.url)
+    state.photos
+      .filter((p) => {
+        if (!STAGEABLE.has(p.room) || firstOfRoom.has(p.room)) return false;
+        firstOfRoom.add(p.room);
+        return true;
+      })
+      .map((p) => p.url)
   );
 
   renderGrid();
@@ -230,6 +242,29 @@ function renderStyles() {
       renderSummary();
     });
   });
+}
+
+/* ---------- cost ---------- */
+
+/* Shown wherever a number of rooms is shown. Since nothing is clicked to start
+   a run, an estimate the user never saw before spending would be no estimate
+   at all. The rate is fetched rather than hard-coded so switching models in
+   atlascloud.json moves this too. */
+let costPerImage = 0.08;
+
+fetch("/studio/api/scenery/status")
+  .then((r) => r.json())
+  .then((d) => {
+    if (d && typeof d.cost_per_image === "number") {
+      costPerImage = d.cost_per_image;
+      renderSummary();
+      renderStepGates();
+    }
+  })
+  .catch(() => {});
+
+function money(n) {
+  return "$" + (n * costPerImage).toFixed(2);
 }
 
 /* ---------- the rooms being staged ---------- */
@@ -422,8 +457,8 @@ function renderStepGates() {
   if (next2) next2.disabled = n === 0;
   const note2 = el("step2-note");
   if (note2) {
-    note2.textContent = n
-      ? `${n} room${n === 1 ? "" : "s"} selected`
+    note2.innerHTML = n
+      ? `${n} room${n === 1 ? "" : "s"} selected — about <strong>${money(n)}</strong> to stage`
       : "Tick at least one room to continue.";
   }
 }
@@ -524,6 +559,23 @@ async function maybeGenerate() {
     renderRooms();
     renderRunStatus("error",
       `<strong>Couldn't start staging.</strong> ${escapeHtml(err.message)}`);
+    return;
+  }
+
+  // Anything the server already had is applied straight away -- it cost
+  // nothing and there is nothing to wait for.
+  (data.reused || []).forEach((room) => {
+    state.staged[room.photo] = { image: room.staged_url, style: room.style };
+    state.roomState[room.photo] = "completed";
+  });
+  if (data.reused && data.reused.length) renderRooms();
+
+  if (!data.job) {
+    state.polling = false;
+    const n = data.reused.length;
+    renderRunStatus("done",
+      `<strong>Already staged.</strong> ${n} room${n === 1 ? "" : "s"} came from images ` +
+      `you'd generated before — nothing new to spend.`);
     return;
   }
 
