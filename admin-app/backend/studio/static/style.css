@@ -2709,3 +2709,65 @@ gmp-map-3d {
   color: var(--ink);
 }
 .topnav-menu-item:hover { background: var(--cream-soft); color: var(--accent); }
+
+/* ---------- Scenery ----------
+   Virtual staging from photos already captured. Reuses the photo grid and
+   room grouping from Create Video; what is new is the style picker. */
+
+.scn-toolbar { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; }
+.scn-toolbar .btn-tiny { margin-left: auto; width: auto; flex: 0 0 auto; }
+
+/* Rooms nobody pays to have staged are still listed, just quieter. */
+.photo-room.is-secondary { opacity: 0.72; }
+.photo-room.is-secondary .photo-room-label { font-weight: 500; }
+
+.scn-styles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.scn-style {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--cream-soft);
+  box-sizing: border-box;
+}
+.scn-style:hover { border-color: var(--ink-soft); }
+.scn-style.is-active { border-color: var(--accent); background: #fdefea; }
+.scn-style-name { font-weight: 600; font-size: 0.88rem; }
+.scn-style-desc { font-size: 0.72rem; color: var(--ink-soft); line-height: 1.35; }
+
+.scn-notes-field { display: block; }
+.scn-notes {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.82rem;
+  resize: vertical;
+}
+
+.scn-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.scn-summary .hint { flex: 1 1 240px; margin: 0; }
+.scn-summary .btn-send { width: auto; flex: 0 0 auto; }
+.scn-status:empty { display: none; }
+.scn-notyet {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--cream-soft);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.scn-notyet strong { color: var(--ink); }

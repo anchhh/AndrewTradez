@@ -1103,6 +1103,25 @@ def lead_profile(lead_id):
     return render_template("lead_profile.html", lead_id=lead_id)
 
 
+@studio_bp.route("/scenery")
+@login_required
+def scenery():
+    """Virtual staging: the same captured photos, furnished differently.
+
+    Shares Create Video's starting point -- a lead already carries its photos,
+    address and room labels -- but the output is a styled still of a room
+    rather than a clip, so it gets its own page rather than a mode switch.
+    """
+    prefill = None
+    lead_id = request.args.get("lead_id")
+    if lead_id:
+        try:
+            prefill = _lead_prefill(int(lead_id))
+        except (ValueError, TypeError):
+            prefill = None
+    return render_template("scenery.html", prefill=prefill)
+
+
 @studio_bp.route("/outreach")
 @login_required
 def outreach_queue():

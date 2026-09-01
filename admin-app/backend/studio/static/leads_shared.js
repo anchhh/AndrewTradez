@@ -909,3 +909,194 @@ function buildLeadRow(lead, handlers = {}) {
   host.innerHTML = leadRowHtml(lead);
   return wireLeadRow(host.firstElementChild, lead, handlers);
 }
+
+/* ---------------------------------------------------------------
+   Lead picker
+
+   Shared by Create Video and Scenery: both start by choosing a lead that
+   already has its photos, address and listing details saved. One copy, so
+   the two pages cannot drift into behaving differently.
+
+   The cards are the Lead Manager's own leadCardHtml(), but deliberately not
+   its wireLeadCard() -- that makes a card open the profile and wires Delete,
+   both wrong inside a picker. The controls that would edit or navigate away
+   are removed and the card itself picks.
+   --------------------------------------------------------------- */
+
+const picker = {
+  leads: null,
+  loaded: false,
+  onPick: null,
+};
+
+function pickerMatches(lead, terms) {
+  const hay = [
+    lead.address, lead.city, lead.state, lead.zip_code,
+    lead.agent_name, lead.brokerage, lead.agent_email,
+  ].filter(Boolean).join(" ").toLowerCase();
+  // Every word must appear, so "belmont pope" finds the lead matching both
+  // rather than everything matching either.
+  return terms.every((t) => hay.includes(t));
+}
+
+function pickerVisible() {
+  const val = (id) => (document.getElementById(id) || {}).value || "all";
+  const terms = ((document.getElementById("lead-search") || {}).value || "")
+    .toLowerCase().split(/\s+/).filter(Boolean);
+  const qualified = val("pick-filter-qualified");
+  const status = val("pick-filter-status");
+  const source = val("pick-filter-source");
+
+  return (picker.leads || []).filter((lead) => {
+    if (!pickerMatches(lead, terms)) return false;
+    if (qualified !== "all" && String(!!lead.qualified) !== qualified) return false;
+    if (status !== "all" && lead.status !== status) return false;
+    if (source !== "all" && lead.source !== source) return false;
+    return true;
+  });
+}
+
+function pickerCard(lead) {
+  const host = document.createElement("div");
+  host.innerHTML = leadCardHtml(lead, {});
+  const card = host.firstElementChild;
+
+  card.querySelector(".lead-card-select")?.remove();
+  card.querySelector(".lm-delete-btn")?.remove();
+  card.querySelector(".lead-find-email")?.remove();
+  card.querySelector('a[href^="/studio/create"]')?.remove();
+
+  card.querySelectorAll(".lead-card-checklist button").forEach((b) => {
+    b.disabled = true;
+    b.style.pointerEvents = "none";
+  });
+
+  const photos = (lead.photo_urls || []).length;
+  const actions = card.querySelector(".lead-card-actions");
+  if (actions) {
+    const use = document.createElement("button");
+    use.type = "button";
+    use.className = "btn-send lead-use-btn";
+    use.textContent = photos ? "Use this lead" : "No photos";
+    use.disabled = !photos;
+    actions.appendChild(use);
+  }
+
+  if (photos) {
+    card.classList.add("is-pickable");
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("a, select, textarea")) return;
+      pickerChoose(card, lead);
+    });
+  } else {
+    card.classList.add("is-unpickable");
+  }
+  return card;
+}
+
+function pickerRender() {
+  const box = document.getElementById("lead-picker");
+  const empty = document.getElementById("lead-picker-empty");
+  const count = document.getElementById("lead-count");
+  if (!box) return;
+
+  if (!picker.leads || !picker.leads.length) {
+    box.innerHTML = "";
+    if (empty) empty.classList.remove("hidden");
+    if (count) count.textContent = "";
+    return;
+  }
+  if (empty) empty.classList.add("hidden");
+
+  const shown = pickerVisible();
+  if (count) {
+    count.textContent = shown.length === picker.leads.length
+      ? `${picker.leads.length} lead${picker.leads.length === 1 ? "" : "s"}`
+      : `${shown.length} of ${picker.leads.length} leads`;
+  }
+
+  box.innerHTML = "";
+  if (!shown.length) {
+    box.innerHTML = `<p class="hint">Nothing matches that.</p>`;
+    return;
+  }
+  shown.forEach((lead) => box.appendChild(pickerCard(lead)));
+}
+
+async function pickerLoad() {
+  if (picker.loaded) return;
+  try {
+    const res = await fetch("/studio/api/leads");
+    picker.leads = await res.json();
+    picker.loaded = true;
+  } catch (_) {
+    const box = document.getElementById("lead-picker");
+    if (box) box.innerHTML = `<p class="hint">Couldn't load your leads.</p>`;
+    return;
+  }
+  pickerRender();
+}
+
+function pickerOpen() {
+  const modal = document.getElementById("lead-modal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  document.getElementById("lead-search").focus();
+  pickerLoad();
+}
+
+function pickerClose() {
+  const modal = document.getElementById("lead-modal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  document.getElementById("lead-open").focus();
+}
+
+async function pickerChoose(card, lead) {
+  const btn = card.querySelector(".lead-use-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  try {
+    const res = await fetch(`/studio/api/leads/${lead.id}/prefill`);
+    if (!res.ok) throw new Error((await res.json()).error || "Could not load that lead.");
+    const prefill = await res.json();
+    pickerClose();
+    if (picker.onPick) await picker.onPick(prefill, lead);
+
+    const n = (lead.photo_urls || []).length;
+    const summary = document.getElementById("lead-picked-summary");
+    if (summary) {
+      summary.textContent = `${lead.address} — ${n} photo${n === 1 ? "" : "s"} loaded`;
+      summary.classList.add("is-set");
+    }
+    document.getElementById("lead-open").textContent = "Pick a different lead";
+  } catch (err) {
+    alert(err.message || "Could not load that lead.");
+    if (btn) { btn.disabled = false; btn.textContent = "Use this lead"; }
+  }
+}
+
+/* `onPick(prefill, lead)` is what the host page does with the chosen lead --
+   the only thing that differs between Create Video and Scenery. */
+function initLeadPicker(options = {}) {
+  const open = document.getElementById("lead-open");
+  if (!open) return;
+  picker.onPick = options.onPick || null;
+
+  open.addEventListener("click", pickerOpen);
+  document.getElementById("lead-modal").querySelectorAll("[data-close]").forEach((n) => {
+    n.addEventListener("click", pickerClose);
+  });
+  document.getElementById("lead-search").addEventListener("input", pickerRender);
+  ["pick-filter-qualified", "pick-filter-status", "pick-filter-source"].forEach((id) => {
+    const e = document.getElementById(id);
+    if (e) e.addEventListener("change", pickerRender);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("lead-modal").classList.contains("hidden")) {
+      pickerClose();
+    }
+  });
+}
