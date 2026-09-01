@@ -135,8 +135,6 @@ function outreachRow(item, kind) {
       : `<span class="or-email"><code>${esc(lead.agent_email || "")}</code></span>
          <span class="outreach-sent-mark">Sent${lead.ghl_contact_id ? " · in GHL" : ""}</span>`;
 
-  const needsVideo = kind === "waiting" && item.blockers.includes("no finished video for this listing");
-
   return `
     <div class="lm-row or-row ${kind === "sent" ? "is-sent" : ""}" data-id="${lead.id}">
       <button type="button" class="lm-row-thumb ${photo ? "" : "is-empty"}" title="View photos">
@@ -151,13 +149,7 @@ function outreachRow(item, kind) {
     ${hasWhy && kind === "ready"
       ? `<div class="or-why" data-for="${lead.id}" hidden>${confidenceDetail(conf)}</div>`
       : ""}
-    ${needsVideo
-      ? `<div class="or-videoinput" data-id="${lead.id}">
-           <input class="video-input" type="url" placeholder="Paste the finished video link…"
-                  value="${esc(lead.video_url || "")}">
-           <button class="btn-tiny act-save-video" type="button">Save</button>
-         </div>`
-      : ""}`;
+`;
 }
 
 const readyCard = (item) => outreachRow(item, "ready");
@@ -280,23 +272,6 @@ GoHighLevel will deliver it. This can't be unsent.`)) return;
     };
   });
 
-  document.querySelectorAll(".act-save-video").forEach((btn) => {
-    btn.onclick = async () => {
-      const wrap = btn.closest(".or-videoinput");
-      const input = wrap.querySelector(".video-input");
-      btn.disabled = true;
-      try {
-        await api(`/studio/api/leads/${wrap.dataset.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ video_url: input.value.trim() }),
-        });
-        await load();
-      } catch (err) {
-        alert(err.message);
-        btn.disabled = false;
-      }
-    };
-  });
 }
 
 el("ghl-status").onclick = checkConnection;
