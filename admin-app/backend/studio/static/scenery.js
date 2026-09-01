@@ -323,33 +323,7 @@ function roomCard(photo) {
       });
     },
 
-    onRetry: async (button) => {
-      if (state.polling) return;
-      button.disabled = true;
-      button.textContent = "Trying…";
-      try {
-        const res = await fetch("/studio/api/scenery/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            // force, or reuse hands back the same doubtful image.
-            force: true,
-            lead_id: state.leadId,
-            address: state.address,
-            rooms: [{ photo: photo.url, label: photo.label, style: styleKey }],
-          }),
-        });
-        const out = await res.json();
-        if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
-        state.polling = true;
-        state.startedAt = Date.now();
-        pollJob(out.job.id);
-      } catch (err) {
-        button.disabled = false;
-        button.textContent = "Try again";
-        renderRunStatus("error", `<strong>Couldn't retry.</strong> ${escapeHtml(err.message)}`);
-      }
-    },
+    onRetry: () => retryRoom(photo, styleKey),
   });
 }
 
@@ -855,4 +829,144 @@ if (window.__PREFILL__) {
   applyPrefill(window.__PREFILL__);
   const open = el("lead-open");
   if (open) open.textContent = "Pick a different lead";
+}
+
+
+/* ---------- retrying one room ----------
+
+   A single room is fast enough that sending it through the full-page progress
+   screen would throw away the results you are looking at and then bring them
+   back. A popup keeps the page where it is, and shows the thing worth showing:
+   which pass it is on and what it is still trying to remove. */
+
+function retryPopup() {
+  let box = el("scn-retry-modal");
+  if (box) return box;
+
+  box = document.createElement("div");
+  box.id = "scn-retry-modal";
+  box.className = "scn-modal hidden";
+  box.innerHTML = `
+    <div class="scn-modal-panel" role="dialog" aria-modal="true"
+         aria-labelledby="scn-retry-title">
+      <h3 id="scn-retry-title" class="scn-modal-title"></h3>
+      <p class="scn-modal-sub"></p>
+      <div class="scn-bar"><div class="scn-bar-fill"></div></div>
+      <div class="scn-modal-meta">
+        <span class="scn-modal-pass"></span>
+        <span class="scn-modal-time"></span>
+      </div>
+      <p class="scn-modal-left"></p>
+      <div class="scn-modal-actions">
+        <button type="button" class="btn-secondary btn-tiny" data-close>Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(box);
+  box.querySelector("[data-close]").addEventListener("click", () => {
+    box.classList.add("hidden");
+  });
+  return box;
+}
+
+async function retryRoom(photo, styleKey) {
+  if (state.polling) return;
+
+  const box = retryPopup();
+  const title = box.querySelector(".scn-modal-title");
+  const sub = box.querySelector(".scn-modal-sub");
+  const fill = box.querySelector(".scn-bar-fill");
+  const passLine = box.querySelector(".scn-modal-pass");
+  const timeLine = box.querySelector(".scn-modal-time");
+  const leftLine = box.querySelector(".scn-modal-left");
+  const closeBtn = box.querySelector("[data-close]");
+
+  title.textContent = `Restaging ${photo.label}`;
+  sub.textContent = "Emptying the room, then checking it and removing whatever is left.";
+  leftLine.textContent = "";
+  passLine.textContent = "Starting…";
+  fill.style.width = "5%";
+  closeBtn.textContent = "Close";
+  box.classList.remove("hidden");
+
+  const startedAt = Date.now();
+  const ticker = setInterval(() => {
+    timeLine.textContent = fmtDuration((Date.now() - startedAt) / 1000) + " elapsed";
+  }, 250);
+
+  const finish = (message, kind) => {
+    clearInterval(ticker);
+    fill.style.width = "100%";
+    passLine.textContent = message;
+    box.querySelector(".scn-modal-panel").classList.toggle("is-error", kind === "error");
+  };
+
+  let jobId;
+  try {
+    const res = await fetch("/studio/api/scenery/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        // force, or reuse hands back the same doubtful image.
+        force: true,
+        lead_id: state.leadId,
+        address: state.address,
+        rooms: [{ photo: photo.url, label: photo.label, style: styleKey }],
+      }),
+    });
+    const out = await res.json();
+    if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+    jobId = out.job.id;
+  } catch (err) {
+    finish(err.message, "error");
+    return;
+  }
+
+  state.polling = true;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 1200));
+    let job;
+    try {
+      const res = await fetch(`/studio/api/scenery/jobs/${jobId}`);
+      job = (await res.json()).job;
+      if (!res.ok || !job) throw new Error("lost track of the run");
+    } catch (err) {
+      state.polling = false;
+      finish(err.message, "error");
+      return;
+    }
+
+    const room = (job.rooms || [])[0] || {};
+    if (room.pass) {
+      // Each pass removes what the last one missed, so progress is the pass
+      // number rather than anything finer-grained.
+      passLine.textContent = `Pass ${room.pass} of ${room.of}`;
+      fill.style.width = `${Math.round((room.pass / room.of) * 90)}%`;
+      leftLine.textContent = room.leftovers
+        ? `Still removing: ${room.leftovers}`
+        : "Checking the room…";
+    }
+
+    if (job.status === "queued" || job.status === "running") continue;
+
+    state.polling = false;
+    (job.rooms || []).forEach((r) => {
+      if (!r.staged_url) return;
+      state.staged[r.photo] = state.staged[r.photo] || {};
+      state.staged[r.photo][r.style] = r.staged_url;
+      state.warnings[r.photo] = state.warnings[r.photo] || {};
+      state.warnings[r.photo][r.style] = r.warning || "";
+    });
+    renderRooms();
+
+    if (job.status === "failed") {
+      finish(job.error || "That didn't work.", "error");
+      return;
+    }
+    const left = (job.rooms || [])[0]?.warning;
+    leftLine.textContent = left ? `Still in the room: ${left}` : "";
+    finish(left ? "Done — but not completely empty." : "Done — the room is empty.",
+           left ? "error" : "ok");
+    closeBtn.textContent = "See it";
+    return;
+  }
 }

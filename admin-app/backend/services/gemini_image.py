@@ -117,6 +117,24 @@ def edit_image(local_path, prompt, cfg=None, timeout=180):
     with open(local_path, "rb") as fh:
         encoded = base64.b64encode(fh.read()).decode("ascii")
 
+    return _edit(encoded, mime, prompt, cfg, timeout)
+
+
+def edit_bytes(image_bytes, prompt, cfg=None, timeout=180):
+    """Same, but editing an image already in memory.
+
+    This is what makes refinement possible: the second pass edits the FIRST
+    pass's output rather than starting again from the original photo.
+    """
+    cfg = cfg or load_config()
+    if not cfg["api_key"]:
+        raise GeminiNotConfigured("Gemini isn't connected.")
+    return _edit(base64.b64encode(image_bytes).decode("ascii"), "image/jpeg",
+                 prompt, cfg, timeout)
+
+
+def _edit(encoded, mime, prompt, cfg, timeout):
+
     payload = {
         "contents": [
             {

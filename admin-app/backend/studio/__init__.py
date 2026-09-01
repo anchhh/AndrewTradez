@@ -2003,10 +2003,20 @@ def api_scenery_job(job_id):
     from extensions import db
     from models import StagingJob
 
+    from services.staging_jobs import progress_for
+
     job = db.session.get(StagingJob, job_id)
     if job is None or job.owner_id != session["user_id"]:
         return jsonify({"error": "Job not found."}), 404
-    return jsonify({"job": job.to_dict()})
+
+    payload = job.to_dict()
+    # Which refinement pass each room is on, for the progress popup. Only
+    # meaningful while the job is running; it is discarded when it ends.
+    live = progress_for(job_id)
+    for index, room in enumerate(payload["rooms"]):
+        if index in live:
+            room.update(live[index])
+    return jsonify({"job": payload})
 
 
 @studio_bp.route("/api/scenery/generate", methods=["POST"])

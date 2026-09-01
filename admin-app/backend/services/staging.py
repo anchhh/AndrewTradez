@@ -442,7 +442,7 @@ def stage_room(local_path, style, cfg=None):
     return data
 
 
-def stage_room_with_report(local_path, style, cfg=None):
+def stage_room_with_report(local_path, style, cfg=None, on_progress=None):
     """(image_bytes, leftovers). `leftovers` is "" when there is nothing to say.
 
     The caller wants both: three attempts can still come back with a wall
@@ -454,43 +454,65 @@ def stage_room_with_report(local_path, style, cfg=None):
 
     # Emptying is checkable, so it is checked -- see check_empty.
     if style == "unfurnished" and cfg["provider"] == "gemini":
-        return _stage_until_empty(prompt, local_path, cfg)
+        return _stage_until_empty(prompt, local_path, cfg, on_progress)
 
     return _stage_once(prompt, local_path, cfg), ""
 
 
-def _stage_until_empty(prompt, local_path, cfg):
-    """Generate, inspect, and try again naming whatever was left behind."""
+def _stage_until_empty(prompt, local_path, cfg, on_progress=None):
+    """Empty the room, then keep removing whatever the check still sees.
+
+    The first pass does the real work. Every pass after it edits the previous
+    result and deletes only the named leftovers, which converges where
+    repeated full attempts did not -- the earlier version restarted from the
+    original photo each time and tended to make the same mistake again.
+
+    The best attempt is kept, not the last: pass four leaving one lamp is a
+    better answer than pass five putting the sofa back.
+    """
     import logging
 
-    log = logging.getLogger(__name__)
-    best = None
-    attempt_prompt = prompt
+    from services import gemini_image
 
-    last_leftovers = ""
-    for attempt in range(MAX_EMPTY_ATTEMPTS):
-        data = _stage_once(attempt_prompt, local_path, cfg)
-        best = best or data
+    log = logging.getLogger(__name__)
+
+    data = _stage_once(prompt, local_path, cfg)
+    ok, leftovers = check_empty(data, cfg)
+    if on_progress:
+        on_progress(1, MAX_EMPTY_ATTEMPTS, leftovers)
+    if ok:
+        return data, ""
+
+    best, best_count = data, _leftover_count(leftovers)
+    best_leftovers = leftovers
+
+    for attempt in range(2, MAX_EMPTY_ATTEMPTS + 1):
+        log.info("attempt %s left: %s", attempt - 1, leftovers)
+        try:
+            data = gemini_image.edit_bytes(
+                data, REMOVE_LEFTOVERS.format(leftovers=leftovers)
+            )
+        except (gemini_image.GeminiError, gemini_image.GeminiNotConfigured) as exc:
+            log.warning("refinement pass failed: %s", exc)
+            break
 
         ok, leftovers = check_empty(data, cfg)
+        if on_progress:
+            on_progress(attempt, MAX_EMPTY_ATTEMPTS, leftovers)
         if ok:
-            if attempt:
-                log.info("room emptied on attempt %s", attempt + 1)
+            log.info("room emptied on pass %s", attempt)
             return data, ""
 
-        last_leftovers = leftovers
-        log.info("attempt %s left: %s", attempt + 1, leftovers)
-        # The specific miss, fed back. This is the part that actually works.
-        attempt_prompt = (
-            prompt
-            + " A previous attempt at this exact image failed because it left "
-            "these behind: " + leftovers + ". Remove those as well. The room "
-            "must contain no movable objects whatsoever."
-        )
-        best = data
+        count = _leftover_count(leftovers)
+        if count < best_count:
+            best, best_count, best_leftovers = data, count, leftovers
 
-    # Out of attempts. Hand back the best we have AND what is wrong with it.
-    return best, last_leftovers
+    return best, best_leftovers
+
+
+def _leftover_count(leftovers):
+    """How many things the check named, for picking the best attempt."""
+    return len([bit for bit in (leftovers or "").split(",") if bit.strip()])
 
 
 def _stage_once(prompt, local_path, cfg):
@@ -627,7 +649,27 @@ EMPTY_CHECK = (
     "of what remains, and nothing else."
 )
 
-MAX_EMPTY_ATTEMPTS = 3
+MAX_EMPTY_ATTEMPTS = 5
+
+# The second pass and later do not redo the job -- they edit the previous
+# attempt and remove only what the check found. Taking a nearly-empty room and
+# deleting one dresser is a far smaller ask than emptying the room again from
+# scratch, which is why restarting from the original kept failing the same way.
+REMOVE_LEFTOVERS = (
+    "This photograph of a room is supposed to be completely empty, but these "
+    "objects are still in it: {leftovers}. "
+    "Remove exactly those objects and nothing else. "
+    "Reconstruct the floor, wall and skirting behind each one so it matches "
+    "the surrounding surfaces exactly, with correct perspective, texture and "
+    "shadows. "
+    "Change NOTHING else in the picture: do not move the camera, do not alter "
+    "the lighting, and do not add anything. "
+    "Leave the building and its fixed fittings exactly as they are -- walls, "
+    "windows, doors, ceiling, floor, skirting, ceiling fans, light fittings, "
+    "vents, outlets, switches, radiators, built-in cabinetry -- and leave "
+    "curtains, blinds and their rods alone. "
+    "The result must be the same room with those objects gone."
+)
 
 
 def check_empty(image_bytes, cfg=None):

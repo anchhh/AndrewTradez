@@ -29,6 +29,33 @@ log = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 
+# Live per-room progress, read by the polling route while a job runs.
+#
+# It does not go through the database on purpose: _stage_one runs on a worker
+# thread with no application context, and giving those threads a SQLAlchemy
+# session is a bug that surfaces as corrupted rows much later. A plain dict
+# guarded by a lock is enough -- this is one process, and the value is thrown
+# away the moment the job ends.
+_progress = {}
+_progress_lock = threading.Lock()
+
+
+def progress_for(job_id):
+    """{room_index: {pass, of, leftovers}} for a running job."""
+    with _progress_lock:
+        return {k[1]: dict(v) for k, v in _progress.items() if k[0] == job_id}
+
+
+def _set_progress(job_id, index, **fields):
+    with _progress_lock:
+        _progress[(job_id, index)] = fields
+
+
+def _clear_progress(job_id):
+    with _progress_lock:
+        for key in [k for k in _progress if k[0] == job_id]:
+            del _progress[key]
+
 STAGED_DIRNAME = os.path.join("studio", "static", "uploads", "staged")
 STAGED_URL_PREFIX = "/studio/static/uploads/staged"
 
@@ -71,7 +98,11 @@ def _stage_one(job_id, index, room, cfg):
         # One call, whichever provider is configured -- Gemini answers with the
         # image, Atlas Cloud is uploaded to and polled. Neither shape leaks here.
         # `leftovers` is non-empty when emptying a room did not fully succeed.
-        data, leftovers = stage_room_with_report(path, room.get("style"), cfg)
+        data, leftovers = stage_room_with_report(
+            path, room.get("style"), cfg,
+            on_progress=lambda n, of, left: _set_progress(
+                job_id, index, **{"pass": n, "of": of, "leftovers": left}),
+        )
         if leftovers:
             entry["warning"] = leftovers
 
@@ -222,6 +253,7 @@ def _run(app, job_id):
         except Exception:
             pass
     finally:
+        _clear_progress(job_id)
         _lock.release()
 
 
