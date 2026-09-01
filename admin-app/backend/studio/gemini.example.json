@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy to gemini.json and paste your key. Free key: https://aistudio.google.com/apikey",
+  "_free_tier": "~500 images/day at 1024x1024 on gemini-2.5-flash-image, no card required.",
+  "_model_warning": "Google's newer image models are paid-only. Changing 'model' is what starts a bill.",
+  "api_key": "",
+  "model": "gemini-2.5-flash-image"
+}
