@@ -3005,16 +3005,17 @@ gmp-map-3d {
 .scn-applyall { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0 20px; }
 .scn-applyall-label { font-size: 0.76rem; color: var(--ink-soft); flex: 0 0 auto; }
 
-.scn-rooms {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-bottom: 22px;
-}
+/* One room per row: the image is the thing being judged, so it gets the space
+   and the choices sit beside it rather than under a thumbnail. */
+.scn-rooms { display: flex; flex-direction: column; gap: 18px; margin-bottom: 24px; }
 .scn-room {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(230px, 1fr);
+  gap: 22px;
+  align-items: start;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
+  border-radius: 14px;
+  padding: 16px;
   background: var(--cream-soft);
 }
 
@@ -3100,17 +3101,43 @@ gmp-map-3d {
 .scn-compare.is-pending .scn-tag-after,
 .scn-compare.is-all-before .scn-tag-after { display: none; }
 
-.scn-room-meta { display: flex; align-items: center; gap: 8px; padding: 9px 11px; }
-.scn-room-label { font-weight: 600; font-size: 0.82rem; flex: 0 0 auto; }
+.scn-compare { border-radius: 10px; }
+
+.scn-room-meta { display: flex; flex-direction: column; gap: 4px; }
+.scn-room-label { margin: 0; font-size: 1.5rem; line-height: 1.15; font-weight: 700; }
+.scn-room-prompt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin-top: 10px;
+}
+.scn-room-styles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
 .scn-room-style {
-  margin-left: auto;
-  flex: 0 1 auto;
-  min-width: 0;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  font: inherit;
-  font-size: 0.75rem;
-  background: var(--cream);
+  all: unset;
   cursor: pointer;
+  text-align: center;
+  padding: 7px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream);
+  font-size: 0.78rem;
+  box-sizing: border-box;
+}
+.scn-room-style:hover { border-color: var(--ink-soft); }
+.scn-room-style.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.scn-room-open { margin-top: 12px; width: auto; align-self: flex-start; }
+
+@media (max-width: 780px) {
+  .scn-room { grid-template-columns: 1fr; gap: 14px; }
 }

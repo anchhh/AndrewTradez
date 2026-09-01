@@ -250,11 +250,14 @@ function roomCard(photo) {
       <span class="scn-tag scn-tag-after">After</span>
     </div>
     <div class="scn-room-meta">
-      <span class="scn-room-label">${escapeHtml(photo.label)}</span>
-      <select class="scn-room-style" aria-label="Style for this room">
-        <option value="">Choose a style…</option>
-        ${STYLES.map(([k, n]) => `<option value="${k}" ${k === styleKey ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}
-      </select>
+      <h3 class="scn-room-label">${escapeHtml(photo.label)}</h3>
+      <span class="scn-room-prompt">Choose style</span>
+      <div class="scn-room-styles">
+        ${STYLES.map(([k, n, desc]) => `
+          <button type="button" class="scn-room-style ${k === styleKey ? "is-active" : ""}"
+                  data-style="${k}" title="${escapeHtml(desc)}">${escapeHtml(n)}</button>`).join("")}
+      </div>
+      <button type="button" class="scn-room-open btn-tiny">View full screen</button>
     </div>`;
 
   const compare = card.querySelector(".scn-compare");
@@ -270,11 +273,24 @@ function roomCard(photo) {
   setSplit(slider.value);
   slider.addEventListener("input", () => setSplit(slider.value));
 
-  card.querySelector(".scn-room-style").addEventListener("change", (e) => {
-    state.styles[photo.url] = e.target.value || undefined;
-    if (!e.target.value) delete state.styles[photo.url];
-    renderStyles();
-    renderSummary();
+  // Clicking the style already set clears it, so a room can be taken back out
+  // without hunting for a "none" entry.
+  card.querySelectorAll(".scn-room-style").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (state.styles[photo.url] === btn.dataset.style) delete state.styles[photo.url];
+      else state.styles[photo.url] = btn.dataset.style;
+      renderRooms();
+      renderStyles();
+      renderSummary();
+    });
+  });
+
+  card.querySelector(".scn-room-open").addEventListener("click", () => {
+    const chosen = state.photos.filter((p) => state.selected.has(p.url));
+    const urls = chosen.map((p) => p.url);
+    const rooms = {};
+    chosen.forEach((p) => { rooms[p.url] = { room: p.room, label: p.label, order: p.order }; });
+    openLightbox(urls, urls.indexOf(photo.url), rooms);
   });
 
   return card;
