@@ -158,14 +158,47 @@
     </header>
     <input id="lead-search" type="search" autocomplete="off"
            placeholder="Search address, agent, brokerage, city…">
+    <div class="lm-filters lead-modal-filters">
+      <label class="lm-filter">
+        <span class="lm-filter-label">Qualification</span>
+        <select id="pick-filter-qualified">
+          <option value="all">All leads</option>
+          <option value="false">Not qualified</option>
+          <option value="true">Qualified</option>
+        </select>
+      </label>
+      <label class="lm-filter">
+        <span class="lm-filter-label">Status</span>
+        <select id="pick-filter-status">
+          <option value="all">Any status</option>
+          <option value="new">New</option>
+          <option value="contacted">Contacted</option>
+          <option value="responded">Responded</option>
+          <option value="converted">Converted</option>
+          <option value="dead">Dead</option>
+        </select>
+      </label>
+      <label class="lm-filter">
+        <span class="lm-filter-label">Source</span>
+        <select id="pick-filter-source">
+          <option value="all">Any source</option>
+          <option value="zillow">Zillow</option>
+          <option value="redfin">Redfin</option>
+          <option value="homes">Homes.com</option>
+          <option value="manual">Manual</option>
+          <option value="csv">CSV</option>
+        </select>
+      </label>
+    </div>
     <p id="lead-count" class="lead-modal-count"></p>
-    <div id="lead-picker" class="lead-picker"></div>
+    <div id="lead-picker" class="lead-card-list"></div>
     <p id="lead-picker-empty" class="empty-note hidden">
       No leads yet. Capture some with the extension, or use Option 2 or 3.
     </p>
   </div>
 </div>
 
+<script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='create.js') }}"></script>
 </body>
 </html>

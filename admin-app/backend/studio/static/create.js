@@ -12,8 +12,9 @@ const state = {
 };
 
 const el = (id) => document.getElementById(id);
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v)$/i;
-const isVideoUrl = (url) => VIDEO_EXT.test(url);
+// VIDEO_EXT and isVideoUrl come from leads_shared.js, which this page now
+// loads for the Lead Manager cards in the picker. Re-declaring them here
+// throws and takes the whole file down with it.
 
 const existingProject = window.__PROJECT__ || null;
 const wasCompleted = existingProject && existingProject.status === "completed";
@@ -743,14 +744,14 @@ if (existingProject) {
 renderPhotoGrid();
 
 /* ---------- Option 1: browse and search your leads ----------
-   A captured lead already has its photos on disk and its address and listing
-   details saved, so this loads all of it rather than re-fetching a page that
-   may since have changed or started refusing us. It feeds applyPrefill(), the
-   same path the ?lead_id= query param uses -- one behaviour, not two.
+   The cards here are the Lead Manager's own -- leadCardHtml() from
+   leads_shared.js, the same markup and CSS -- so this reads as the Lead
+   Manager rather than as a second, slightly-different list to learn.
 
-   The list opens over the page rather than sitting inline: once there are
-   more than a handful of leads, browsing them is its own task and shouldn't
-   push the rest of the form down. */
+   What it does NOT reuse is wireLeadCard(): that makes a card open the lead's
+   profile and wires Delete. Inside a picker both are wrong, so the controls
+   that would edit or navigate away are removed and the whole card picks the
+   lead instead. */
 
 let allLeads = null;
 let leadsLoaded = false;
@@ -760,31 +761,66 @@ function leadMatches(lead, terms) {
     lead.address, lead.city, lead.state, lead.zip_code,
     lead.agent_name, lead.brokerage, lead.agent_email,
   ].filter(Boolean).join(" ").toLowerCase();
-  // Every word must appear somewhere, so "belmont pope" finds the lead that
-  // matches both rather than everything matching either.
+  // Every word must appear, so "belmont pope" finds the lead matching both
+  // rather than everything matching either.
   return terms.every((t) => hay.includes(t));
 }
 
-function leadCardHtml(lead) {
-  const photos = lead.photo_urls || [];
-  const facts = [
-    lead.beds ? `${lead.beds} bd` : null,
-    lead.baths ? `${lead.baths} ba` : null,
-    lead.sqft ? `${Number(lead.sqft).toLocaleString()} sqft` : null,
-  ].filter(Boolean).join(" · ");
-  const place = [lead.city, lead.state].filter(Boolean).join(", ");
-  return `
-    <button type="button" class="lead-pick" data-id="${lead.id}" ${photos.length ? "" : "disabled"}>
-      <span class="lead-pick-thumb">
-        ${photos[0] ? `<img src="${photos[0]}" alt="" loading="lazy">`
-                    : `<span class="lead-pick-noimg">no photos</span>`}
-      </span>
-      <span class="lead-pick-body">
-        <span class="lead-pick-address">${lead.address || "Untitled listing"}</span>
-        <span class="lead-pick-meta">${photos.length} photo${photos.length === 1 ? "" : "s"}${facts ? ` · ${facts}` : ""}</span>
-        <span class="lead-pick-agent">${[lead.agent_name, place].filter(Boolean).join(" · ")}</span>
-      </span>
-    </button>`;
+function visibleLeads() {
+  const terms = (el("lead-search").value || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const qualified = el("pick-filter-qualified").value;
+  const status = el("pick-filter-status").value;
+  const source = el("pick-filter-source").value;
+
+  return (allLeads || []).filter((lead) => {
+    if (!leadMatches(lead, terms)) return false;
+    if (qualified !== "all" && String(!!lead.qualified) !== qualified) return false;
+    if (status !== "all" && lead.status !== status) return false;
+    if (source !== "all" && lead.source !== source) return false;
+    return true;
+  });
+}
+
+/* Strips the controls that only make sense in the Lead Manager, and makes the
+   card itself the pick action. */
+function asPickerCard(lead) {
+  const host = document.createElement("div");
+  host.innerHTML = leadCardHtml(lead, {});
+  const card = host.firstElementChild;
+
+  card.querySelector(".lead-card-select")?.remove();
+  card.querySelector(".lm-delete-btn")?.remove();
+  card.querySelector(".lead-find-email")?.remove();
+  card.querySelector('a[href^="/studio/create"]')?.remove();
+
+  // The checklist stays as a status read-out, but its toggles would fire
+  // updates nothing here is listening for.
+  card.querySelectorAll(".lead-card-checklist button").forEach((b) => {
+    b.disabled = true;
+    b.style.pointerEvents = "none";
+  });
+
+  const photos = (lead.photo_urls || []).length;
+  const actions = card.querySelector(".lead-card-actions");
+  if (actions) {
+    const use = document.createElement("button");
+    use.type = "button";
+    use.className = "btn-send lead-use-btn";
+    use.textContent = photos ? "Use this lead" : "No photos";
+    use.disabled = !photos;
+    actions.appendChild(use);
+  }
+
+  if (photos) {
+    card.classList.add("is-pickable");
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("a, select, textarea")) return;
+      pickLead(card, lead);
+    });
+  } else {
+    card.classList.add("is-unpickable");
+  }
+  return card;
 }
 
 function renderLeadList() {
@@ -792,9 +828,6 @@ function renderLeadList() {
   const empty = el("lead-picker-empty");
   const count = el("lead-count");
   if (!box) return;
-
-  const terms = (el("lead-search").value || "").toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = (allLeads || []).filter((l) => leadMatches(l, terms));
 
   if (!allLeads || !allLeads.length) {
     box.innerHTML = "";
@@ -804,17 +837,17 @@ function renderLeadList() {
   }
   empty.classList.add("hidden");
 
-  count.textContent = terms.length
-    ? `${shown.length} of ${allLeads.length} lead${allLeads.length === 1 ? "" : "s"}`
-    : `${allLeads.length} lead${allLeads.length === 1 ? "" : "s"}`;
+  const shown = visibleLeads();
+  count.textContent = shown.length === allLeads.length
+    ? `${allLeads.length} lead${allLeads.length === 1 ? "" : "s"}`
+    : `${shown.length} of ${allLeads.length} leads`;
 
-  box.innerHTML = shown.length
-    ? shown.map(leadCardHtml).join("")
-    : `<p class="hint">Nothing matches that.</p>`;
-
-  box.querySelectorAll(".lead-pick").forEach((btn) => {
-    btn.addEventListener("click", () => pickLead(btn));
-  });
+  box.innerHTML = "";
+  if (!shown.length) {
+    box.innerHTML = `<p class="hint">Nothing matches that.</p>`;
+    return;
+  }
+  shown.forEach((lead) => box.appendChild(asPickerCard(lead)));
 }
 
 async function loadLeads() {
@@ -847,27 +880,26 @@ function closeLeadModal() {
   el("lead-open").focus();
 }
 
-async function pickLead(btn) {
-  const lead = (allLeads || []).find((l) => String(l.id) === btn.dataset.id);
-  btn.disabled = true;
+async function pickLead(card, lead) {
+  const btn = card.querySelector(".lead-use-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
   try {
-    const res = await fetch(`/studio/api/leads/${btn.dataset.id}/prefill`);
+    const res = await fetch(`/studio/api/leads/${lead.id}/prefill`);
     if (!res.ok) throw new Error((await res.json()).error || "Could not load that lead.");
     const prefill = await res.json();
     closeLeadModal();
     await applyPrefill(prefill);
 
+    const n = (lead.photo_urls || []).length;
     const summary = el("lead-picked-summary");
-    if (summary && lead) {
-      const n = (lead.photo_urls || []).length;
+    if (summary) {
       summary.textContent = `${lead.address} — ${n} photo${n === 1 ? "" : "s"} loaded`;
       summary.classList.add("is-set");
     }
     el("lead-open").textContent = "Pick a different lead";
   } catch (err) {
     alert(err.message || "Could not load that lead.");
-  } finally {
-    btn.disabled = false;
+    if (btn) { btn.disabled = false; btn.textContent = "Use this lead"; }
   }
 }
 
@@ -880,6 +912,9 @@ function initLeadPicker() {
     n.addEventListener("click", closeLeadModal);
   });
   el("lead-search").addEventListener("input", renderLeadList);
+  ["pick-filter-qualified", "pick-filter-status", "pick-filter-source"].forEach((id) => {
+    el(id).addEventListener("change", renderLeadList);
+  });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !el("lead-modal").classList.contains("hidden")) {
