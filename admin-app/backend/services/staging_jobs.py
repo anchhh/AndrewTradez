@@ -17,16 +17,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from services.staging import (
-    DONE_STATUSES,
     StagingError,
     StagingNotConfigured,
-    check_stage,
-    download,
     estimate_cost,
     load_config,
-    submit_stage,
+    stage_room,
 )
-from services.video import upload_image
 
 log = logging.getLogger(__name__)
 
@@ -71,26 +67,19 @@ def _stage_one(job_id, index, room, cfg):
         if not os.path.exists(path):
             raise StagingError("photo missing on disk: " + os.path.basename(path))
 
-        image_url = upload_image(path, cfg)
-        prediction_id = submit_stage(image_url, room.get("style"), cfg=cfg)
-        entry["prediction_id"] = prediction_id
+        # One call, whichever provider is configured -- Gemini answers with the
+        # image, Atlas Cloud is uploaded to and polled. Neither shape leaks here.
+        data = stage_room(path, room.get("style"), cfg)
 
-        deadline = time.time() + POLL_TIMEOUT
-        while time.time() < deadline:
-            state = check_stage(prediction_id, cfg)
-            if state["status"] in DONE_STATUSES:
-                if not state["image_url"]:
-                    raise StagingError("generation finished but returned no image")
-                filename = "job%s-room%s-%s.jpg" % (job_id, index, str(prediction_id)[:8])
-                download(state["image_url"], os.path.join(STAGED_DIRNAME, filename))
-                entry["status"] = "completed"
-                entry["staged_url"] = STAGED_URL_PREFIX + "/" + filename
-                return entry
-            if state["status"] == "failed":
-                raise StagingError(state["error"] or "generation failed")
-            time.sleep(POLL_INTERVAL)
+        filename = "job%s-room%s-%s.jpg" % (job_id, index, room.get("style") or "x")
+        dest = os.path.join(STAGED_DIRNAME, filename)
+        os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+        with open(dest, "wb") as fh:
+            fh.write(data)
 
-        raise StagingError("gave up after %ss; still running" % POLL_TIMEOUT)
+        entry["status"] = "completed"
+        entry["staged_url"] = STAGED_URL_PREFIX + "/" + filename
+        return entry
 
     except (StagingError, StagingNotConfigured) as exc:
         # One bad room must not discard the ones already paid for.

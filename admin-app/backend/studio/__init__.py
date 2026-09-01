@@ -1972,11 +1972,24 @@ def api_scenery_status():
     from services.staging import STYLE_PROMPTS, estimate_cost, load_config
     from services.staging_jobs import is_busy
 
+    from services.staging import is_configured, not_configured_message
+
     cfg = load_config()
+    ok = is_configured(cfg)
+    gemini = cfg["provider"] == "gemini"
+    if gemini:
+        from services import gemini_image
+
+        model = gemini_image.load_config()["model"]
+    else:
+        model = cfg["model"]
+
     return jsonify({
-        "configured": bool(cfg["api_key"]),
-        "config_error": cfg.get("config_error"),
-        "model": cfg["model"],
+        "configured": ok,
+        "config_error": None if ok else not_configured_message(cfg),
+        "provider": cfg["provider"],
+        "free": gemini,
+        "model": model,
         "cost_per_image": estimate_cost(1, cfg),
         "styles": sorted(STYLE_PROMPTS.keys()),
         "busy": is_busy(),
@@ -2010,11 +2023,11 @@ def api_scenery_generate():
     from services.staging import STYLE_PROMPTS, estimate_cost, load_config
     from services.staging_jobs import StagingJobBusy, start_job
 
+    from services.staging import is_configured, not_configured_message
+
     cfg = load_config()
-    if not cfg["api_key"]:
-        return jsonify({"error": cfg.get("config_error") or
-                        "Staging isn't connected. Add an Atlas Cloud key to "
-                        "studio/atlascloud.json."}), 400
+    if not is_configured(cfg):
+        return jsonify({"error": not_configured_message(cfg)}), 400
 
     data = request.get_json(force=True, silent=True) or {}
     rooms = data.get("rooms") or []

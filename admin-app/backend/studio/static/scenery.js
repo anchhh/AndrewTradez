@@ -252,19 +252,23 @@ function renderStyles() {
    at all. The rate is fetched rather than hard-coded so switching models in
    atlascloud.json moves this too. */
 let costPerImage = 0.08;
+let stagingIsFree = false;
 
 fetch("/studio/api/scenery/status")
   .then((r) => r.json())
   .then((d) => {
-    if (d && typeof d.cost_per_image === "number") {
-      costPerImage = d.cost_per_image;
-      renderSummary();
-      renderStepGates();
-    }
+    if (!d) return;
+    if (typeof d.cost_per_image === "number") costPerImage = d.cost_per_image;
+    stagingIsFree = !!d.free;
+    renderSummary();
+    renderStepGates();
   })
   .catch(() => {});
 
+/* "$0.00" reads as a bug, or as a price about to appear. On Gemini's free tier
+   the honest word is free, so say it. */
 function money(n) {
+  if (stagingIsFree) return "free";
   return "$" + (n * costPerImage).toFixed(2);
 }
 
@@ -401,7 +405,7 @@ function renderSummary() {
   if (everyCost) {
     const n = chosen.length * STYLES.length;
     everyCost.textContent = chosen.length
-      ? `${n} images, about ${money(n)}.`
+      ? (stagingIsFree ? `${n} images, free.` : `${n} images, about ${money(n)}.`)
       : "";
   }
 
@@ -468,7 +472,10 @@ function renderStepGates() {
   const note2 = el("step2-note");
   if (note2) {
     note2.innerHTML = n
-      ? `${n} room${n === 1 ? "" : "s"} selected — about <strong>${money(n)}</strong> to stage`
+      ? `${n} room${n === 1 ? "" : "s"} selected — ` +
+        (stagingIsFree
+          ? `<strong>free</strong> to stage`
+          : `about <strong>${money(n)}</strong> to stage`)
       : "Tick at least one room to continue.";
   }
 }
@@ -644,7 +651,9 @@ async function pollJob(jobId) {
 
   state.projectId = job.project_id || null;
   const failed = job.total - job.done;
-  const cost = job.estimated_cost != null ? ` · about $${job.estimated_cost.toFixed(2)}` : "";
+  const cost = stagingIsFree
+    ? " · free"
+    : (job.estimated_cost != null ? ` · about $${job.estimated_cost.toFixed(2)}` : "");
   // Deliberately not a redirect. The results are on this page, and being
   // thrown to a project list the moment they land is the opposite of useful.
   renderRunStatus("done",

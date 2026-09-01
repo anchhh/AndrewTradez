@@ -129,7 +129,18 @@ def load_config():
         )
         key = ""
 
+    # Which service actually generates. Gemini's free tier covers ~500 images
+    # a day, which is more than a listing needs, so it is the default when a
+    # Gemini key exists and Atlas Cloud is the fallback rather than the other
+    # way round. Set "provider" explicitly to override.
+    provider = (os.environ.get("STAGING_PROVIDER") or cfg.get("provider") or "").strip()
+    if not provider:
+        from services import gemini_image
+
+        provider = "gemini" if gemini_image.is_configured() else "atlas"
+
     return {
+        "provider": provider,
         "api_key": key,
         "model": (
             os.environ.get("ATLASCLOUD_IMAGE_MODEL")
@@ -148,13 +159,41 @@ def load_config():
     }
 
 
-def is_configured():
-    return bool(load_config()["api_key"])
+def is_configured(cfg=None):
+    """Whether staging can run at all -- on whichever provider is selected."""
+    cfg = cfg or load_config()
+    if cfg["provider"] == "gemini":
+        from services import gemini_image
+
+        return gemini_image.is_configured()
+    return bool(cfg["api_key"])
+
+
+def not_configured_message(cfg=None):
+    cfg = cfg or load_config()
+    if cfg["provider"] == "gemini":
+        from services import gemini_image
+
+        return gemini_image.load_config().get("config_error") or (
+            "Gemini isn't connected. Put an API key in studio/gemini.json "
+            "(or set GEMINI_API_KEY). The free tier covers ~500 images a day."
+        )
+    return cfg.get("config_error") or (
+        "Staging isn't connected. Add an Atlas Cloud key to "
+        "studio/atlascloud.json, or a free Gemini key to studio/gemini.json."
+    )
 
 
 def estimate_cost(count, cfg=None):
-    """Dollar cost of staging `count` rooms, for showing before spending."""
+    """Dollar cost of staging `count` rooms, for showing before spending.
+
+    Zero on Gemini: its free tier covers far more images per day than a
+    listing uses. Quoting Atlas Cloud's rate while running on Gemini would be
+    a scarier number than the truth.
+    """
     cfg = cfg or load_config()
+    if cfg.get("provider") == "gemini":
+        return 0.0
     return round(count * float(cfg["rate_per_image"]), 3)
 
 
@@ -271,3 +310,47 @@ def download(image_url, dest_path):
         for chunk in resp.iter_content(chunk_size=65536):
             fh.write(chunk)
     return dest_path
+
+
+def stage_room(local_path, style, cfg=None):
+    """Stage one room and return the finished image bytes.
+
+    Blocking, and both providers are hidden behind it. Gemini answers with the
+    image directly; Atlas Cloud has to be uploaded to, submitted to, polled and
+    downloaded from. The caller wants bytes either way.
+    """
+    import time
+
+    cfg = cfg or load_config()
+    prompt = prompt_for(style)
+
+    if cfg["provider"] == "gemini":
+        from services import gemini_image
+
+        try:
+            return gemini_image.edit_image(local_path, prompt)
+        except gemini_image.GeminiNotConfigured as exc:
+            raise StagingNotConfigured(str(exc)) from exc
+        except gemini_image.GeminiError as exc:
+            raise StagingError(str(exc)) from exc
+
+    from services.video import upload_image
+
+    image_url = upload_image(local_path, cfg)
+    prediction_id = submit_stage(image_url, style, cfg=cfg, prompt=prompt)
+
+    deadline = time.time() + 420
+    while time.time() < deadline:
+        state = check_stage(prediction_id, cfg)
+        if state["status"] in DONE_STATUSES:
+            if not state["image_url"]:
+                raise StagingError("generation finished but returned no image")
+            resp = requests.get(state["image_url"], timeout=120)
+            if resp.status_code >= 400:
+                raise StagingError(f"could not download the image: HTTP {resp.status_code}")
+            return resp.content
+        if state["status"] == "failed":
+            raise StagingError(state["error"] or "generation failed")
+        time.sleep(4)
+
+    raise StagingError("gave up after 420s; the generation was still running")
