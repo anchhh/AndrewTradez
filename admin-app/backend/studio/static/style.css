@@ -2820,6 +2820,67 @@ gmp-map-3d {
 .scn-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .scn-summary .hint { flex: 1 1 240px; margin: 0; }
 .scn-status:empty { display: none; }
+/* ---------- the generating stage ----------
+   Its own screen between choosing rooms and seeing them. A spinner would say
+   only "wait"; a bar with a count and a time says how long, which is the
+   difference between waiting and wondering whether it broke. */
+.scn-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 18px 0 10px;
+}
+.scn-bar-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  /* Eased, because images land in bursts of four and an unanimated bar
+     jumps. */
+  transition: width 0.45s ease;
+}
+
+.scn-gen-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  margin-bottom: 18px;
+}
+.scn-gen-count { font-weight: 600; color: var(--ink); }
+
+.scn-gen-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.scn-gen-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream-soft);
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+.scn-gen-row.is-done {
+  border-color: #b9d8c4;
+  color: var(--ink);
+}
+.scn-gen-room { font-weight: 600; }
+.scn-gen-nums { font-variant-numeric: tabular-nums; }
+
+.scn-done:empty { display: none; }
+.scn-done { margin-bottom: 18px; }
+
 /* Nine times the spend sits behind this one checkbox, so it is laid out as a
    paragraph that has to be read rather than a control that can be brushed
    past, and the number is in it. */

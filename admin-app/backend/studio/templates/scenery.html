@@ -20,7 +20,7 @@
   <ol class="steps" id="steps">
     <li class="step is-current" data-step="1"><span class="step-num">1</span><span class="step-label">Listing</span></li>
     <li class="step" data-step="2"><span class="step-num">2</span><span class="step-label">Rooms</span></li>
-    <li class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Style &amp; generate</span></li>
+    <li class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Results</span></li>
   </ol>
 
   <section class="card step-panel is-active" data-panel="1">
@@ -112,47 +112,64 @@
     <div id="scn-grid" class="photo-grid"></div>
     <p id="scn-empty" class="empty-note">Pick a listing to see its photos.</p>
 
-    <div class="step-nav">
-      <button type="button" class="btn-secondary step-back" data-goto="1">Back</button>
-      <span id="step2-note" class="hint"></span>
-      <button type="button" class="btn-send step-next" data-goto="3" disabled>Next</button>
-    </div>
-  </section>
-
-  <section class="card step-panel" data-panel="3">
-    <h2>Style each room</h2>
-    <p class="hint">
-      Every room can take its own style, and staging starts on its own the moment they all
-      have one — set all of them at once below, then change any that should differ.
-      Drag the divider on a staged room to compare it with the original.
-    </p>
-
     <div class="scn-applyall">
-      <span class="scn-applyall-label">Set all to</span>
+      <span class="scn-applyall-label">Style</span>
       <div id="scn-styles" class="scn-styles"></div>
     </div>
 
     <label class="scn-everystyle">
-      <input type="checkbox" id="scn-all-styles">
+      <input type="checkbox" id="scn-all-styles" checked>
       <span>
-        <strong>Try every style on every room.</strong>
+        <strong>Generate every style.</strong>
         <span id="scn-all-styles-cost" class="scn-everystyle-cost"></span>
-        Each room is generated in all nine styles, and the buttons below switch between
-        them instantly once they land. Nine times the images — on a metered provider that
-        is nine times the bill, so it is worth doing on one room first to see what the
-        model does with your photos.
+        Each room comes back in all nine looks and you flick between them on the next
+        step. Untick to generate only the one style selected above.
       </span>
     </label>
 
+    <div class="step-nav">
+      <button type="button" class="btn-secondary step-back" data-goto="1">Back</button>
+      <span id="step2-note" class="hint"></span>
+      <button type="button" class="btn-send" id="scn-generate" disabled>Generate</button>
+    </div>
+  </section>
+
+  <!-- Not a step in the progress bar: it is what happens between two steps, and
+       numbering it would imply there is something here to do. -->
+  <section class="card step-panel" data-panel="gen">
+    <h2 id="scn-gen-title">Staging your rooms</h2>
+    <p class="hint" id="scn-gen-sub">Starting…</p>
+
+    <div class="scn-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="0" id="scn-bar">
+      <div class="scn-bar-fill" id="scn-bar-fill"></div>
+    </div>
+
+    <div class="scn-gen-meta">
+      <span id="scn-gen-count" class="scn-gen-count"></span>
+      <span id="scn-gen-eta" class="scn-gen-eta"></span>
+    </div>
+
+    <ul class="scn-gen-list" id="scn-gen-list"></ul>
+    <div id="scn-status" class="scn-status"></div>
+  </section>
+
+  <section class="card step-panel" data-panel="3">
+    <h2>Your staged rooms</h2>
+    <p class="hint">
+      Drag the divider on any room to compare it with the original. The style buttons
+      switch between the looks already generated — that is instant and costs nothing.
+    </p>
+
+    <div id="scn-done" class="scn-done"></div>
     <div id="scn-rooms" class="scn-rooms"></div>
 
     <div class="scn-summary">
-      <span id="scn-summary-text" class="hint">Pick a style to finish.</span>
+      <span id="scn-summary-text" class="hint"></span>
     </div>
-    <div id="scn-status" class="scn-status"></div>
 
     <div class="step-nav">
-      <button type="button" class="btn-secondary step-back" data-goto="2">Back</button>
+      <button type="button" class="btn-secondary step-back" data-goto="2">Stage more rooms</button>
     </div>
   </section>
 </div>

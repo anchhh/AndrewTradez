@@ -19,7 +19,8 @@ const state = {
   selected: new Set(),   // photo urls
   styles: {},            // {url: styleKey} -- each room can differ
   staged: {},            // {url: {styleKey: imageUrl}} -- a room can hold every style at once
-  allStyles: false,      // generate every style for every room, not just the chosen one
+  allStyles: true,       // generate every style for every room, not just the chosen one
+  startedAt: null,       // when the current run began, for the ETA
   roomState: {},         // {url: "queued"|"running"|"completed"|"failed"}
   roomError: {},         // {url: message}
   job: null,             // the run in flight, if any
@@ -289,8 +290,12 @@ function pendingText(roomState, error) {
    a way two images side by side do not. Until a room is generated the after
    side says so rather than showing the original twice. */
 function roomCard(photo) {
-  const styleKey = state.styles[photo.url] || "";
   const variants = state.staged[photo.url] || {};
+  // With every style generated, nothing was explicitly chosen -- so show the
+  // first look that exists rather than an empty frame next to nine results.
+  const styleKey =
+    state.styles[photo.url] ||
+    (STYLES.map((s) => s[0]).find((k) => variants[k]) || "");
   // The style buttons pick which variant is *shown*. In all-styles mode every
   // one of them is already generated, so switching between them is instant and
   // free; otherwise only the chosen style exists and the rest are unmade.
@@ -410,9 +415,6 @@ function renderSummary() {
   }
 
   renderStepGates();
-  // Every picked room needs a style before anything runs; a room with none
-  // would silently be skipped, which is worse than waiting.
-  if (state.step === 3 && chosen.length && !without) maybeGenerate();
 }
 
 /* What arrived, in the order the rooms actually run -- so you can see the
@@ -467,36 +469,53 @@ function renderStepGates() {
   }
 
   const n = state.selected.size;
-  const next2 = document.querySelector('.step-next[data-goto="3"]');
-  if (next2) next2.disabled = n === 0;
+  // With every style selected there is nothing more to choose; with one, that
+  // one has to be picked before Generate means anything.
+  const chosen = [...state.selected];
+  const needStyle = !state.allStyles && chosen.some((u) => !state.styles[u]);
+  const images = state.allStyles ? n * STYLES.length : n;
+
+  const go = el("scn-generate");
+  if (go) {
+    go.disabled = n === 0 || needStyle;
+    go.textContent = n
+      ? `Generate ${images} image${images === 1 ? "" : "s"}`
+      : "Generate";
+  }
+
   const note2 = el("step2-note");
   if (note2) {
-    note2.innerHTML = n
-      ? `${n} room${n === 1 ? "" : "s"} selected — ` +
+    if (!n) {
+      note2.textContent = "Tick at least one room to continue.";
+    } else if (needStyle) {
+      note2.textContent = "Pick a style above, or tick \u201cGenerate every style\u201d.";
+    } else {
+      note2.innerHTML =
+        `${n} room${n === 1 ? "" : "s"} — ` +
         (stagingIsFree
-          ? `<strong>free</strong> to stage`
-          : `about <strong>${money(n)}</strong> to stage`)
-      : "Tick at least one room to continue.";
+          ? `<strong>free</strong>`
+          : `about <strong>${money(images)}</strong>`);
+    }
   }
 }
 
 function goToStep(step) {
   state.step = step;
-  // Step 2's selection is only settled when you leave it, so build step 3's
-  // list on arrival rather than trying to keep it in sync throughout.
   if (step === 3) {
     renderRooms();
-    renderStyles();
     renderSummary();
   }
 
   document.querySelectorAll(".step-panel").forEach((panel) => {
-    panel.classList.toggle("is-active", Number(panel.dataset.panel) === step);
+    panel.classList.toggle("is-active", String(panel.dataset.panel) === String(step));
   });
+  // "gen" is not a numbered step. While it runs, step 3 reads as current --
+  // that is where you are heading, and the bar should not go blank meanwhile.
+  const marker = step === "gen" ? 3 : step;
   document.querySelectorAll(".step").forEach((li) => {
     const n = Number(li.dataset.step);
-    li.classList.toggle("is-current", n === step);
-    li.classList.toggle("is-done", n < step);
+    li.classList.toggle("is-current", n === marker);
+    li.classList.toggle("is-done", n < marker);
   });
 
   // A step change moves the content well down the page, so start at the top
@@ -513,6 +532,9 @@ function initSteps() {
   document.querySelectorAll(".step").forEach((li) => {
     li.addEventListener("click", () => {
       const n = Number(li.dataset.step);
+      // Not while generating: leaving would not stop the run, so the bar would
+      // vanish while images were still being paid for and produced.
+      if (state.step === "gen") return;
       if (n < state.step) goToStep(n);
     });
   });
@@ -520,16 +542,19 @@ function initSteps() {
 
 /* ---------- generate ---------- */
 
-/* Nothing here is behind a button on purpose: reaching step 3 with every room
-   styled *is* the instruction. What that costs is shown while it runs and
-   again when it lands, because "it started on its own" is only acceptable if
-   you can see what it spent. */
+/* Generation sits between choosing rooms and seeing them: press Generate on
+   step 2, watch a bar, land on step 3 with the results. Step 3 is a results
+   page rather than a control panel -- by the time you are there the work is
+   done and switching styles is instant. */
+
+/* Measured, not guessed: nine images finished in 24s at MAX_PARALLEL 4, so
+   about 2.7s per image once the pipeline is full. It is only the opening
+   estimate -- as soon as one image lands, real throughput replaces it. */
+const SECONDS_PER_IMAGE = 2.7;
 
 function roomsToStage() {
-  // Whatever is missing, and only that. Normally one style per room; in
-  // all-styles mode every style for every room. Either way an image already
-  // generated is never bought again -- which is what makes switching a room
-  // back to a style you tried earlier free.
+  // Whatever is missing, and only that. An image already generated is never
+  // bought again, which is what makes returning to a listing free.
   const out = [];
   state.photos
     .filter((p) => state.selected.has(p.url))
@@ -546,61 +571,124 @@ function roomsToStage() {
 }
 
 function renderRunStatus(kind, html) {
-  el("scn-status").innerHTML = `<div class="scn-run scn-run-${kind}">${html}</div>`;
+  const box = el("scn-status");
+  if (box) box.innerHTML = '<div class="scn-run scn-run-' + kind + '">' + html + '</div>';
 }
 
-async function maybeGenerate() {
+function fmtDuration(seconds) {
+  if (seconds < 60) return Math.max(1, Math.round(seconds)) + "s";
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return s ? m + "m " + s + "s" : m + "m";
+}
+
+function setProgress(done, total, startedAt) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  el("scn-bar-fill").style.width = pct + "%";
+  el("scn-bar").setAttribute("aria-valuenow", String(pct));
+  el("scn-gen-count").textContent =
+    done + " of " + total + " image" + (total === 1 ? "" : "s");
+
+  const eta = el("scn-gen-eta");
+  if (done >= total) {
+    eta.textContent = "Finishing up...";
+    return;
+  }
+  // Measured throughput beats any constant -- a slow provider day would
+  // otherwise keep promising 24s. But not straight away: the first poll can
+  // land two images 300ms after the start, which measures as an absurdly fast
+  // rate and shows "1s left" on a two-minute job. Wait for a sample worth
+  // trusting, and use the constant until then.
+  const elapsed = (Date.now() - startedAt) / 1000;
+  const trustworthy = done >= 2 && elapsed >= 5;
+  const perImage = trustworthy ? elapsed / done : SECONDS_PER_IMAGE;
+  eta.textContent = "about " + fmtDuration((total - done) * perImage) + " left";
+}
+
+function renderGenList(rooms) {
+  const list = el("scn-gen-list");
+  if (!list) return;
+  // Grouped by room, not one line per image: ten rooms times nine styles is
+  // ninety lines, which is a wall rather than progress.
+  const byRoom = new Map();
+  rooms.forEach((r) => {
+    if (!byRoom.has(r.photo)) {
+      byRoom.set(r.photo, { label: r.label, done: 0, total: 0, failed: 0 });
+    }
+    const g = byRoom.get(r.photo);
+    g.total += 1;
+    if (r.staged_url) g.done += 1;
+    else if (r.status === "failed") g.failed += 1;
+  });
+
+  list.innerHTML = [...byRoom.values()].map((g) => {
+    const complete = g.done + g.failed >= g.total;
+    return '<li class="scn-gen-row ' + (complete ? "is-done" : "") + '">' +
+      '<span class="scn-gen-room">' + escapeHtml(g.label || "Room") + "</span>" +
+      '<span class="scn-gen-nums">' + g.done + "/" + g.total +
+      (g.failed ? " · " + g.failed + " failed" : "") + "</span></li>";
+  }).join("");
+}
+
+async function startGeneration() {
   if (state.polling) return;
   const rooms = roomsToStage();
-  if (!rooms.length) return;
+
+  // Everything asked for already exists -- go straight to it rather than show
+  // a bar that would finish before it rendered.
+  if (!rooms.length) {
+    goToStep(3);
+    renderRunStatus("done", "<strong>Already staged.</strong> Nothing new to generate.");
+    return;
+  }
 
   state.polling = true;
+  state.startedAt = Date.now();
   rooms.forEach((r) => {
     state.roomState[r.photo] = "queued";
     delete state.roomError[r.photo];
   });
-  renderRooms();
-  renderRunStatus("busy",
-    `<span class="scn-spin" aria-hidden="true"></span>` +
-    `<span>Staging <strong>${rooms.length}</strong> room${rooms.length === 1 ? "" : "s"}…</span>`);
+
+  goToStep("gen");
+  const roomCount = new Set(rooms.map((r) => r.photo)).size;
+  el("scn-gen-title").textContent = "Staging your rooms";
+  el("scn-gen-sub").textContent =
+    roomCount + " room" + (roomCount === 1 ? "" : "s") + ", " +
+    rooms.length + " image" + (rooms.length === 1 ? "" : "s") + " to make" +
+    (stagingIsFree ? " — free." : " — about " + money(rooms.length) + ".");
+  setProgress(0, rooms.length, state.startedAt);
+  renderGenList(rooms.map((r) => Object.assign({}, r, { status: "queued" })));
 
   let data;
   try {
     const res = await fetch("/studio/api/scenery/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        rooms,
-        lead_id: state.leadId,
-        address: state.address,
-      }),
+      body: JSON.stringify({ rooms, lead_id: state.leadId, address: state.address }),
     });
     data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
   } catch (err) {
     state.polling = false;
     rooms.forEach((r) => { state.roomState[r.photo] = "idle"; });
-    renderRooms();
+    el("scn-gen-title").textContent = "That didn't start";
+    el("scn-gen-sub").textContent = "";
     renderRunStatus("error",
-      `<strong>Couldn't start staging.</strong> ${escapeHtml(err.message)}`);
+      "<strong>Couldn't start staging.</strong> " + escapeHtml(err.message));
     return;
   }
 
-  // Anything the server already had is applied straight away -- it cost
-  // nothing and there is nothing to wait for.
   (data.reused || []).forEach((room) => {
     state.staged[room.photo] = state.staged[room.photo] || {};
     state.staged[room.photo][room.style] = room.staged_url;
     state.roomState[room.photo] = "completed";
   });
-  if (data.reused && data.reused.length) renderRooms();
 
   if (!data.job) {
     state.polling = false;
-    const n = data.reused.length;
-    renderRunStatus("done",
-      `<strong>Already staged.</strong> ${n} room${n === 1 ? "" : "s"} came from images ` +
-      `you'd generated before — nothing new to spend.`);
+    const n = (data.reused || []).length;
+    finishRun({ status: "completed", done: n, total: n, rooms: data.reused || [],
+                estimated_cost: 0, project_id: null });
     return;
   }
 
@@ -611,12 +699,13 @@ async function maybeGenerate() {
 async function pollJob(jobId) {
   let data;
   try {
-    const res = await fetch(`/studio/api/scenery/jobs/${jobId}`);
+    const res = await fetch("/studio/api/scenery/jobs/" + jobId);
     data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
   } catch (err) {
     state.polling = false;
-    renderRunStatus("error", `<strong>Lost track of the run.</strong> ${escapeHtml(err.message)}`);
+    renderRunStatus("error",
+      "<strong>Lost track of the run.</strong> " + escapeHtml(err.message));
     return;
   }
 
@@ -631,54 +720,66 @@ async function pollJob(jobId) {
       state.staged[room.photo][room.style] = room.staged_url;
     }
   });
-  renderRooms();
+
+  if (state.step === "gen") {
+    setProgress(job.done, job.total, state.startedAt);
+    renderGenList(job.rooms || []);
+  } else {
+    renderRooms();
+  }
 
   if (job.status === "queued" || job.status === "running") {
-    renderRunStatus("busy",
-      `<span class="scn-spin" aria-hidden="true"></span>` +
-      `<span><strong>${job.done}</strong> of <strong>${job.total}</strong> rooms staged…</span>`);
-    setTimeout(() => pollJob(jobId), 2500);
+    setTimeout(() => pollJob(jobId), 2000);
     return;
   }
 
   state.polling = false;
+  finishRun(job);
+}
+
+/* The end of a run, however it ended: fill the bar, move to the results, and
+   say plainly what came back. */
+function finishRun(job) {
+  const fill = el("scn-bar-fill");
+  if (fill) fill.style.width = "100%";
 
   if (job.status === "failed") {
+    el("scn-gen-title").textContent = "Staging failed";
+    el("scn-gen-sub").textContent = "";
     renderRunStatus("error",
-      `<strong>Staging failed.</strong> ${escapeHtml(job.error || "No rooms came back.")}`);
+      "<strong>Staging failed.</strong> " +
+      escapeHtml(job.error || "No rooms came back."));
     return;
   }
 
   state.projectId = job.project_id || null;
-  const failed = job.total - job.done;
+  goToStep(3);
+
+  const failed = (job.total || 0) - (job.done || 0);
+  const took = state.startedAt
+    ? fmtDuration((Date.now() - state.startedAt) / 1000) : null;
   const cost = stagingIsFree
-    ? " · free"
-    : (job.estimated_cost != null ? ` · about $${job.estimated_cost.toFixed(2)}` : "");
-  // Deliberately not a redirect. The results are on this page, and being
-  // thrown to a project list the moment they land is the opposite of useful.
-  renderRunStatus("done",
-    `<strong>Complete.</strong> ${job.done} room${job.done === 1 ? "" : "s"} staged and saved ` +
-    `to your projects${cost}.` +
-    (failed ? ` <span class="scn-run-warn">${failed} didn't come back — restyle to retry.</span>` : "") +
-    (state.projectId
-      ? ` <a class="scn-run-link" href="/studio/dashboard">See it in Projects</a>`
-      : ""));
+    ? "free"
+    : (job.estimated_cost != null ? "about $" + job.estimated_cost.toFixed(2) : null);
+
+  const done = el("scn-done");
+  if (done) {
+    done.innerHTML =
+      '<div class="scn-run scn-run-done"><strong>Complete.</strong> ' +
+      job.done + " image" + (job.done === 1 ? "" : "s") +
+      " staged and saved to your projects" + (took ? " in " + took : "") +
+      (cost ? " · " + cost : "") + ". " +
+      (failed ? '<span class="scn-run-warn">' + failed + " didn't come back.</span> " : "") +
+      (state.projectId
+        ? '<a class="scn-run-link" href="/studio/dashboard">See it in Projects</a>' : "") +
+      "</div>";
+  }
 }
 
-/* Turning this on is a nine-fold spend, so it never fires on its own from the
-   click that enables it: the rooms still need a style set, which is the same
-   gate as a normal run. What it changes is how many images that gate buys. */
+el("scn-generate").addEventListener("click", startGeneration);
+
 el("scn-all-styles").addEventListener("change", (e) => {
   state.allStyles = e.target.checked;
-  // The style buttons become a variant switcher in this mode, so every room
-  // needs one selected to have something to show. Modern is the least
-  // opinionated starting view; every other style is generated regardless.
-  if (state.allStyles) {
-    state.photos
-      .filter((p) => state.selected.has(p.url) && !state.styles[p.url])
-      .forEach((p) => { state.styles[p.url] = "modern"; });
-  }
-  renderRooms();
   renderStyles();
   renderSummary();
 });
