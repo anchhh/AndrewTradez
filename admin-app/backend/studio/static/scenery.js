@@ -364,6 +364,7 @@ function renderRooms() {
   }
   box.innerHTML = "";
   chosen.forEach((photo) => box.appendChild(roomCard(photo)));
+  renderRestageButton();
 }
 
 /* ---------- summary ---------- */
@@ -557,6 +558,38 @@ function roomsToStage() {
   return out;
 }
 
+/* Everything already staged, for doing it again. Same rooms, same styles --
+   a restage is "another take", not a different order. */
+function roomsToRestage() {
+  const out = [];
+  state.photos
+    .filter((p) => state.selected.has(p.url))
+    .forEach((p) => {
+      Object.keys(state.staged[p.url] || {}).forEach((style) => {
+        out.push({ photo: p.url, label: p.label, style });
+      });
+    });
+  return out;
+}
+
+function renderRestageButton() {
+  const btn = el("scn-restage");
+  const note = el("scn-restage-note");
+  if (!btn) return;
+
+  const rooms = roomsToRestage();
+  btn.hidden = rooms.length === 0;
+  if (note) note.textContent = "";
+  if (!rooms.length) return;
+
+  btn.textContent = `Restage ${rooms.length} image${rooms.length === 1 ? "" : "s"}`;
+  if (note) {
+    note.textContent = stagingIsFree
+      ? "Generates a fresh take of the same rooms and styles. Free, and the current set is kept."
+      : `Generates a fresh take of the same rooms and styles — about ${money(rooms.length)}. The current set is kept.`;
+  }
+}
+
 function renderRunStatus(kind, html) {
   const box = el("scn-status");
   if (box) box.innerHTML = '<div class="scn-run scn-run-' + kind + '">' + html + '</div>';
@@ -617,9 +650,11 @@ function renderGenList(rooms) {
   }).join("");
 }
 
-async function startGeneration() {
+async function startGeneration({ restage = false } = {}) {
   if (state.polling) return;
-  const rooms = roomsToStage();
+  // A restage asks for images that already exist, so it must also tell the
+  // server to skip reuse -- otherwise it would hand back the same pictures.
+  const rooms = restage ? roomsToRestage() : roomsToStage();
 
   // Everything asked for already exists -- go straight to it rather than show
   // a bar that would finish before it rendered.
@@ -638,7 +673,7 @@ async function startGeneration() {
 
   goToStep("gen");
   const roomCount = new Set(rooms.map((r) => r.photo)).size;
-  el("scn-gen-title").textContent = "Staging your rooms";
+  el("scn-gen-title").textContent = restage ? "Restaging your rooms" : "Staging your rooms";
   el("scn-gen-sub").textContent =
     roomCount + " room" + (roomCount === 1 ? "" : "s") + ", " +
     rooms.length + " image" + (rooms.length === 1 ? "" : "s") + " to make" +
@@ -651,7 +686,12 @@ async function startGeneration() {
     const res = await fetch("/studio/api/scenery/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rooms, lead_id: state.leadId, address: state.address }),
+      body: JSON.stringify({
+        rooms,
+        force: restage,
+        lead_id: state.leadId,
+        address: state.address,
+      }),
     });
     data = await res.json();
     if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
@@ -752,6 +792,8 @@ function finishRun(job) {
     ? "free"
     : (job.estimated_cost != null ? "about $" + job.estimated_cost.toFixed(2) : null);
 
+  renderRestageButton();
+
   const done = el("scn-done");
   if (done) {
     done.innerHTML =
@@ -766,7 +808,9 @@ function finishRun(job) {
   }
 }
 
-el("scn-generate").addEventListener("click", startGeneration);
+el("scn-generate").addEventListener("click", () => startGeneration());
+
+el("scn-restage").addEventListener("click", () => startGeneration({ restage: true }));
 
 el("scn-all-styles").addEventListener("change", (e) => {
   state.allStyles = e.target.checked;
