@@ -738,77 +738,152 @@ if (existingProject) {
   renderSatelliteView();
   // Only when starting fresh: an open project, or a lead arriving via
   // ?lead_id=, has already chosen its source.
-  loadLeadPicker();
+  initLeadPicker();
 }
 renderPhotoGrid();
 
-/* ---------- Option 1: pick a lead ----------
+/* ---------- Option 1: browse and search your leads ----------
    A captured lead already has its photos on disk and its address and listing
    details saved, so this loads all of it rather than re-fetching a page that
    may since have changed or started refusing us. It feeds applyPrefill(), the
-   same path the ?lead_id= query param uses -- one behaviour, not two. */
+   same path the ?lead_id= query param uses -- one behaviour, not two.
 
-async function loadLeadPicker() {
+   The list opens over the page rather than sitting inline: once there are
+   more than a handful of leads, browsing them is its own task and shouldn't
+   push the rest of the form down. */
+
+let allLeads = null;
+let leadsLoaded = false;
+
+function leadMatches(lead, terms) {
+  const hay = [
+    lead.address, lead.city, lead.state, lead.zip_code,
+    lead.agent_name, lead.brokerage, lead.agent_email,
+  ].filter(Boolean).join(" ").toLowerCase();
+  // Every word must appear somewhere, so "belmont pope" finds the lead that
+  // matches both rather than everything matching either.
+  return terms.every((t) => hay.includes(t));
+}
+
+function leadCardHtml(lead) {
+  const photos = lead.photo_urls || [];
+  const facts = [
+    lead.beds ? `${lead.beds} bd` : null,
+    lead.baths ? `${lead.baths} ba` : null,
+    lead.sqft ? `${Number(lead.sqft).toLocaleString()} sqft` : null,
+  ].filter(Boolean).join(" · ");
+  const place = [lead.city, lead.state].filter(Boolean).join(", ");
+  return `
+    <button type="button" class="lead-pick" data-id="${lead.id}" ${photos.length ? "" : "disabled"}>
+      <span class="lead-pick-thumb">
+        ${photos[0] ? `<img src="${photos[0]}" alt="" loading="lazy">`
+                    : `<span class="lead-pick-noimg">no photos</span>`}
+      </span>
+      <span class="lead-pick-body">
+        <span class="lead-pick-address">${lead.address || "Untitled listing"}</span>
+        <span class="lead-pick-meta">${photos.length} photo${photos.length === 1 ? "" : "s"}${facts ? ` · ${facts}` : ""}</span>
+        <span class="lead-pick-agent">${[lead.agent_name, place].filter(Boolean).join(" · ")}</span>
+      </span>
+    </button>`;
+}
+
+function renderLeadList() {
   const box = el("lead-picker");
   const empty = el("lead-picker-empty");
+  const count = el("lead-count");
   if (!box) return;
 
-  let leads = [];
-  try {
-    const res = await fetch("/studio/api/leads");
-    leads = await res.json();
-  } catch (_) {
-    box.innerHTML = `<p class="hint">Couldn't load your leads.</p>`;
-    return;
-  }
+  const terms = (el("lead-search").value || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (allLeads || []).filter((l) => leadMatches(l, terms));
 
-  if (!Array.isArray(leads) || !leads.length) {
+  if (!allLeads || !allLeads.length) {
+    box.innerHTML = "";
     empty.classList.remove("hidden");
+    count.textContent = "";
     return;
   }
   empty.classList.add("hidden");
 
-  box.innerHTML = leads.map((lead) => {
-    const photos = lead.photo_urls || [];
-    const facts = [
-      lead.beds ? `${lead.beds} bd` : null,
-      lead.baths ? `${lead.baths} ba` : null,
-      lead.sqft ? `${Number(lead.sqft).toLocaleString()} sqft` : null,
-    ].filter(Boolean).join(" · ");
-    return `
-      <button type="button" class="lead-pick" data-id="${lead.id}" ${photos.length ? "" : "disabled"}>
-        <span class="lead-pick-thumb">
-          ${photos[0] ? `<img src="${photos[0]}" alt="">` : `<span class="lead-pick-noimg">no photos</span>`}
-        </span>
-        <span class="lead-pick-body">
-          <span class="lead-pick-address">${lead.address || "Untitled listing"}</span>
-          <span class="lead-pick-meta">
-            ${photos.length} photo${photos.length === 1 ? "" : "s"}${facts ? ` · ${facts}` : ""}
-          </span>
-          ${lead.agent_name ? `<span class="lead-pick-agent">${lead.agent_name}</span>` : ""}
-        </span>
-      </button>`;
-  }).join("");
+  count.textContent = terms.length
+    ? `${shown.length} of ${allLeads.length} lead${allLeads.length === 1 ? "" : "s"}`
+    : `${allLeads.length} lead${allLeads.length === 1 ? "" : "s"}`;
+
+  box.innerHTML = shown.length
+    ? shown.map(leadCardHtml).join("")
+    : `<p class="hint">Nothing matches that.</p>`;
 
   box.querySelectorAll(".lead-pick").forEach((btn) => {
     btn.addEventListener("click", () => pickLead(btn));
   });
 }
 
-async function pickLead(btn) {
-  const box = el("lead-picker");
-  box.querySelectorAll(".lead-pick").forEach((b) => b.classList.remove("is-picked"));
-  btn.classList.add("is-picked");
-  btn.disabled = true;
+async function loadLeads() {
+  if (leadsLoaded) return;
+  try {
+    const res = await fetch("/studio/api/leads");
+    allLeads = await res.json();
+    leadsLoaded = true;
+  } catch (_) {
+    el("lead-picker").innerHTML = `<p class="hint">Couldn't load your leads.</p>`;
+    return;
+  }
+  renderLeadList();
+}
 
+function openLeadModal() {
+  const modal = el("lead-modal");
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  el("lead-search").focus();
+  loadLeads();
+}
+
+function closeLeadModal() {
+  const modal = el("lead-modal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  el("lead-open").focus();
+}
+
+async function pickLead(btn) {
+  const lead = (allLeads || []).find((l) => String(l.id) === btn.dataset.id);
+  btn.disabled = true;
   try {
     const res = await fetch(`/studio/api/leads/${btn.dataset.id}/prefill`);
     if (!res.ok) throw new Error((await res.json()).error || "Could not load that lead.");
-    await applyPrefill(await res.json());
+    const prefill = await res.json();
+    closeLeadModal();
+    await applyPrefill(prefill);
+
+    const summary = el("lead-picked-summary");
+    if (summary && lead) {
+      const n = (lead.photo_urls || []).length;
+      summary.textContent = `${lead.address} — ${n} photo${n === 1 ? "" : "s"} loaded`;
+      summary.classList.add("is-set");
+    }
+    el("lead-open").textContent = "Pick a different lead";
   } catch (err) {
     alert(err.message || "Could not load that lead.");
-    btn.classList.remove("is-picked");
   } finally {
     btn.disabled = false;
   }
+}
+
+function initLeadPicker() {
+  const open = el("lead-open");
+  if (!open) return;
+  open.addEventListener("click", openLeadModal);
+
+  el("lead-modal").querySelectorAll("[data-close]").forEach((n) => {
+    n.addEventListener("click", closeLeadModal);
+  });
+  el("lead-search").addEventListener("input", renderLeadList);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("lead-modal").classList.contains("hidden")) {
+      closeLeadModal();
+    }
+  });
 }

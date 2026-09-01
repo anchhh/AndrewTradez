@@ -2360,15 +2360,63 @@ gmp-map-3d {
 .lp-gen-clip figcaption { margin-top: 6px; text-align: center; }
 .lp-gen-clip figcaption button { width: auto; }
 
-/* ---------- Option 1: lead picker (Create Video) ----------
-   A captured lead already carries its photos and details, so this is the
-   shortest path into a project -- hence first among the options. */
+/* ---------- Option 1: lead browser (Create Video) ----------
+   Opens over the page rather than inline: once there are more than a handful
+   of leads, browsing them is its own task and shouldn't push the form down. */
+
+.lead-open-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.lead-picked-summary { font-size: 0.85rem; color: var(--ink-soft); }
+.lead-picked-summary.is-set { color: #2f6b2c; font-weight: 600; }
+
+.lead-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
+.lead-modal.hidden { display: none; }
+.lead-modal-backdrop { position: absolute; inset: 0; background: rgba(23, 19, 15, 0.5); }
+
+.lead-modal-panel {
+  position: relative;
+  width: min(880px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  border-radius: var(--radius);
+  padding: 20px 22px 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.lead-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lead-modal-head h2 { margin: 0; font-size: 1.1rem; }
+.lead-modal-x {
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink-soft);
+  padding: 0 4px;
+  width: auto;
+}
+.lead-modal-x:hover { color: var(--ink); }
+
+#lead-search {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+}
+.lead-modal-count { margin: 8px 0 0; font-size: 0.78rem; color: var(--ink-soft); }
 
 .lead-picker {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
   margin-top: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 .lead-pick {
   display: flex;
@@ -2386,7 +2434,6 @@ gmp-map-3d {
 }
 .lead-pick:hover:not(:disabled) { border-color: var(--accent); }
 .lead-pick:disabled { opacity: 0.5; cursor: default; }
-.lead-pick.is-picked { border-color: var(--accent); background: #fdefea; }
 
 .lead-pick-thumb {
   flex: 0 0 auto;
@@ -2410,4 +2457,10 @@ gmp-map-3d {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.lead-pick-meta, .lead-pick-agent { font-size: 0.75rem; color: var(--ink-soft); }
+.lead-pick-meta, .lead-pick-agent {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

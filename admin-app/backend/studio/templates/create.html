@@ -40,10 +40,10 @@
 
     <div id="tab-lead" class="tab-panel active">
       <p class="hint">Leads captured by the extension already have their photos, address and listing details saved — picking one brings all of it in, with nothing to re-fetch or re-upload.</p>
-      <div id="lead-picker" class="lead-picker"></div>
-      <p id="lead-picker-empty" class="empty-note hidden">
-        No leads yet. Capture some with the extension, or use Option 2 or 3.
-      </p>
+      <div class="lead-open-row">
+        <button type="button" id="lead-open" class="cta-btn cta-btn-sm">Browse my leads</button>
+        <span id="lead-picked-summary" class="lead-picked-summary"></span>
+      </div>
     </div>
 
     <div id="tab-link" class="tab-panel">
@@ -149,6 +149,23 @@
   window.__PREFILL__ = {{ prefill | tojson }};
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="lead-modal" class="lead-modal hidden" aria-hidden="true">
+  <div class="lead-modal-backdrop" data-close></div>
+  <div class="lead-modal-panel" role="dialog" aria-modal="true" aria-labelledby="lead-modal-title">
+    <header class="lead-modal-head">
+      <h2 id="lead-modal-title">Your leads</h2>
+      <button type="button" class="lead-modal-x" data-close aria-label="Close">&times;</button>
+    </header>
+    <input id="lead-search" type="search" autocomplete="off"
+           placeholder="Search address, agent, brokerage, city…">
+    <p id="lead-count" class="lead-modal-count"></p>
+    <div id="lead-picker" class="lead-picker"></div>
+    <p id="lead-picker-empty" class="empty-note hidden">
+      No leads yet. Capture some with the extension, or use Option 2 or 3.
+    </p>
+  </div>
+</div>
+
 <script src="{{ url_for('studio.static', filename='create.js') }}"></script>
 </body>
 </html>
