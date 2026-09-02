@@ -2202,6 +2202,65 @@ def api_video_job_by_id(job_id):
     return jsonify({"job": job.to_dict()})
 
 
+@studio_bp.route("/api/video/jobs", methods=["GET"])
+@login_required
+def api_video_jobs():
+    """Every render this user has finished, newest first.
+
+    Video has no equivalent of Scenery's saved projects -- a render lives on
+    the job row and nowhere else -- so this is the only way back to a clip
+    once the page that made it has been left.
+
+    Only jobs with at least one finished clip: a failed run is not something
+    to browse back to.
+    """
+    from models import Lead, VideoJob
+
+    jobs = (
+        VideoJob.query.filter_by(owner_id=session["user_id"])
+        .order_by(VideoJob.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    # Addresses in one query rather than one per job.
+    lead_ids = {j.lead_id for j in jobs if j.lead_id}
+    addresses = {}
+    if lead_ids:
+        for lead in Lead.query.filter(Lead.id.in_(lead_ids)).all():
+            addresses[lead.id] = lead.address or lead.agent_name
+
+    out = []
+    for job in jobs:
+        clips = [c for c in job.clips if c.get("video_url")]
+        if not clips:
+            continue
+        out.append({
+            "id": job.id,
+            "lead_id": job.lead_id,
+            "address": addresses.get(job.lead_id) or "Untitled render",
+            # created_at is naive UTC. .timestamp() would read it as local
+            # time and put the render hours in the future -- which showed up
+            # as "-1 days ago".
+            "created_at": (
+                job.created_at.replace(tzinfo=timezone.utc).timestamp()
+                if job.created_at else None
+            ),
+            "model": job.model,
+            "estimated_cost": job.estimated_cost,
+            "clips": [
+                {
+                    "video_url": c.get("video_url"),
+                    "move": c.get("move"),
+                    "duration": c.get("duration") or job.duration,
+                    "resolution": c.get("resolution") or job.resolution,
+                }
+                for c in clips
+            ],
+        })
+    return jsonify({"renders": out})
+
+
 @studio_bp.route("/api/video/generate", methods=["POST"])
 @login_required
 def api_video_generate():

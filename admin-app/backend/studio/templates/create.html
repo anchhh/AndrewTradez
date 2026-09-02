@@ -16,7 +16,12 @@
       <h1 class="page-title">Create Video</h1>
       <p class="sub">Pull in a listing and gather its photos. You'll choose the shots and the camera moves next.</p>
     </div>
-    <button id="save-top-btn" class="cta-btn cta-btn-sm">Save</button>
+    <div class="page-header-actions">
+    <button type="button" id="vh-open" class="cta-btn cta-btn-sm" hidden>
+      See renders <span id="vh-count" class="scn-past-badge"></span>
+    </button>
+      <button id="save-top-btn" class="cta-btn cta-btn-sm">Save</button>
+    </div>
   </header>
 
   <ol class="steps" id="steps">
@@ -210,5 +215,6 @@
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='listing_source.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='create.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='video_history.js') }}"></script>
 </body>
 </html>

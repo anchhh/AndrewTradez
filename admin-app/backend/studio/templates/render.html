@@ -15,6 +15,9 @@
       <h1 class="page-title">Render</h1>
       <p class="sub" id="rn-sub">One clip per photo, then stitched into the listing video.</p>
     </div>
+    <button type="button" id="vh-open" class="cta-btn cta-btn-sm" hidden>
+      See renders <span id="vh-count" class="scn-past-badge"></span>
+    </button>
   </header>
 
   <ol class="steps" id="steps">
@@ -115,5 +118,6 @@
 </script>
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='render.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='video_history.js') }}"></script>
 </body>
 </html>
