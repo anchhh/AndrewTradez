@@ -113,6 +113,7 @@
 <script>
   window.__PROJECT__ = {{ project | tojson }};
 </script>
+<script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='render.js') }}"></script>
 </body>
 </html>

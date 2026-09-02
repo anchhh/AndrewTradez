@@ -3743,7 +3743,7 @@ gmp-map-3d {
 .rn-clip-row {
   display: grid;
   /* shot | name | the three controls, which sit together on the right */
-  grid-template-columns: 132px minmax(0, 1fr) auto;
+  grid-template-columns: 132px minmax(0, 1fr) auto auto;
   gap: 14px;
   align-items: center;
   padding: 10px;
@@ -3752,6 +3752,31 @@ gmp-map-3d {
   background: var(--cream-soft);
 }
 .rn-clip-controls { display: flex; gap: 8px; align-items: center; }
+
+/* Quiet until wanted: it removes something, so it should not compete with the
+   controls next to it, but it still has to be findable without a hover hunt. */
+.rn-clip-x {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.rn-clip-row:hover .rn-clip-x { opacity: 0.75; }
+.rn-clip-x:hover,
+.rn-clip-x:focus-visible {
+  opacity: 1;
+  background: rgba(192, 57, 43, 0.1);
+  color: #c0392b;
+  outline: none;
+}
 
 /* One select style for the card and the set-all row, so a row of three reads
    as one control rather than three borrowed ones. */
@@ -3797,7 +3822,7 @@ gmp-map-3d {
 .rn-clip-name { font-weight: 600; font-size: 0.88rem; }
 
 @media (max-width: 820px) {
-  .rn-clip-row { grid-template-columns: 110px minmax(0, 1fr); }
+  .rn-clip-row { grid-template-columns: 110px minmax(0, 1fr) auto; }
   .rn-clip-controls { grid-column: 1 / -1; flex-wrap: wrap; }
 }
 @media (max-width: 640px) {

@@ -131,9 +131,35 @@ function photoTile(url) {
     <label class="thumb-use" title="Make a clip from this photo">
       <input type="checkbox" ${on ? "checked" : ""}>
     </label>
+    <button type="button" class="thumb-zoom" title="View full screen">⤢</button>
     ${on ? `<span class="rn-thumb-n">${at + 1}</span>` : ""}`;
 
+  // Full screen, picking as you go -- the same viewer Scenery uses, so a
+  // decision that needs a proper look at the photo does not need a 116px
+  // thumbnail to be made from.
+  div.querySelector(".thumb-zoom").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const all = walkthroughOrder();
+    const rooms = {};
+    all.forEach((u) => {
+      const info = roomOf(u);
+      rooms[u] = { room: info.room, label: info.label, order: info.order };
+    });
+    openLightbox(all, all.indexOf(url), rooms, {
+      isSelected: (u) => state.photos.includes(u),
+      toggle: (u) => {
+        selectPhoto(u, !state.photos.includes(u));
+        state.photosOpen = true;
+        renderPhotos();
+        renderClipMoves();
+        renderCost();
+      },
+      label: "clip",
+    });
+  });
+
   div.addEventListener("click", (e) => {
+    if (e.target.closest(".thumb-zoom")) return;
     if (e.target.tagName === "INPUT") e.preventDefault();
     selectPhoto(url, !state.photos.includes(url));
     // Stays open: you are picking, and re-rendering closed would end the job
@@ -363,11 +389,25 @@ function renderClipMoves() {
             ${pick(resolutionOptions(), state.quality[url] || state.defaultResolution)}
           </select>
         </div>
+        <button type="button" class="rn-clip-x" title="Drop this clip"
+                aria-label="Drop clip ${i + 1}">&times;</button>
       </div>`;
   }).join("");
 
   box.querySelectorAll(".rn-clip-row").forEach((row) => {
     const url = row.dataset.url;
+
+    // Dropping a clip from here is the same as unticking it in the grid, so it
+    // goes through selectPhoto -- the numbering and the walkthrough order are
+    // that function's job, not this button's. The grid stays shut: removing a
+    // clip is not a reason to unfold thirty-seven thumbnails.
+    row.querySelector(".rn-clip-x").addEventListener("click", () => {
+      selectPhoto(url, false);
+      renderPhotos();
+      renderClipMoves();
+      renderCost();
+    });
+
     row.querySelectorAll("select").forEach((select) => {
       select.addEventListener("change", () => {
         const value = select.value;
