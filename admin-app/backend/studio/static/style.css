@@ -627,6 +627,21 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .lm-head .page-title { margin-bottom: 0; }
 
+/* Upcoming calls, read from Calendly. */
+.cal-panel { margin-bottom: 22px; }
+.cal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cal-item {
+  display: grid;
+  gap: 1px;
+  padding: 9px 11px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.cal-when { font-size: 0.72rem; font-weight: 700; color: var(--accent); }
+.cal-name { font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+.cal-who { font-size: 0.74rem; color: var(--ink-soft); }
+
 /* A stat card that goes somewhere. Anchors, so middle-click and "open in
    new tab" work; the reset undoes the link colour and underline the card
    would otherwise inherit. */

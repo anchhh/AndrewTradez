@@ -211,3 +211,63 @@ async function renderStats() {
     : "Everyone has been contacted");
   set("stat-hot-leads", p.hot_leads);
 }
+
+
+/* ---------- upcoming calls ----------
+
+   Read-only. This shows what Calendly already has booked; nothing here
+   creates, moves or cancels a meeting. Rescheduling is something the invitee
+   has a stake in too, and a dashboard panel is the wrong place to risk it. */
+
+function callWhen(iso) {
+  const at = new Date(iso);
+  if (isNaN(at)) return "";
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  const days = Math.floor((at - midnight) / 86400000);
+  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (days === 0) return "Today " + time;
+  if (days === 1) return "Tomorrow " + time;
+  if (days < 7) return at.toLocaleDateString([], { weekday: "long" }) + " " + time;
+  return at.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + time;
+}
+
+async function renderCalls() {
+  const box = document.getElementById("cal-panel");
+  if (!box) return;
+
+  let data;
+  try {
+    const res = await fetch("/studio/api/calendly/upcoming");
+    data = await res.json();
+  } catch (err) {
+    box.innerHTML = `<p class="hint">Couldn't reach Calendly.</p>`;
+    return;
+  }
+
+  // Not connected is a normal state and gets instructions, not an error.
+  if (!data.configured) {
+    box.innerHTML = `<p class="hint">Not connected. Paste a Calendly personal
+      access token into <code>studio/calendly.json</code> as
+      <code>{"token": "…"}</code> and reload.</p>`;
+    return;
+  }
+  if (data.error) {
+    box.innerHTML = `<p class="hint">${escapeHtml(data.error)}</p>`;
+    return;
+  }
+  if (!data.events.length) {
+    box.innerHTML = `<p class="hint">No calls booked in the next 30 days.</p>`;
+    return;
+  }
+
+  box.innerHTML = `<ul class="cal-list">${data.events.map((ev) => `
+    <li class="cal-item">
+      <span class="cal-when">${escapeHtml(callWhen(ev.start))}</span>
+      <span class="cal-name">${escapeHtml(ev.name || "Meeting")}</span>
+      ${ev.invitee && ev.invitee.name
+        ? `<span class="cal-who">${escapeHtml(ev.invitee.name)}</span>` : ""}
+    </li>`).join("")}</ul>`;
+}
+
+renderCalls();

@@ -2454,6 +2454,40 @@ def api_video_capcut():
     return jsonify(result), 201
 
 
+@studio_bp.route("/api/calendly/upcoming", methods=["GET"])
+@login_required
+def api_calendly_upcoming():
+    """The next few booked calls.
+
+    Not configured is a normal state, not an error: the dashboard shows how
+    to connect instead of an error box, and 200 keeps that out of the
+    console.
+    """
+    from services import calendly
+
+    if not calendly.is_configured():
+        return jsonify({"configured": False, "events": []})
+
+    try:
+        return jsonify({"configured": True,
+                        "events": calendly.upcoming(limit=5)})
+    except calendly.CalendlyError as exc:
+        return jsonify({"configured": True, "events": [], "error": str(exc)})
+
+
+@studio_bp.route("/api/calendly/status", methods=["GET"])
+@login_required
+def api_calendly_status():
+    """Whether the token works and whose account it is."""
+    from services import calendly
+
+    if not calendly.is_configured():
+        return jsonify({"configured": False})
+    result = calendly.verify_connection()
+    result["configured"] = True
+    return jsonify(result)
+
+
 @studio_bp.route("/api/stats", methods=["GET"])
 @login_required
 def api_stats():
