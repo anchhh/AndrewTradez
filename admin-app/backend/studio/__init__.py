@@ -1077,18 +1077,17 @@ def create():
 @studio_bp.route("/create/style")
 @login_required
 def create_style():
+    """Merged into the render page.
+
+    Choosing a style used to be a page of its own holding three cards and
+    nothing else. Now that a style is a preset for the per-clip camera moves,
+    it belongs beside them -- so this redirects rather than 404s, because
+    saved links and browser history still point at it.
+    """
     project_id = request.args.get("project")
-    project = (
-        next(
-            (p for p in load_projects() if p["id"] == project_id and p.get("owner") == session["user_id"]),
-            None,
-        )
-        if project_id
-        else None
-    )
-    if not project:
-        return redirect(url_for("studio.create"))
-    return render_template("style.html", project=project)
+    if project_id:
+        return redirect(url_for("studio.create_render", project=project_id))
+    return redirect(url_for("studio.create"))
 
 
 @studio_bp.route("/create/render")

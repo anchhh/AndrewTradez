@@ -537,7 +537,7 @@ async function goNext() {
     return;
   }
   await autosave(wasCompleted ? {} : { status: "draft" });
-  window.location.href = `/studio/create/style?project=${state.projectId}`;
+  window.location.href = `/studio/create/render?project=${state.projectId}`;
 }
 
 // Trap the browser's native back button so it behaves exactly like clicking

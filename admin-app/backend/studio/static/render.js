@@ -21,6 +21,7 @@ const el = (id) => document.getElementById(id);
 const DEFAULT_CLIPS = 6;
 
 const state = {
+  style: null,       // the style card, which is a preset for the moves
   available: [],     // every still in the project
   photos: [],        // the ones ticked, one clip each
   moves: {},         // {url: moveKey} -- the camera move for that clip
@@ -53,6 +54,17 @@ function fmtDuration(seconds) {
 function show(id, on) {
   const node = el(id);
   if (node) node.classList.toggle("hidden", !on);
+}
+
+/* The progress bar, same three steps as Scenery. Rendering is not a step of
+   its own -- it is what happens between choosing and looking, and numbering it
+   would imply there is something to do there. */
+function markStep(n) {
+  document.querySelectorAll("#steps .step").forEach((li) => {
+    const at = Number(li.dataset.step);
+    li.classList.toggle("is-current", at === n);
+    li.classList.toggle("is-done", at < n);
+  });
 }
 
 /* ---------- what we are rendering ---------- */
@@ -111,6 +123,42 @@ function renderPhotos() {
     });
   }
 }
+
+/* ---------- style presets ----------
+
+   These three cards used to be a page of their own that saved one field and
+   moved on. A style is a preset for the camera moves, so it belongs beside
+   them: picking one sets every clip, and any clip can then be changed. The
+   choice is still saved on the project, because it is what a returning visit
+   opens on.  */
+
+function renderStyleCards() {
+  document.querySelectorAll(".style-card").forEach((card) => {
+    card.classList.toggle("selected", card.dataset.style === state.style);
+  });
+}
+
+function applyStyle(style, { save = true } = {}) {
+  state.style = style;
+  const preset = (state.styleDefaults || {})[style];
+  if (preset) {
+    state.defaultMove = preset;
+    state.photos.forEach((url) => { state.moves[url] = preset; });
+  }
+  renderStyleCards();
+  renderClipMoves();
+
+  if (!save || !project.id) return;
+  fetch(`/studio/api/projects/${project.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ style }),
+  }).catch(() => {});
+}
+
+document.querySelectorAll(".style-card").forEach((card) => {
+  card.addEventListener("click", () => applyStyle(card.dataset.style));
+});
 
 /* ---------- camera moves ----------
 
@@ -263,6 +311,7 @@ async function startRender() {
   show("rn-setup", false);
   show("rn-results", false);
   show("rn-running", true);
+  markStep(3);
   el("rn-run-title").textContent = "Rendering your clips";
   el("rn-run-sub").textContent =
     `${state.photos.length} clip${state.photos.length === 1 ? "" : "s"} at ` +
@@ -333,6 +382,7 @@ function finish(job) {
   el("rn-bar-fill").style.width = "100%";
   show("rn-running", false);
   show("rn-results", true);
+  markStep(3);
 
   const clips = (job.clips || []).filter((c) => c.video_url);
   const failed = (job.clips_total || 0) - clips.length;
@@ -413,16 +463,17 @@ async function init() {
     if (status.max_duration) el("rn-duration").max = status.max_duration;
 
     state.moveList = status.moves || [];
-    // The style card picked earlier is a preset: it seeds every clip's move,
-    // and any clip can then be changed. Same shape as Scenery's "set all to"
-    // sitting above its per-room buttons.
-    const preset = (status.style_default_move || {})[project.style];
-    if (preset) state.defaultMove = preset;
+    state.styleDefaults = status.style_default_move || {};
+
+    // Re-applying the saved style seeds every clip, without saving it back --
+    // opening the page is not a change.
+    if (project.style) applyStyle(project.style, { save: false });
     state.photos.forEach((url) => {
       if (!state.moves[url]) state.moves[url] = state.defaultMove;
     });
     renderSetAll();
     renderClipMoves();
+    renderStyleCards();
   } catch (err) {
     banner("Couldn't reach the server to check the generator.");
   }
@@ -434,12 +485,23 @@ el("rn-duration").addEventListener("input", renderCost);
 el("rn-resolution").addEventListener("change", renderCost);
 el("rn-go").addEventListener("click", startRender);
 el("rn-back").addEventListener("click", () => {
-  window.location.href = `/studio/create/style?project=${project.id}`;
+  window.location.href = `/studio/create?project=${project.id}`;
 });
 el("rn-again").addEventListener("click", () => {
   show("rn-results", false);
   show("rn-setup", true);
+  markStep(2);
 });
+// Backwards only, like Scenery's, and never mid-render.
+document.querySelectorAll("#steps .step").forEach((li) => {
+  li.addEventListener("click", () => {
+    if (state.polling) return;
+    if (Number(li.dataset.step) === 1) {
+      window.location.href = `/studio/create?project=${project.id}`;
+    }
+  });
+});
+
 el("rn-cancel").addEventListener("click", async () => {
   if (!state.job) return;
   await fetch(`/studio/api/video/jobs/${state.job.id}/cancel`, { method: "POST" })
@@ -447,6 +509,7 @@ el("rn-cancel").addEventListener("click", async () => {
   state.polling = false;
   show("rn-running", false);
   show("rn-setup", true);
+  markStep(2);
 });
 
 init();
