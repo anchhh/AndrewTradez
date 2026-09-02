@@ -64,6 +64,24 @@
 
     list.innerHTML = shown.map((r) => {
       const seconds = r.clips.reduce((n, c) => n + (c.duration || 0), 0);
+      if (r.running) {
+        // Still going. No thumbnails to show and no point navigating to a
+        // results page that has nothing on it yet -- so it reports progress
+        // and says where it will be.
+        const done = r.clips_done || 0;
+        const total = r.clips_total || 1;
+        return `
+          <button type="button" class="vh-render vh-head is-running" data-id="${r.id}">
+            <span class="vh-spin" aria-hidden="true"></span>
+            <span class="vh-meta">
+              <span class="vh-name">${esc(r.address)}</span>
+              <span class="vh-sub">
+                Rendering — ${done} of ${total} clip${total === 1 ? "" : "s"} done
+                · started ${esc(when(r.created_at))}
+              </span>
+            </span>
+          </button>`;
+      }
       return `
         <button type="button" class="vh-render vh-head" data-id="${r.id}">
           <span class="vh-thumbs">
@@ -92,6 +110,20 @@
         window.location.href = "/studio/create/render?" + params.toString();
       });
     });
+  }
+
+  let poll = null;
+
+  function watchRunning() {
+    const anyRunning = renders.some((r) => r.running);
+    if (!anyRunning) {
+      if (poll) { clearInterval(poll); poll = null; }
+      return;
+    }
+    if (poll) return;
+    // Clips take minutes, so this is a slow refresh -- enough that a finished
+    // render appears without being hunted for, not so much that it is chatter.
+    poll = setInterval(load, 15000);
   }
 
   function openModal() {
@@ -147,18 +179,37 @@
     });
   }
 
-  fetch("/studio/api/video/jobs")
-    .then((r) => r.json())
-    .then((data) => {
-      renders = data.renders || [];
-      const button = byId("vh-open");
-      if (!button) return;
-      // No button until there is something behind it.
-      button.hidden = renders.length === 0;
-      const badge = byId("vh-count");
-      if (badge) badge.textContent = renders.length ? String(renders.length) : "";
-      build();
-      button.addEventListener("click", openModal);
-    })
-    .catch(() => {});
+  let wired = false;
+
+  function load() {
+    return fetch("/studio/api/video/jobs")
+      .then((r) => r.json())
+      .then((data) => {
+        renders = data.renders || [];
+        const button = byId("vh-open");
+        if (!button) return;
+
+        const running = renders.filter((r) => r.running).length;
+        // No button until there is something behind it.
+        button.hidden = renders.length === 0;
+        // A render in progress is the reason someone opens this, so the
+        // button says so rather than making them look.
+        button.classList.toggle("is-running", running > 0);
+        button.firstChild.textContent = running
+          ? `${running} rendering… ` : "See renders ";
+        const badge = byId("vh-count");
+        if (badge) badge.textContent = renders.length ? String(renders.length) : "";
+
+        build();
+        if (!wired) {
+          button.addEventListener("click", openModal);
+          wired = true;
+        }
+        if (!byId("vh-modal").classList.contains("hidden")) renderList();
+        watchRunning();
+      })
+      .catch(() => {});
+  }
+
+  load();
 })();

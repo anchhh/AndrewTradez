@@ -3978,3 +3978,19 @@ gmp-map-3d {
 .rn-clip-row.is-risky { border-color: #e6bcb4; background: #fdf4f2; }
 .rn-clip-row.is-anchored { border-color: #cfe4d6; }
 .rn-advice-note { font-size: 0.76rem; color: var(--ink-soft); }
+
+
+/* ---------- a render still in progress ---------- */
+.vh-render.is-running { border-color: var(--accent); background: #fdf3ef; }
+.vh-spin {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: scn-spin 0.9s linear infinite;
+}
+/* The button says it too, so you do not have to open the picker to know. */
+#vh-open.is-running { background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .vh-spin { animation-duration: 3s; } }

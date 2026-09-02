@@ -2329,11 +2329,19 @@ def api_video_jobs():
     out = []
     for job in jobs:
         clips = [c for c in job.clips if c.get("video_url")]
-        if not clips:
+        running = job.status in ("queued", "running")
+        # A finished render, or one still going. Only a failed run with nothing
+        # to show is left out -- and a render in progress is exactly what
+        # somebody who navigated away is looking for.
+        if not clips and not running:
             continue
         out.append({
             "id": job.id,
             "lead_id": job.lead_id,
+            "status": job.status,
+            "running": running,
+            "clips_total": max(len(job.specs), len(job.photos), len(job.clips)),
+            "clips_done": len(clips),
             "address": addresses.get(job.lead_id) or "Untitled render",
             # created_at is naive UTC. .timestamp() would read it as local
             # time and put the render hours in the future -- which showed up
