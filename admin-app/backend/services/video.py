@@ -34,30 +34,72 @@ DEFAULT_MODEL = "bytedance/seedance-2.5/image-to-video"
 # trusting an estimate for anything larger than a test.
 DEFAULT_RATE_PER_SECOND = 0.134
 
-# What a listing clip should ask for.
+# The constraint half of every clip prompt.
 #
-# The important half is the constraint, and staging taught why: an agent cannot
-# send a client a video where the kitchen rearranges itself, and a model given
-# only a style instruction will happily invent a doorway on its way past. So
-# the same shape is used here as in services/staging.py -- the rule is stated
-# before AND after the movement, and it names what must not change rather than
-# implying it.
+# Same discipline as services/staging.py, for the same reason and then some.
+# A staged still that invents a door is a misrepresentation; a clip that
+# invents one is a misrepresentation twenty-four times a second, and the
+# agent -- not the model -- carries it.
 #
-# The difference from staging is that here the constraint covers time as well
-# as content: the room must be the same room in frame 1 and frame 120.
-HOLD_THE_ROOM = (
-    "Do not add, remove, move or restyle anything in the scene: no furniture, "
-    "walls, doors, doorways, windows, cabinetry, counters, sinks, appliances, "
-    "fixtures or fittings may change, appear or disappear at any point in the "
-    "clip. Do not change the wall colours, the flooring, or the view through "
-    "any window. Nothing may morph, warp or drift between frames -- the room "
-    "must be recognisably the same room from the first frame to the last. "
-    "No people, no pets, no text, no captions, no watermark, no logos."
+# Video needs more than the still did, because it can go wrong in ways a
+# photograph cannot:
+#
+#   * things morph between frames rather than being wrong in one frame
+#   * a move toward or away from the subject tempts the model to INVENT the
+#     space it is moving into, which is how rooms grow doors
+#   * lighting, white balance and grade drift over the clip
+#   * a "shot" quietly becomes two shots
+#
+# So the rule is stated before AND after the movement, enumerated rather than
+# implied, and it says what may move: the camera, and nothing else.
+ONLY_THE_CAMERA = (
+    "This is a photograph of a real property being brought to life. The ONLY "
+    "thing that may move is the camera. Nothing in the scene may move, change, "
+    "appear or disappear."
+)
+
+NEVER_CHANGE = (
+    "Do NOT add, remove, move, resize, restyle or re-colour any of the "
+    "following, at any point in the clip: walls, doors, doorways, archways, "
+    "openings, windows, window frames, glazing bars, blinds, curtains, "
+    "ceilings, floors, flooring material, rugs, stairs, railings, columns, "
+    "beams, fireplaces, mantels, built-in shelving, cabinetry, worktops, "
+    "islands, sinks, taps, appliances, radiators, vents, light fittings, "
+    "lamps, switches, sockets, skirting, trim, mouldings, furniture, "
+    "cushions, artwork, mirrors, plants, or any object on any surface. "
+    "Do not open or close anything. Do not turn anything on or off. "
+    "Do not change any text, sign, label or number that is visible. "
+    "Do not change what is visible through any window, doorway or mirror."
+)
+
+NO_INVENTION = (
+    "Do NOT invent any part of the property that is not already visible in "
+    "the photograph. If the camera move would reveal space the photograph "
+    "does not show, make the move SMALLER and stay within what is there -- a "
+    "shorter, slower move is always correct, and inventing a room, a doorway "
+    "or a view is always wrong."
+)
+
+TEMPORAL = (
+    "Every frame must show the same room as the first frame, from a slightly "
+    "different camera position and nothing else. Nothing may morph, warp, "
+    "melt, stretch, drift, flicker or swap between frames. Straight lines "
+    "must stay straight. Keep the lighting, shadows, white balance, colour "
+    "and exposure identical throughout. One single continuous shot: no cuts, "
+    "no transitions, no change of scene, no speed ramp."
 )
 
 LOOK = (
-    "Photorealistic real-estate listing footage. Natural light, steady "
-    "exposure, no flicker, no vignette pulsing, no lens distortion."
+    "Photorealistic real-estate listing footage, shot on a stabilised "
+    "cinema camera. Slow, smooth, even motion at a constant speed. "
+    "No people, no pets, no vehicles, no text, no captions, no watermark, "
+    "no logos, no reflections of a camera or crew."
+)
+
+WHEN_UNSURE = (
+    "If you are unsure whether something is part of the building or how a "
+    "surface continues out of frame, do not move as far. Holding almost "
+    "still is an acceptable result; changing the property is not."
 )
 
 # The camera move, chosen per clip.
@@ -74,42 +116,58 @@ LOOK = (
 MOVES = [
     ("push_in", "Push in",
      "Slow dolly forward into the space",
-     "Move the camera slowly and steadily FORWARD into the space, a smooth "
-     "dolly push-in that closes the distance without ever tilting or turning."),
+     "MOVEMENT: move the camera slowly and steadily FORWARD into the space, a "
+     "smooth dolly push-in, travelling only a short distance over the whole "
+     "clip. Do not tilt, rotate or zoom. Stay inside the frame you were given "
+     "-- move in, never past anything."),
     ("pull_out", "Pull out",
      "Slow dolly back, revealing the room",
-     "Move the camera slowly and steadily BACKWARD, a smooth dolly pull-out "
-     "that reveals more of the space as it goes, without tilting or turning."),
+     "MOVEMENT: move the camera slowly and steadily BACKWARD, a smooth dolly "
+     "pull-out, travelling only a short distance over the whole clip. Do not "
+     "tilt, rotate or zoom. Reveal only a little more of what is already at "
+     "the edges of the photograph -- do not invent walls, doorways, furniture "
+     "or ceiling to fill the space you are backing into."),
     ("pan_left", "Pan left",
      "Sweep the view leftwards",
-     "Rotate the camera slowly and smoothly to the LEFT from a fixed "
-     "position, an even horizontal pan with no dolly movement."),
+     "MOVEMENT: rotate the camera slowly and smoothly to the LEFT from a "
+     "fixed position, an even horizontal pan through a small angle. No dolly "
+     "movement, no tilt, no zoom. Reveal only a little beyond the left edge, "
+     "and invent nothing to fill it."),
     ("pan_right", "Pan right",
      "Sweep the view rightwards",
-     "Rotate the camera slowly and smoothly to the RIGHT from a fixed "
-     "position, an even horizontal pan with no dolly movement."),
+     "MOVEMENT: rotate the camera slowly and smoothly to the RIGHT from a "
+     "fixed position, an even horizontal pan through a small angle. No dolly "
+     "movement, no tilt, no zoom. Reveal only a little beyond the right edge, "
+     "and invent nothing to fill it."),
     ("orbit_left", "Orbit left",
      "Arc around the space to the left",
-     "Arc the camera slowly to the LEFT around the space, keeping the centre "
-     "of the frame fixed, as though walking a circle around the subject."),
+     "MOVEMENT: arc the camera slowly a short way to the LEFT around the "
+     "subject, keeping the centre of the frame fixed and the horizon level. "
+     "A small arc only. Do not travel far enough to need a side of anything "
+     "the photograph does not show."),
     ("orbit_right", "Orbit right",
      "Arc around the space to the right",
-     "Arc the camera slowly to the RIGHT around the space, keeping the centre "
-     "of the frame fixed, as though walking a circle around the subject."),
+     "MOVEMENT: arc the camera slowly a short way to the RIGHT around the "
+     "subject, keeping the centre of the frame fixed and the horizon level. "
+     "A small arc only. Do not travel far enough to need a side of anything "
+     "the photograph does not show."),
     ("rise", "Rise",
      "Crane upward — best on exteriors",
-     "Raise the camera slowly and steadily UPWARD on a crane or drone, "
-     "keeping the horizon level and the framing steady as the height opens up "
-     "the view."),
+     "MOVEMENT: raise the camera slowly and steadily UPWARD a short distance, "
+     "as on a crane or drone, keeping the horizon level and the framing "
+     "steady. Do not rotate or tilt. Do not invent roof, sky, garden or "
+     "neighbouring property to fill the new height."),
     ("tilt_up", "Tilt up",
      "Reveal ceiling height",
-     "Tilt the camera slowly UPWARD from a fixed position, revealing the "
-     "height of the space, with no dolly movement and no rotation."),
+     "MOVEMENT: tilt the camera slowly UPWARD through a small angle from a "
+     "fixed position, showing the height of the space. No dolly movement, no "
+     "rotation, no zoom. Invent no ceiling detail that is not already there."),
     ("static", "Hold",
-     "Almost still — for detail shots",
-     "Hold the camera almost completely still, with only the faintest, "
-     "barely perceptible drift, as a locked-off shot that gives the still a "
-     "sense of life without drawing attention."),
+     "Almost still — the safest of the nine",
+     "MOVEMENT: hold the camera essentially still. Only the faintest, barely "
+     "perceptible drift is allowed -- a locked-off shot that gives the still "
+     "a sense of life without drawing attention to itself. This is the "
+     "safest move: when in doubt, err toward this."),
 ]
 
 MOVE_PROMPTS = {key: instruction for key, _, _, instruction in MOVES}
@@ -126,18 +184,27 @@ STYLE_DEFAULT_MOVE = {
 
 
 def prompt_for_clip(move=None, style=None):
-    """The full prompt for one clip: constraint, movement, look, constraint.
+    """The full prompt for one clip.
 
-    Movement comes from the move; the style only decides the default when no
-    move was chosen. The constraint brackets it on both sides -- a rule stated
-    once, in the middle, is the one the model drops.
+    Order matters and is deliberate: the constraint leads, the movement sits
+    in the middle, and the constraint closes. A rule stated once, in the
+    middle, is the one that gets dropped -- staging proved that, and video is
+    the harder case because the model has a whole timeline to drift over.
     """
     key = (move or "").strip().lower()
     if key not in MOVE_PROMPTS:
         key = STYLE_DEFAULT_MOVE.get((style or "").strip().lower(), DEFAULT_MOVE)
-    return (
-        HOLD_THE_ROOM + " " + MOVE_PROMPTS[key] + " " + LOOK + " " + HOLD_THE_ROOM
-    )
+    return " ".join([
+        ONLY_THE_CAMERA,
+        NEVER_CHANGE,
+        NO_INVENTION,
+        MOVE_PROMPTS[key],
+        TEMPORAL,
+        LOOK,
+        ONLY_THE_CAMERA,
+        NEVER_CHANGE,
+        WHEN_UNSURE,
+    ])
 
 
 # Kept so a project with neither a move nor a style still renders something
