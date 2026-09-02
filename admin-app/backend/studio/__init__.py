@@ -2294,7 +2294,10 @@ def api_video_status():
         DURATION_CHOICES,
         MAX_DURATION,
         MIN_DURATION,
+        EXTERIOR_MOVES,
+        EXTERIOR_ROOMS,
         MOVES,
+        NEEDS_ANCHOR,
         REAL_ESTATE_PROMPT,
         RESOLUTION_CHOICES,
         STYLE_DEFAULT_MOVE,
@@ -2324,6 +2327,13 @@ def api_video_status():
         # The camera moves, served from the one definition so the buttons and
         # the prompts can never drift apart.
         "moves": [{"key": k, "name": n, "desc": d} for k, n, d, _ in MOVES],
+        # Kept separate rather than merged: the two sets are not
+        # interchangeable, and offering "pan left" for a drone shot or a
+        # flyover for a bathroom is how a wrong clip gets rendered.
+        "exterior_moves": [{"key": k, "name": n, "desc": d,
+                            "needs_anchor": k in NEEDS_ANCHOR}
+                           for k, n, d, _ in EXTERIOR_MOVES],
+        "exterior_rooms": list(EXTERIOR_ROOMS),
         "style_default_move": STYLE_DEFAULT_MOVE,
         # What the per-clip dropdowns offer, and what they start on.
         # From the model, not a global list: Kling 3.0 Pro is native 1080p
@@ -2363,6 +2373,50 @@ def api_video_job_by_id(job_id):
     if job is None or job.owner_id != session["user_id"]:
         return jsonify({"error": "Job not found."}), 404
     return jsonify({"job": job.to_dict()})
+
+
+@studio_bp.route("/api/video/site", methods=["POST"])
+@login_required
+def api_video_site():
+    """The outside of a property, and what can be flown over it.
+
+    Run before an exterior render rather than after: whether the back of the
+    house was ever photographed decides whether a front-to-back flyover is a
+    real shot or an invented one, and that is worth knowing while it is still
+    free to change.
+    """
+    from services import site
+
+    data = request.get_json(force=True, silent=True) or {}
+    lead_id = data.get("lead_id")
+    if not lead_id:
+        return jsonify({"error": "Exterior shots need a lead, so the property "
+                                 "can be looked at from the outside."}), 400
+
+    lead = get_owned_lead(int(lead_id))
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    try:
+        analysis = site.analyse(lead.id, lead.address, lead.photo_urls or [],
+                                lead.photo_rooms or {},
+                                force=bool(data.get("force")))
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify({
+        "site": {
+            "front": analysis.get("front"),
+            "rear": analysis.get("rear"),
+            "aerials": analysis.get("aerials") or [],
+            "front_faces": analysis.get("front_faces"),
+            "depth": analysis.get("depth"),
+            "notes": analysis.get("notes"),
+            "satellite": analysis.get("satellite"),
+        },
+        "clips": site.verdicts(analysis, data.get("clips") or []),
+        "recommended": site.recommend(analysis),
+    })
 
 
 @studio_bp.route("/api/video/layout", methods=["POST"])
@@ -2931,6 +2985,7 @@ def api_video_generate():
         MIN_DURATION,
         MOVE_PROMPTS,
         estimate_cost,
+        is_exterior_move,
         load_config,
     )
     from services.video_jobs import VideoJobBusy, start_job
@@ -2985,6 +3040,34 @@ def api_video_generate():
 
             specs.append({"move": move, "duration": seconds, "resolution": res})
 
+    # Exterior moves are anchored from the SITE analysis, and a flyover that
+    # cannot be anchored is refused outright rather than downgraded. Indoors
+    # an unanchored move risks an invented door; outdoors it invents the back
+    # of the house, which is a picture of a property that does not exist.
+    if specs and lead_id_raw and any(is_exterior_move(s["move"]) for s in specs):
+        from services import site as site_svc
+
+        ext_lead = get_owned_lead(int(lead_id_raw))
+        if ext_lead is None:
+            return jsonify({"error": "Lead not found."}), 404
+        try:
+            site_data = site_svc.analyse(ext_lead.id, ext_lead.address,
+                                         ext_lead.photo_urls or [],
+                                         ext_lead.photo_rooms or {})
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"error": "The outside of this property couldn't be "
+                                     "analysed, so an exterior clip can't be "
+                                     "rendered safely: %s" % exc}), 400
+
+        for spec, photo in zip(specs, photos):
+            if not is_exterior_move(spec["move"]):
+                continue
+            check = site_svc.check_move(spec["move"], photo, site_data)
+            if check["level"] == "blocked":
+                return jsonify({"error": check["reason"]}), 400
+            if check.get("anchor"):
+                spec["anchor"] = check["anchor"]
+
     # Anchor every clip we can. The browser shows this before you press the
     # button, but attaching it here means a render is never sent unanchored
     # just because something skipped the check.
@@ -2998,6 +3081,8 @@ def api_video_generate():
                 analysis = layout.analyse(anchor_lead.id, lead_photos)
                 index_of = {url: i for i, url in enumerate(lead_photos)}
                 for spec, photo in zip(specs, photos):
+                    if is_exterior_move(spec["move"]):
+                        continue   # already anchored from the site analysis
                     index = index_of.get(photo)
                     if index is None:
                         continue

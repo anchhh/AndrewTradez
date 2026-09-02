@@ -524,6 +524,45 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .lm-menu-note { padding: 4px 9px 6px; font-size: 0.74rem; color: var(--ink-soft); }
 .lm-menu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 
+/* Exterior / Interior on the shots step. */
+.rn-scope + .rn-scope { margin-top: 22px; }
+.rn-scope-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+}
+.rn-scope-count {
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--line);
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+.rn-scope-note {
+  margin: 0 0 10px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+/* The warning that a flyover is unavailable is the one thing on this step
+   that changes what can be rendered, so it does not read as a hint. */
+.rn-scope-note.is-warn {
+  padding: 8px 11px;
+  border-left: 3px solid var(--accent);
+  background: #fdf3ef;
+  border-radius: 0 8px 8px 0;
+  color: var(--ink);
+}
+.rn-clip-row.is-anchored { border-color: #3f8f5f; }
+.rn-clip-row.is-blocked { border-color: #b3402a; background: #fdf0ec; }
+.rn-verdict-anchored { color: #3f8f5f; }
+.rn-verdict-blocked { color: #b3402a; font-weight: 700; }
+
 /* "Add photos" at the foot of the clip list. */
 .rn-addmore { margin-top: 12px; }
 .rn-addmore-btn {

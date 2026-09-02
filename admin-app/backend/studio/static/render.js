@@ -40,6 +40,11 @@ const state = {
   modelLabel: "",    // which model is actually behind this
   advice: {},        // {url: {recommended, moves:{move:{level,reason}}}}
   advising: false,
+  exteriorMoves: [], // drone moves, offered only on exterior photos
+  exteriorRooms: [], // which room labels count as outside
+  site: null,        // what the property looks like from the outside
+  siteVerdicts: {},  // {url: {level, reason, anchor}} for the chosen move
+  siting: false,
   configured: false,
   job: null,
   startedAt: null,
@@ -174,6 +179,7 @@ function photoTile(url) {
     renderClipMoves();
     renderCost();
     fetchAdvice();
+    fetchSite();
   });
   return div;
 }
@@ -313,8 +319,72 @@ document.querySelectorAll(".style-card").forEach((card) => {
    move it knows will invent, and says nothing, is the reason a door appeared
    in the first clip. */
 
+/* Which section a photo belongs to. Room sorting already labelled every
+   photo, so nothing is classified twice -- a front elevation, an aerial or a
+   yard shot is an exterior, and everything else is a room. */
+function isExterior(url) {
+  const room = (roomOf(url) || {}).room;
+  return state.exteriorRooms.includes(room);
+}
+
+function exteriorMoveOptions() {
+  return state.exteriorMoves.map((m) => ({ value: m.key, label: m.name }));
+}
+
+/* An exterior photo must not keep an interior default. "Push in" on a drone
+   shot is not a smaller version of the right move, it is the wrong one. */
+function defaultMoveFor(url) {
+  if (!isExterior(url)) return state.defaultMove;
+  const site = state.site;
+  if (site && site.front === url && site.rear) return "flyover_front_to_back";
+  if (site && (site.aerials || []).includes(url)) return "pull_back_wide";
+  return "approach_front";
+}
+
+function moveFor(url) {
+  const current = state.moves[url];
+  const outside = isExterior(url);
+  const isExtMove = state.exteriorMoves.some((m) => m.key === current);
+  // A move from the wrong list is replaced rather than shown: the two sets
+  // are not interchangeable.
+  if (!current || outside !== isExtMove) return defaultMoveFor(url);
+  return current;
+}
+
 const LEVEL_MARK = { anchored: "✓", safe: "•", risky: "!" };
 const LEVEL_WORD = { anchored: "anchored", safe: "safe", risky: "would invent" };
+
+/* What the outside of this property allows.
+
+   Runs when there are exterior clips, and only then: it is a Gemini call and
+   a satellite fetch, which a listing of bathrooms has no use for. */
+async function fetchSite() {
+  const outside = state.photos.filter(isExterior);
+  if (state.siting || !project.lead_id || !outside.length) return;
+  state.siting = true;
+  try {
+    const res = await fetch("/studio/api/video/site", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: project.lead_id,
+        clips: outside.map((url) => ({ photo: url, move: moveFor(url) })),
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "the site couldn't be read");
+    state.site = body.site;
+    state.siteVerdicts = {};
+    (body.clips || []).forEach((c) => { state.siteVerdicts[c.photo] = c; });
+    renderClipMoves();
+    renderCost();
+  } catch (err) {
+    const note = el("rn-advice-note");
+    if (note) note.textContent = "Couldn't read the exterior: " + err.message;
+  } finally {
+    state.siting = false;
+  }
+}
 
 async function fetchAdvice() {
   if (state.advising || !project.lead_id || !state.photos.length) return;
@@ -471,24 +541,46 @@ function renderClipMoves() {
   }
 
   const pick = (options, current) => options.map((o) =>
-    `<option value="${escapeHtml(o.value)}"${String(o.value) === String(current) ? " selected" : ""}>` +
+    `<option value="${escapeHtml(o.value)}"` +
+    `${String(o.value) === String(current) ? " selected" : ""}` +
+    // Shown but unpickable. The server refuses this move outright, and an
+    // option that can be chosen and then rejected is worse than one that
+    // says plainly why it is greyed out.
+    `${o.disabled ? " disabled" : ""}>` +
     `${escapeHtml(o.label)}</option>`).join("");
 
-  box.innerHTML = state.photos.map((url, i) => {
+  // Two sections, because the moves are two different sets. Outside is a
+  // drone flying over a building; inside is a camera easing across a room,
+  // and the rules that keep each honest are different.
+  const rowFor = (url, i) => {
     const label = roomOf(url).label;
-    const advice = state.advice[url];
-    const move = state.moves[url] || state.defaultMove;
-    const verdict = advice && advice.moves ? advice.moves[move] : null;
-    const rec = advice ? advice.recommended : null;
+    const outside = isExterior(url);
+    const move = moveFor(url);
 
-    // The options carry their own verdict, so the risky ones are visible
-    // while choosing rather than after rendering.
-    const moveOpts = moveOptions().map((o) => {
-      const v = advice && advice.moves ? advice.moves[o.value] : null;
-      const mark = v ? LEVEL_MARK[v.level] || "" : "";
-      const rq = rec && rec.move === o.value ? " — recommended" : "";
-      return { value: o.value, label: (mark ? mark + " " : "") + o.label + rq };
-    });
+    const advice = outside ? null : state.advice[url];
+    const rec = advice ? advice.recommended : null;
+    const verdict = outside
+      ? state.siteVerdicts[url]
+      : (advice && advice.moves ? advice.moves[move] : null);
+
+    const options = outside
+      ? exteriorMoveOptions().map((o) => {
+          // A flyover with nowhere to land is not offered as a choice with a
+          // warning -- it is not a choice.
+          const blocked = o.value === "flyover_front_to_back"
+            && !(state.site && state.site.rear);
+          return {
+            value: o.value,
+            label: o.label + (blocked ? " — needs a rear photo" : ""),
+            disabled: blocked,
+          };
+        })
+      : moveOptions().map((o) => {
+          const v = advice && advice.moves ? advice.moves[o.value] : null;
+          const mark = v ? LEVEL_MARK[v.level] || "" : "";
+          const rq = rec && rec.move === o.value ? " — recommended" : "";
+          return { value: o.value, label: (mark ? mark + " " : "") + o.label + rq };
+        });
 
     return `
       <div class="rn-clip-row ${verdict ? "is-" + verdict.level : ""}" data-url="${escapeHtml(url)}">
@@ -498,14 +590,14 @@ function renderClipMoves() {
           ${verdict ? `
             <span class="rn-verdict rn-verdict-${verdict.level}">
               ${LEVEL_WORD[verdict.level] || verdict.level}${
-                verdict.level === "risky" && rec
+                !outside && verdict.level === "risky" && rec
                   ? ` — try ${escapeHtml(moveName(rec.move))}` : ""}
             </span>
             <span class="rn-verdict-why">${escapeHtml(verdict.reason)}</span>` : ""}
         </div>
         <div class="rn-clip-controls">
           <select class="rn-select" data-field="move" aria-label="Camera move">
-            ${pick(moveOpts, move)}
+            ${pick(options, move)}
           </select>
           <select class="rn-select rn-select-sm" data-field="duration" aria-label="Clip length">
             ${pick(durationOptions(), state.seconds[url] || state.defaultDuration)}
@@ -517,7 +609,35 @@ function renderClipMoves() {
         <button type="button" class="rn-clip-x" title="Drop this clip"
                 aria-label="Drop clip ${i + 1}">&times;</button>
       </div>`;
-  }).join("");
+  };
+
+  const outside = [];
+  const inside = [];
+  state.photos.forEach((url, i) => (isExterior(url) ? outside : inside).push(rowFor(url, i)));
+
+  const site = state.site;
+  const siteNote = !outside.length ? "" : (
+    site && site.rear
+      ? `<p class="rn-scope-note">The back of this house is photographed, so a
+           front-to-back flyover ends on a real picture of it.</p>`
+      : site
+        ? `<p class="rn-scope-note is-warn">No photograph shows the back of this
+             house, so a front-to-back flyover isn't offered — it would have to
+             invent one.</p>`
+        : `<p class="rn-scope-note">Reading the property from the outside…</p>`);
+
+  box.innerHTML =
+    (outside.length ? `
+      <section class="rn-scope">
+        <h3 class="rn-scope-head">Exterior <span class="rn-scope-count">${outside.length}</span></h3>
+        ${siteNote}
+        ${outside.join("")}
+      </section>` : "") +
+    (inside.length ? `
+      <section class="rn-scope">
+        <h3 class="rn-scope-head">Interior <span class="rn-scope-count">${inside.length}</span></h3>
+        ${inside.join("")}
+      </section>` : "");
 
   box.querySelectorAll(".rn-clip-row").forEach((row) => {
     const url = row.dataset.url;
@@ -543,7 +663,9 @@ function renderClipMoves() {
         // rebuilding would close the dropdown still under the cursor. The
         // verdict is refreshed instead, which re-renders when it lands.
         renderCost();
-        if (select.dataset.field === "move") fetchAdvice();
+        if (select.dataset.field === "move") {
+          if (isExterior(url)) fetchSite(); else fetchAdvice();
+        }
       });
     });
   });
@@ -1114,6 +1236,8 @@ async function init() {
     if (status.default_resolution) state.defaultResolution = status.default_resolution;
 
     state.moveList = status.moves || [];
+    state.exteriorMoves = status.exterior_moves || [];
+    state.exteriorRooms = status.exterior_rooms || [];
     state.styleDefaults = status.style_default_move || {};
 
     // Re-applying the saved style seeds every clip, without saving it back --
@@ -1132,6 +1256,7 @@ async function init() {
   renderCost();
 
   fetchAdvice();
+  fetchSite();
 
   if (window.__LEAD_RENDERS__ || window.__JOB_ID__) {
     await refreshResults();

@@ -306,7 +306,235 @@ MOVES = [
      "safest move: when in doubt, err toward this."),
 ]
 
+
+# ---------------------------------------------------------------------------
+# Exterior
+#
+# A different job from the interior moves above, and a different way to get it
+# wrong. Inside, the danger is a door appearing in a wall. Outside, the danger
+# is the whole BACK OF THE HOUSE being invented -- the model has seen one
+# elevation and will happily extrude a plausible rear with a deck and a pool
+# that the property does not have. On a listing that is not a glitch, it is a
+# picture of a house that does not exist.
+#
+# Two things hold it down:
+#
+#   1. Anchoring. A front-to-back flyover is only offered when the listing has
+#      a real photograph of the back, which becomes the clip's final frame.
+#      The model then travels between two photographs instead of imagining the
+#      far side. Without that photo the move is not available -- see
+#      NEEDS_ANCHOR -- because there is no honest way to render it.
+#
+#   2. Its own constraint list. The interior one bans cabinetry and skirting
+#      and says nothing about rooflines, garage doors or neighbouring houses,
+#      which are exactly what drifts outdoors.
+# ---------------------------------------------------------------------------
+
+EXT_ONLY_THE_CAMERA = (
+    "This is a photograph of a real property being brought to life for a "
+    "property listing. The ONLY thing that may move is the camera. The "
+    "building, the land and everything on it must stay exactly as "
+    "photographed."
+)
+
+EXT_NEVER_CHANGE = (
+    "Do NOT add, remove, move, resize, restyle or re-colour any of the "
+    "following, at any point in the clip: the roof, roofline, gables, "
+    "dormers, chimneys, gutters, siding, brickwork, render, stonework, "
+    "cladding, trim, shutters, windows, doors, front door, garage, garage "
+    "doors, porch, columns, steps, railings, decking, patio, balcony, "
+    "driveway, path, kerb, fence, wall, gate, hedge, lawn, trees, shrubs, "
+    "planting, pool, outbuildings, vehicles, street, pavement, or any "
+    "neighbouring building. Do not change the number of storeys, the number "
+    "of windows, or the shape of the roof. Do not open or close a door, gate "
+    "or garage. Do not change any house number, sign or lettering."
+)
+
+EXT_NO_INVENTION = (
+    "Do NOT invent any part of the property the photograph does not show. "
+    "You have not seen the sides or the rear of this building unless a "
+    "photograph of them is provided. If the camera move would travel past "
+    "what is visible, make the move SMALLER and stay with what is there. A "
+    "shorter, slower move is always correct; an invented extension, deck, "
+    "pool, conservatory or rear elevation is always wrong."
+)
+
+EXT_TEMPORAL = (
+    "One continuous aerial shot: no cuts, no transitions, no speed ramp. "
+    "Nothing may morph, warp, melt, stretch, flicker or swap between frames. "
+    "Straight lines -- rooflines, walls, fences, kerbs -- must stay straight. "
+    "Keep the lighting, shadows, weather, sky, season, white balance and "
+    "exposure identical throughout: the same time of day from first frame to "
+    "last."
+)
+
+EXT_LOOK = (
+    "Photorealistic real-estate drone footage, shot on a professional "
+    "cinema drone: crisp and high-resolution, with fine detail resolved in "
+    "roofing, brick, render and planting. Motion is slow, smooth and even, "
+    "with no jerks, no sudden acceleration and no handheld shake. Keep the "
+    "photograph's own exposure, white balance and colour exactly as they "
+    "are -- do not grade, warm, cool or add glow, flare or vignette. "
+    "No people, no pets, no moving vehicles, no text, no captions, no "
+    "watermark, no logos."
+)
+
+EXT_WHEN_UNSURE = (
+    "If you are unsure whether something is part of this property, leave it "
+    "exactly as it is in the photograph."
+)
+
+# The categories, without the itemised list. The full list is 669 characters
+# and the exterior stack is already over Kling's 2500-character ceiling before
+# a movement instruction is added -- so the items live in the negative prompt
+# and the ban itself still appears in the prompt, which is what the model
+# actually reads as a rule.
+EXT_NEVER_CHANGE_SHORT = (
+    "Do NOT add, remove, move, resize, restyle or re-colour anything about "
+    "the building or the land: roof, walls, windows, doors, garage, porch, "
+    "driveway, fencing, planting, outbuildings, vehicles, or any neighbouring "
+    "property. Do not change the number of storeys, windows or the shape of "
+    "the roof."
+)
+
+# The itemised bans that matter outdoors, for the negative prompt.
+EXT_NEGATIVE = (
+    "invented rear elevation, invented extension, new building, extra storey, "
+    "extra windows, extra doors, added deck, added patio, added pool, "
+    "added conservatory, added garage, changed roofline, different roof, "
+    "changed siding, changed landscaping, added trees, removed trees, "
+    "new fence, different house, neighbouring house changed, "
+    "morphing, warping, melting, stretching, distorted geometry, "
+    "bent rooflines, wobbling lines, flickering, colour shift, "
+    "weather change, sky change, time of day change, season change, "
+    "people, person, pets, moving cars, text, caption, watermark, logo, "
+    "blurry, soft focus, motion blur, low resolution, upscaled, pixelated, "
+    "compression artifacts, judder, stutter, camera shake, rolling shutter, "
+    "fisheye, lens distortion, lens flare, vignette"
+)
+
+# (key, name, description, movement instruction)
+EXTERIOR_MOVES = [
+    (
+        "flyover_front_to_back",
+        "Front to back flyover",
+        "Drone rises over the front and travels to the rear of the property",
+        "MOVEMENT: a single continuous drone flight. Begin on the front "
+        "elevation exactly as photographed. Rise smoothly and steadily while "
+        "moving FORWARD over the property, clearing the roof, and continue "
+        "until the rear of the property fills the frame, arriving exactly at "
+        "the final photograph provided. Keep the building centred and level "
+        "throughout. The building beneath you is the same building in both "
+        "photographs -- travel between them, and invent nothing in between.",
+    ),
+    (
+        "approach_front",
+        "Approach the front",
+        "Drone descends and moves in toward the front of the house",
+        "MOVEMENT: move the camera slowly FORWARD and slightly DOWNWARD "
+        "toward the front of the building, a smooth descending approach over "
+        "a short distance. Do not rotate, do not pass the building, do not go "
+        "round it. Finish still looking at the same front elevation, closer.",
+    ),
+    (
+        "rise_reveal",
+        "Rise and reveal",
+        "Drone climbs straight up to show the property in its plot",
+        "MOVEMENT: raise the camera slowly and steadily STRAIGHT UP from where "
+        "the photograph was taken, tilting down a little to keep the property "
+        "in frame, revealing the plot and its immediate surroundings. No "
+        "forward or sideways travel, no rotation. Reveal only ground that "
+        "genuinely continues from what the photograph shows: more of the same "
+        "lawn, drive and street, and nothing built that is not already there.",
+    ),
+    (
+        "orbit_property",
+        "Orbit the property",
+        "Drone arcs a short way around the house",
+        "MOVEMENT: arc the camera slowly around the building through a SMALL "
+        "angle, keeping it centred and keeping the same distance throughout, "
+        "as if on a rail. Do not complete a circle and do not travel round to "
+        "an elevation the photograph does not show -- if the arc would bring "
+        "an unseen side into view, make the arc shorter.",
+    ),
+    (
+        "pull_back_wide",
+        "Pull back wide",
+        "Drone eases back to place the home in its setting",
+        "MOVEMENT: move the camera slowly and steadily BACKWARD and slightly "
+        "upward, easing out to show the property in its setting. Travel only a "
+        "short distance. Reveal only what genuinely continues at the edges of "
+        "the photograph -- do not invent buildings, roads, water or landscape "
+        "to fill the space you are backing into.",
+    ),
+]
+
+# Moves that cannot be rendered honestly without a photograph of where they
+# end up. The flyover is the whole point of the exterior section and also the
+# one move that, unanchored, is an invitation to invent a rear elevation.
+NEEDS_ANCHOR = {"flyover_front_to_back"}
+
+EXTERIOR_KEYS = {key for key, _, _, _ in EXTERIOR_MOVES}
+
+# Which room labels put a photo in the Exterior section. Same vocabulary room
+# sorting already assigns, so nothing has to be classified twice.
+EXTERIOR_ROOMS = ("exterior_front", "exterior_back", "aerial", "outdoor_space")
+
+
+def is_exterior_move(key):
+    return (key or "").strip().lower() in EXTERIOR_KEYS
+
+
+def needs_anchor(key):
+    return (key or "").strip().lower() in NEEDS_ANCHOR
+
+
+def exterior_prompt(move, cfg=None):
+    """The full prompt for one exterior clip, bracketed like the interior one:
+    constraint, movement, constraint."""
+    key = (move or "").strip().lower()
+    instruction = EXTERIOR_PROMPTS.get(key) or EXTERIOR_PROMPTS["approach_front"]
+    limit = model_info(cfg).get("max_prompt", 2500)
+
+    # A ladder, shortening from the least load-bearing end. What never goes:
+    # the opening constraint, a "never change" of some length, no-invention
+    # before AND after the movement, and the temporal rule. Dropping those was
+    # exactly what the first version of this did to the flyover -- the one
+    # move that most needs them.
+    ladders = [
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE, EXT_NO_INVENTION, instruction,
+         EXT_TEMPORAL, EXT_LOOK, EXT_ONLY_THE_CAMERA, EXT_NO_INVENTION,
+         EXT_WHEN_UNSURE],
+        # The itemised list goes to the negative prompt; the ban stays.
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+         instruction, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION,
+         EXT_WHEN_UNSURE],
+        # The look is craft, not compliance, so it goes before any rule does.
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+         instruction, EXT_TEMPORAL, EXT_NO_INVENTION, EXT_WHEN_UNSURE],
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+         instruction, EXT_TEMPORAL, EXT_NO_INVENTION],
+    ]
+    for parts in ladders:
+        text = " ".join(parts)
+        if len(text) <= limit:
+            return text
+
+    # Nothing fits: keep the constraint and lose the movement detail, not the
+    # other way round.
+    return " ".join([
+        EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+        instruction, EXT_NO_INVENTION,
+    ])[:limit]
+
+
+EXTERIOR_PROMPTS = {key: instruction for key, _, _, instruction in EXTERIOR_MOVES}
+
+# One lookup for both, so a caller with only a move key still resolves.
 MOVE_PROMPTS = {key: instruction for key, _, _, instruction in MOVES}
+MOVE_PROMPTS.update(EXTERIOR_PROMPTS)
+
+MOVE_NAMES = {key: name for key, name, _, _ in MOVES + EXTERIOR_MOVES}
 DEFAULT_MOVE = "push_in"
 
 # The style cards are presets now, not the movement itself: picking one sets
@@ -334,6 +562,12 @@ NEVER_CHANGE_SHORT = (
 )
 
 
+def negative_for(move=None):
+    """The negative prompt for a clip. Outdoors names the outdoor failures --
+    telling a drone shot not to add cabinetry helps nobody."""
+    return EXT_NEGATIVE if is_exterior_move(move) else NEGATIVE_PROMPT
+
+
 def prompt_for_clip(move=None, style=None, cfg=None):
     """The full prompt for one clip.
 
@@ -343,6 +577,12 @@ def prompt_for_clip(move=None, style=None, cfg=None):
     the harder case because the model has a whole timeline to drift over.
     """
     key = (move or "").strip().lower()
+
+    # Outside is a different constraint list and a different failure -- an
+    # invented rear elevation rather than an invented door.
+    if is_exterior_move(key):
+        return exterior_prompt(key, cfg)
+
     if key not in MOVE_PROMPTS:
         key = STYLE_DEFAULT_MOVE.get((style or "").strip().lower(), DEFAULT_MOVE)
 
