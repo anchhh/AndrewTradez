@@ -4053,3 +4053,56 @@ gmp-map-3d {
 
 /* A render that has produced nothing YET is not a render that failed. */
 .scn-run-busy { border-left-color: var(--accent); }
+
+
+/* ---------- sending clips to CapCut ---------- */
+.cc-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; margin-top: 12px; }
+.cc-row {
+  display: grid;
+  grid-template-columns: auto 96px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cream-soft);
+}
+.cc-row.is-on { border-color: var(--accent); }
+.cc-row video { width: 96px; height: 56px; object-fit: cover; border-radius: 6px; background: #000; }
+
+.cc-pick { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.cc-order {
+  display: inline-block;
+  min-width: 20px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+}
+.cc-meta { display: flex; flex-direction: column; min-width: 0; }
+.cc-name { font-weight: 600; font-size: 0.86rem; }
+.cc-sub { font-size: 0.74rem; color: var(--ink-soft); }
+
+.cc-move { display: flex; flex-direction: column; gap: 2px; }
+.cc-move button {
+  width: 26px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 0.6rem;
+  cursor: pointer;
+}
+.cc-move button:disabled { opacity: 0.3; cursor: default; }
+.cc-move button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+
+.cc-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+.cc-actions .hint { flex: 1 1 auto; margin: 0; }
+.cc-actions .btn-send { width: auto; flex: 0 0 auto; }

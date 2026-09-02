@@ -2308,6 +2308,58 @@ def api_video_layout():
     return jsonify({"clips": out})
 
 
+@studio_bp.route("/api/video/capcut", methods=["POST"])
+@login_required
+def api_video_capcut():
+    """Write the chosen clips into CapCut as an editable project.
+
+    There is no CapCut API; this writes a draft into the folder CapCut reads
+    its projects from. Nothing is uploaded and nothing is rendered here -- the
+    assembly is ours, the editing and the export are CapCut's.
+    """
+    from services import capcut
+
+    data = request.get_json(force=True, silent=True) or {}
+    wanted = data.get("clips") or []
+    if not wanted:
+        return jsonify({"error": "Pick at least one clip."}), 400
+
+    if not capcut.is_available():
+        return jsonify({"error": "CapCut's drafts folder wasn't found at %s. If "
+                                 "CapCut is installed elsewhere, set drafts_dir "
+                                 "in studio/capcut.json."
+                                 % capcut.drafts_dir()}), 400
+
+    # Only this user's own rendered clips, resolved to real files. A draft
+    # points at absolute paths on disk, so this is not a place to take a path
+    # from the browser.
+    from models import VideoJob
+
+    owned = {}
+    for job in VideoJob.query.filter_by(owner_id=session["user_id"]).all():
+        for clip in job.clips:
+            if clip.get("video_url"):
+                owned[clip["video_url"]] = clip.get("duration") or job.duration or 5
+
+    clips = []
+    for item in wanted:
+        url = (item.get("video_url") or "").strip()
+        if url not in owned:
+            return jsonify({"error": "That clip isn't one of yours."}), 400
+        name = os.path.basename(url.split("?")[0])
+        clips.append({
+            "path": os.path.join(BASE_DIR, "static", "uploads", "clips", name),
+            "duration": owned[url],
+        })
+
+    try:
+        result = capcut.create_draft(data.get("name") or "estly listing", clips)
+    except capcut.CapCutError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify(result), 201
+
+
 @studio_bp.route("/api/video/jobs", methods=["GET"])
 @login_required
 def api_video_jobs():

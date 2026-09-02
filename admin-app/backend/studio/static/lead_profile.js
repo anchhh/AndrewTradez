@@ -386,6 +386,7 @@ function renderVideo(project) {
         render${runs.length === 1 ? "" : "s"}. Rendered with
         ${escapeHtml(runs[0].model_label || "the video model")}.
       </p>
+      <button type="button" class="btn-secondary btn-tiny" id="lp-capcut">Open in CapCut</button>
       <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">Open</a>
     </div>
     ${runs.map((run) => `
@@ -408,6 +409,9 @@ function renderVideo(project) {
             </figure>`).join("")}
         </div>
       </div>`).join("")}`;
+
+  const cc = el("lp-capcut");
+  if (cc) cc.addEventListener("click", openCapcut);
 }
 
 const VIDEO_MOVE_NAMES = {
@@ -745,6 +749,154 @@ function renderScenery(projects) {
     <div id="lp-scenery-rooms" class="scn-rooms"></div>`;
 
   renderSceneryRooms();
+}
+
+
+/* ---------- handing clips to CapCut ----------
+
+   There is no CapCut API, so nothing is sent anywhere: the server writes a
+   project into the folder CapCut reads its drafts from, and it appears in the
+   project list. Which clips and in what order is the only decision worth
+   asking about -- everything after that is what CapCut is for.  */
+
+let capcutPicked = [];
+
+function capcutModal() {
+  let box = el("lp-capcut-modal");
+  if (box) return box;
+
+  box = document.createElement("div");
+  box.id = "lp-capcut-modal";
+  box.className = "lead-modal hidden";
+  box.innerHTML = `
+    <div class="lead-modal-backdrop" data-close></div>
+    <div class="lead-modal-panel" role="dialog" aria-modal="true">
+      <header class="lead-modal-head">
+        <h2>Send clips to CapCut</h2>
+        <button type="button" class="lead-modal-x" data-close aria-label="Close">&times;</button>
+      </header>
+      <p class="hint">
+        Tick the clips you want, then put them in order. They land on one
+        timeline in CapCut, ready for music, titles and export.
+      </p>
+      <div id="lp-capcut-list" class="cc-list"></div>
+      <div class="cc-actions">
+        <span id="lp-capcut-note" class="hint"></span>
+        <button type="button" class="btn-send" id="lp-capcut-send" disabled>Send to CapCut</button>
+      </div>
+    </div>`;
+  document.body.appendChild(box);
+  box.querySelectorAll("[data-close]").forEach((n) =>
+    n.addEventListener("click", () => box.classList.add("hidden")));
+  el("lp-capcut-send").addEventListener("click", sendToCapCut);
+  return box;
+}
+
+function allClips() {
+  const out = [];
+  videoRuns.forEach((run) => (run.clips || []).forEach((clip) => out.push({
+    video_url: clip.video_url,
+    label: (VIDEO_MOVE_NAMES[clip.move] || clip.move || "clip"),
+    duration: clip.duration || 5,
+    when: sceneryWhen(run),
+  })));
+  return out;
+}
+
+function renderCapcutList() {
+  const list = el("lp-capcut-list");
+  const clips = allClips();
+
+  list.innerHTML = clips.map((clip) => {
+    const at = capcutPicked.indexOf(clip.video_url);
+    const on = at >= 0;
+    return `
+      <div class="cc-row ${on ? "is-on" : ""}" data-url="${escapeHtml(clip.video_url)}">
+        <label class="cc-pick">
+          <input type="checkbox" ${on ? "checked" : ""}>
+          <span class="cc-order">${on ? at + 1 : ""}</span>
+        </label>
+        <video src="${escapeHtml(clip.video_url)}#t=0.5" preload="metadata" muted></video>
+        <span class="cc-meta">
+          <span class="cc-name">${escapeHtml(clip.label)}</span>
+          <span class="cc-sub">${clip.duration}s · ${escapeHtml(clip.when)}</span>
+        </span>
+        <span class="cc-move">
+          <button type="button" data-dir="-1" ${!on || at === 0 ? "disabled" : ""}
+                  title="Earlier">&#9650;</button>
+          <button type="button" data-dir="1"
+                  ${!on || at === capcutPicked.length - 1 ? "disabled" : ""}
+                  title="Later">&#9660;</button>
+        </span>
+      </div>`;
+  }).join("");
+
+  list.querySelectorAll(".cc-row").forEach((row) => {
+    const url = row.dataset.url;
+    row.querySelector("input").addEventListener("change", () => {
+      const at = capcutPicked.indexOf(url);
+      // Appended in click order, because click order IS the running order
+      // until it is changed -- which is what the arrows are for.
+      if (at >= 0) capcutPicked.splice(at, 1);
+      else capcutPicked.push(url);
+      renderCapcutList();
+    });
+    row.querySelectorAll(".cc-move button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const at = capcutPicked.indexOf(url);
+        const to = at + Number(btn.dataset.dir);
+        if (at < 0 || to < 0 || to >= capcutPicked.length) return;
+        capcutPicked.splice(to, 0, capcutPicked.splice(at, 1)[0]);
+        renderCapcutList();
+      });
+    });
+  });
+
+  const total = capcutPicked.reduce((n, url) => {
+    const c = clips.find((x) => x.video_url === url);
+    return n + (c ? c.duration : 0);
+  }, 0);
+  el("lp-capcut-note").textContent = capcutPicked.length
+    ? `${capcutPicked.length} clip${capcutPicked.length === 1 ? "" : "s"} · ${total}s`
+    : "Nothing picked yet.";
+  el("lp-capcut-send").disabled = capcutPicked.length === 0;
+}
+
+async function sendToCapCut() {
+  const btn = el("lp-capcut-send");
+  btn.disabled = true;
+  btn.textContent = "Writing…";
+  try {
+    const res = await fetch("/studio/api/video/capcut", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: (lead.address || "estly listing"),
+        clips: capcutPicked.map((url) => ({ video_url: url })),
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "Couldn't write the project.");
+    el("lp-capcut-note").innerHTML =
+      `<strong>Done.</strong> "${escapeHtml(body.name)}" is in CapCut — ` +
+      `${body.clips} clip${body.clips === 1 ? "" : "s"}, ${body.duration}s. ` +
+      `Open CapCut and it's in your project list.`;
+    btn.textContent = "Sent";
+  } catch (err) {
+    el("lp-capcut-note").textContent = err.message;
+    btn.disabled = false;
+    btn.textContent = "Send to CapCut";
+  }
+}
+
+function openCapcut() {
+  const box = capcutModal();
+  // Default to every clip, in the order they were rendered: for one listing
+  // that is usually the running order already.
+  capcutPicked = allClips().map((c) => c.video_url);
+  renderCapcutList();
+  el("lp-capcut-send").textContent = "Send to CapCut";
+  box.classList.remove("hidden");
 }
 
 function renderSceneryRooms() {
