@@ -424,6 +424,106 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---------- Top nav (Create Video / Dashboard pages) ---------- */
 
+/* ---------- the row's action menu ----------
+
+   One button in place of the status dropdown, three outreach toggles and the
+   star that used to sit on every row. What those said is still shown, as
+   marks; what they did moved into the menu. */
+
+.lm-row-flags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.lm-flag {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 5px;
+  background: var(--line);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.lm-flag.is-star { background: none; color: var(--accent); font-size: 0.9rem; }
+
+.lm-row-menu {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  fill: currentColor;
+}
+.lm-row-menu:hover,
+.lm-row-menu[aria-expanded="true"] {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.lm-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 208px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  box-shadow: 0 10px 30px rgba(23, 19, 15, 0.16);
+}
+
+.lm-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.lm-menu-item:hover { background: var(--cream-soft); }
+.lm-menu-item.is-indent { padding-left: 9px; }
+.lm-menu-item.is-checked { font-weight: 600; }
+.lm-menu-item.is-danger { color: #b3402a; }
+.lm-menu-item.is-danger:hover { background: #fdf0ec; }
+
+/* A fixed-width column for the tick, so labels line up whether or not one
+   is set and the list does not shuffle when something is toggled. */
+.lm-menu-tick {
+  flex: 0 0 auto;
+  width: 12px;
+  color: var(--accent);
+  font-size: 0.78rem;
+}
+
+.lm-menu-label {
+  padding: 8px 9px 3px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+}
+.lm-menu-note { padding: 4px 9px 6px; font-size: 0.74rem; color: var(--ink-soft); }
+.lm-menu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
+
 /* Clips / Trash on the results card. */
 .rn-tabs {
   display: flex;
@@ -3281,7 +3381,7 @@ gmp-map-3d {
 .lm-row.is-selected { background: #fdefea; border-color: var(--accent); }
 /* The controls on the row are not the row: clicking them should not navigate,
    and they should not look like they would. */
-.lm-row-select, .lm-row-thumb, .lm-row-statusselect, .lm-dot, .lm-row-qualify { cursor: pointer; }
+.lm-row-select, .lm-row-thumb, .lm-row-menu { cursor: pointer; }
 .lm-row-thumb { cursor: zoom-in; }
 /* The status colour lives on the left edge, so a long list scans by colour. */
 .lm-row.group-hot { border-left-color: #e8573f; }
@@ -3320,38 +3420,6 @@ gmp-map-3d {
 }
 
 .lm-row-status { flex: 0 0 auto; font-size: 0.95rem; }
-.lm-row-statusselect {
-  flex: 0 0 auto;
-  width: auto;
-  font-size: 0.72rem;
-  padding: 3px 6px;
-}
-.lm-row-dots { flex: 0 0 auto; display: flex; gap: 3px; }
-.lm-dot {
-  all: unset;
-  cursor: pointer;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  font-size: 0.63rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.lm-dot.is-done { background: #2f6b2c; border-color: #2f6b2c; color: #fff; }
-
-.lm-row-qualify {
-  all: unset;
-  cursor: pointer;
-  flex: 0 0 auto;
-  font-size: 1rem;
-  color: var(--line);
-  padding: 0 2px;
-}
-.lm-row-qualify.is-qualified { color: #e0a32a; }
 .lm-row-open {
   flex: 0 0 auto;
   font-size: 1.3rem;
@@ -3363,7 +3431,8 @@ gmp-map-3d {
 .lm-row-open:hover { color: var(--accent); }
 
 @media (max-width: 780px) {
-  .lm-row-statusselect, .lm-row-status { display: none; }
+  /* The marks go first on a narrow row; the menu holds everything anyway. */
+  .lm-row-status, .lm-row-flags { display: none; }
 }
 
 /* ---------- Outreach rows ----------

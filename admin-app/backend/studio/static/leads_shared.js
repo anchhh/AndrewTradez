@@ -847,14 +847,20 @@ function closeLightbox() {
    reusing their handlers rather than writing a second set.
    --------------------------------------------------------------- */
 
-function outreachDotsHtml(lead) {
-  return [["email", "E", "Email sent"], ["phone", "P", "Phone called"], ["video", "V", "Video made"]]
-    .map(([field, letter, title]) => {
-      const done = !!lead[OUTREACH_KEY[field]];
-      return `<button type="button" class="lm-dot ${done ? "is-done" : ""}"
-                data-field="${field}" title="${title}">${letter}</button>`;
-    })
-    .join("");
+/* What the outreach toggles used to show, minus the toggling. They were
+   three buttons on every row for something done once per lead; as marks they
+   still answer "where is this one up to" at a glance, and the doing moved
+   into the menu. A qualified lead keeps its star for the same reason. */
+function rowFlagsHtml(lead) {
+  const marks = [
+    ["email", "E", "Email sent"],
+    ["phone", "P", "Phone called"],
+    ["video", "V", "Video made"],
+  ].filter(([field]) => lead[OUTREACH_KEY[field]]);
+
+  return (lead.qualified ? `<span class="lm-flag is-star" title="Qualified">★</span>` : "")
+    + marks.map(([, letter, title]) =>
+        `<span class="lm-flag" title="${title}">${letter}</span>`).join("");
 }
 
 function leadRowHtml(lead) {
@@ -875,12 +881,13 @@ function leadRowHtml(lead) {
         <span class="lm-row-sub">${escapeHtml([place, lead.agent_name].filter(Boolean).join(" · "))}</span>
       </div>
       <span class="lm-row-status" title="${escapeHtml(meta.label)}">${meta.icon}</span>
-      <select class="lead-status-select lm-row-statusselect" aria-label="Lead status">
-        ${LEAD_STATUSES.map((s) => `<option value="${s}" ${s === lead.status ? "selected" : ""}>${s}</option>`).join("")}
-      </select>
-      <span class="lm-row-dots">${outreachDotsHtml(lead)}</span>
-      <button type="button" class="lm-row-qualify ${lead.qualified ? "is-qualified" : ""}"
-              title="${lead.qualified ? "Qualified" : "Mark qualified"}">★</button>
+      <span class="lm-row-flags">${rowFlagsHtml(lead)}</span>
+      <button type="button" class="lm-row-menu" aria-haspopup="menu" aria-expanded="false"
+              title="More actions" aria-label="More actions">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <circle cx="8" cy="3.4" r="1.4"/><circle cx="8" cy="8" r="1.4"/>
+          <circle cx="8" cy="12.6" r="1.4"/></svg>
+      </button>
       <span class="lm-row-open" aria-hidden="true">›</span>
     </div>`;
 }
@@ -908,39 +915,207 @@ function wireLeadRow(row, lead, handlers = {}) {
       openLightbox(lead.photo_urls, 0, lead.photo_rooms || null));
   }
 
-  row.querySelector(".lm-row-statusselect").addEventListener("change", async (e) => {
-    const updated = await fetchJSON(`/studio/api/leads/${lead.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: e.target.value }),
+  const menuBtn = row.querySelector(".lm-row-menu");
+  if (menuBtn) {
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openRowMenu(menuBtn, lead, row, handlers);
     });
-    Object.assign(lead, updated);
-    changed();
-  });
-
-  row.querySelectorAll(".lm-dot").forEach((dot) => {
-    dot.addEventListener("click", async () => {
-      const updated = await fetchJSON(`/studio/api/leads/${lead.id}/outreach`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field: dot.dataset.field }),
-      });
-      Object.assign(lead, updated);
-      dot.classList.toggle("is-done", !!lead[OUTREACH_KEY[dot.dataset.field]]);
-      changed();
-    });
-  });
-
-  const star = row.querySelector(".lm-row-qualify");
-  star.addEventListener("click", async () => {
-    const updated = await fetchJSON(`/studio/api/leads/${lead.id}/qualify`, { method: "PATCH" });
-    Object.assign(lead, updated);
-    star.classList.toggle("is-qualified", !!lead.qualified);
-    star.title = lead.qualified ? "Qualified" : "Mark qualified";
-    changed();
-  });
+  }
 
   return row;
+}
+
+
+/* ---------------------------------------------------------------
+   The row menu
+
+   Every per-row action lives here. The row carried a status dropdown, three
+   outreach toggles and a star -- five controls on every line, most of them
+   used once in a lead's life. They are one button now, and the row shows
+   marks instead.
+
+   One menu exists at a time, appended to the body rather than to the row:
+   inside the row it would be clipped by the list's overflow and would
+   inherit the row's own click-to-open-profile.
+   --------------------------------------------------------------- */
+
+let openMenu = null;
+let folderCache = null;
+
+function closeRowMenu() {
+  if (!openMenu) return;
+  openMenu.button.setAttribute("aria-expanded", "false");
+  openMenu.node.remove();
+  openMenu = null;
+}
+
+document.addEventListener("click", (e) => {
+  if (openMenu && !openMenu.node.contains(e.target)) closeRowMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeRowMenu();
+});
+// Anchored to a button that scrolls away, so it follows nothing -- close it.
+// Except when the scrolling is inside the menu itself, which is scrollable
+// and would otherwise shut the moment you reached for an item near the end.
+window.addEventListener("scroll", (e) => {
+  if (openMenu && openMenu.node.contains(e.target)) return;
+  closeRowMenu();
+}, true);
+window.addEventListener("resize", closeRowMenu);
+
+async function loadFolders() {
+  if (folderCache) return folderCache;
+  try {
+    const body = await fetchJSON("/studio/api/folders");
+    folderCache = body.folders || [];
+  } catch (err) {
+    folderCache = [];
+  }
+  return folderCache;
+}
+
+function menuItem(label, opts = {}) {
+  const cls = ["lm-menu-item"];
+  if (opts.danger) cls.push("is-danger");
+  if (opts.checked) cls.push("is-checked");
+  if (opts.indent) cls.push("is-indent");
+  return `<button type="button" class="${cls.join(" ")}" data-act="${opts.act || ""}"
+            data-arg="${opts.arg == null ? "" : escapeHtml(String(opts.arg))}">
+            <span class="lm-menu-tick">${opts.checked ? "✓" : ""}</span>
+            <span>${escapeHtml(label)}</span>
+          </button>`;
+}
+
+async function openRowMenu(button, lead, row, handlers) {
+  // Clicking the same button again closes it -- but only if its menu is
+  // still on the page. If the node went away without closeRowMenu (a row
+  // re-rendered underneath it, say), the stale reference would swallow the
+  // next click and the button would look broken.
+  const wasMine = openMenu && openMenu.button === button && openMenu.node.isConnected;
+  closeRowMenu();
+  if (wasMine) return;
+
+  const folders = await loadFolders();
+
+  const node = document.createElement("div");
+  node.className = "lm-menu";
+  node.setAttribute("role", "menu");
+  node.innerHTML = [
+    menuItem("Open profile", { act: "open" }),
+    '<div class="lm-menu-sep"></div>',
+    menuItem(lead.qualified ? "Remove from qualified" : "Mark qualified",
+             { act: "qualify", checked: !!lead.qualified }),
+    '<div class="lm-menu-label">Status</div>',
+    LEAD_STATUSES.map((s) => menuItem(s, {
+      act: "status", arg: s, checked: s === lead.status, indent: true,
+    })).join(""),
+    '<div class="lm-menu-label">Outreach</div>',
+    [["email", "Email sent"], ["phone", "Phone called"], ["video", "Video made"]]
+      .map(([field, label]) => menuItem(label, {
+        act: "outreach", arg: field, checked: !!lead[OUTREACH_KEY[field]], indent: true,
+      })).join(""),
+    '<div class="lm-menu-label">Folder</div>',
+    folders.length
+      ? folders.map((f) => menuItem(f.name, {
+          act: "folder", arg: f.id, checked: lead.folder_id === f.id, indent: true,
+        })).join("")
+      : '<div class="lm-menu-note">No folders yet — make one on Projects.</div>',
+    lead.folder_id
+      ? menuItem("Remove from folder", { act: "folder", arg: "", indent: true })
+      : "",
+    '<div class="lm-menu-sep"></div>',
+    menuItem("Delete lead", { act: "delete", danger: true }),
+  ].join("");
+
+  document.body.appendChild(node);
+
+  // Under the button, flipped above it when there is no room below, and
+  // clamped to the viewport either way. The menu is tall enough to run off
+  // the bottom of the screen from most rows, and a flip alone does not save
+  // it -- from a row in the middle of a long list neither side fits, so the
+  // last step is what actually keeps it on screen.
+  const rect = button.getBoundingClientRect();
+  const height = node.offsetHeight;
+  const gap = 6;
+
+  node.style.left = Math.max(8, Math.min(rect.right - node.offsetWidth,
+                                         window.innerWidth - node.offsetWidth - 8)) + "px";
+
+  let top = rect.bottom + gap;
+  if (top + height > window.innerHeight - 8) top = rect.top - height - gap;
+  top = Math.max(8, Math.min(top, window.innerHeight - height - 8));
+  node.style.top = top + "px";
+
+  button.setAttribute("aria-expanded", "true");
+  openMenu = { node, button };
+
+  node.querySelectorAll(".lm-menu-item").forEach((item) => {
+    item.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await runRowAction(item.dataset.act, item.dataset.arg, lead, row, handlers);
+    });
+  });
+}
+
+async function runRowAction(act, arg, lead, row, handlers) {
+  const changed = () => handlers.onChanged && handlers.onChanged(lead);
+
+  if (act === "open") {
+    window.location.href = `/studio/leads/${lead.id}`;
+    return;
+  }
+
+  if (act === "delete") {
+    // Leads are not soft-deleted, so this one asks first.
+    if (!confirm(`Delete ${lead.address || "this lead"}? This cannot be undone.`)) return;
+    closeRowMenu();
+    await fetchJSON(`/studio/api/leads/${lead.id}`, { method: "DELETE" });
+    if (handlers.onDeleted) handlers.onDeleted(lead);
+    else row.remove();
+    return;
+  }
+
+  try {
+    if (act === "qualify") {
+      Object.assign(lead, await fetchJSON(`/studio/api/leads/${lead.id}/qualify`,
+                                          { method: "PATCH" }));
+    } else if (act === "status") {
+      Object.assign(lead, await fetchJSON(`/studio/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: arg }),
+      }));
+    } else if (act === "outreach") {
+      Object.assign(lead, await fetchJSON(`/studio/api/leads/${lead.id}/outreach`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: arg }),
+      }));
+    } else if (act === "folder") {
+      await fetchJSON("/studio/api/folders/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead_ids: [lead.id], folder_id: arg ? Number(arg) : null }),
+      });
+      lead.folder_id = arg ? Number(arg) : null;
+      // The counts on the folder list are now stale.
+      folderCache = null;
+    }
+  } catch (err) {
+    alert(err.message || "That didn't work.");
+    return;
+  }
+
+  closeRowMenu();
+  // Redraw the row in place, so its marks match what was just changed even
+  // when the page has no onChanged of its own.
+  const fresh = document.createElement("div");
+  fresh.innerHTML = leadRowHtml(lead);
+  const next = wireLeadRow(fresh.firstElementChild, lead, handlers);
+  row.replaceWith(next);
+  changed();
 }
 
 function buildLeadRow(lead, handlers = {}) {
