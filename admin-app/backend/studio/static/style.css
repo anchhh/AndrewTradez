@@ -3688,12 +3688,37 @@ gmp-map-3d {
 
 
 /* ---------- past Scenery runs ---------- */
-.scn-past { margin-bottom: 18px; }
+
+/* The entry point is one button in the header; the runs themselves live in a
+   picker built on the lead modal, so there is one kind of modal on this page
+   rather than two. */
+.scn-past-badge {
+  display: inline-block;
+  min-width: 17px;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.scn-past-badge:empty { display: none; }
+
+#scn-past-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
 .scn-past-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
+  overflow-y: auto;
+  /* Cards are fixed height, so a long list scrolls rather than stretching the
+     modal past the viewport. */
+  align-content: start;
 }
+.scn-past-list > * { flex: 0 0 auto; }
 .scn-past-card {
   display: flex;
   flex-direction: column;

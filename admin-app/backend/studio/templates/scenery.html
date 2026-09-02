@@ -15,19 +15,10 @@
       <h1 class="page-title">Scenery</h1>
       <p class="sub">Furnish a room that's empty, or restyle one that isn't. Same photos you already captured — a different room, not a different house.</p>
     </div>
+    <button type="button" id="scn-past-open" class="cta-btn cta-btn-sm" hidden>
+      See projects <span id="scn-past-count" class="scn-past-badge"></span>
+    </button>
   </header>
-
-  <section class="card scn-past" id="scn-past" hidden>
-    <div class="lp-panel-head">
-      <h2>Pick up where you left off</h2>
-      <button type="button" class="btn-secondary btn-tiny" id="scn-past-toggle">Hide</button>
-    </div>
-    <p class="hint">
-      Rooms you've already staged. Opening one takes you straight to the results —
-      switching between the looks it holds is instant and costs nothing.
-    </p>
-    <div id="scn-past-list" class="scn-past-list"></div>
-  </section>
 
   <ol class="steps" id="steps">
     <li class="step is-current" data-step="1"><span class="step-num">1</span><span class="step-label">Listing</span></li>
@@ -194,6 +185,28 @@
       <button type="button" id="scn-restage" class="btn-send" hidden>Restage</button>
     </div>
   </section>
+</div>
+
+<div id="scn-past-modal" class="lead-modal hidden" aria-hidden="true">
+  <div class="lead-modal-backdrop" data-close></div>
+  <div class="lead-modal-panel" role="dialog" aria-modal="true"
+       aria-labelledby="scn-past-title">
+    <header class="lead-modal-head">
+      <h2 id="scn-past-title">Pick up where you left off</h2>
+      <button type="button" class="lead-modal-x" data-close aria-label="Close">&times;</button>
+    </header>
+    <p class="hint">
+      Rooms you've already staged. Opening one goes straight to the results —
+      switching between the looks it holds is instant and costs nothing.
+    </p>
+    <input id="scn-past-search" type="search" autocomplete="off"
+           placeholder="Search by address…">
+    <p id="scn-past-total" class="lead-modal-count"></p>
+    <div id="scn-past-list" class="scn-past-list"></div>
+    <p id="scn-past-empty" class="empty-note hidden">
+      No staged rooms match that search.
+    </p>
+  </div>
 </div>
 
 <div id="lead-modal" class="lead-modal hidden" aria-hidden="true">

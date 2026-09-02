@@ -1042,23 +1042,40 @@ function openPastProject(project) {
   goToStep(3);
 }
 
-function renderPast(projects) {
-  const box = el("scn-past");
+let pastRuns = [];
+
+function pastMatches(run, query) {
+  if (!query) return true;
+  // Address is what anyone searches by; the name carries it too, and the
+  // room labels let "kitchen" find the run that has one.
+  const hay = [
+    run.address, run.name,
+    ...(run.scenes || []).map((s) => s.label),
+  ].filter(Boolean).join(" ").toLowerCase();
+  return query.toLowerCase().split(/\s+/).every((bit) => hay.includes(bit));
+}
+
+function renderPastList() {
   const list = el("scn-past-list");
-  if (!box || !list) return;
+  const total = el("scn-past-total");
+  const empty = el("scn-past-empty");
+  if (!list) return;
 
-  const runs = [...projects].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-  if (!runs.length) {
-    box.hidden = true;
-    return;
+  const query = (el("scn-past-search").value || "").trim();
+  const shown = pastRuns.filter((run) => pastMatches(run, query));
+
+  if (total) {
+    total.textContent = query
+      ? `${shown.length} of ${pastRuns.length} shown`
+      : `${pastRuns.length} saved run${pastRuns.length === 1 ? "" : "s"}`;
   }
-  box.hidden = false;
+  if (empty) empty.classList.toggle("hidden", shown.length > 0);
 
-  list.innerHTML = runs.map((run, i) => {
+  list.innerHTML = shown.map((run) => {
     const scenes = (run.scenes || []).filter((s) => s.before && s.after);
     const rooms = new Set(scenes.map((s) => s.before)).size;
     return `
-      <button type="button" class="scn-past-card" data-run="${i}">
+      <button type="button" class="scn-past-card" data-id="${escapeHtml(run.id)}">
         <span class="scn-past-shots">
           ${scenes.slice(0, 4).map((s) => `
             <img src="${escapeHtml(s.after)}" alt="" loading="lazy">`).join("")}
@@ -1074,20 +1091,58 @@ function renderPast(projects) {
   }).join("");
 
   list.querySelectorAll(".scn-past-card").forEach((card) => {
-    card.addEventListener("click", () => openPastProject(runs[Number(card.dataset.run)]));
+    card.addEventListener("click", () => {
+      const run = pastRuns.find((r) => String(r.id) === card.dataset.id);
+      if (!run) return;
+      closePastModal();
+      openPastProject(run);
+    });
   });
 }
 
-const pastToggle = el("scn-past-toggle");
-if (pastToggle) {
-  pastToggle.addEventListener("click", () => {
-    const list = el("scn-past-list");
-    const hidden = list.hasAttribute("hidden");
-    if (hidden) list.removeAttribute("hidden");
-    else list.setAttribute("hidden", "");
-    pastToggle.textContent = hidden ? "Hide" : "Show";
-  });
+function openPastModal() {
+  const box = el("scn-past-modal");
+  box.classList.remove("hidden");
+  box.setAttribute("aria-hidden", "false");
+  const search = el("scn-past-search");
+  search.value = "";
+  renderPastList();
+  search.focus();
 }
+
+function closePastModal() {
+  const box = el("scn-past-modal");
+  box.classList.add("hidden");
+  box.setAttribute("aria-hidden", "true");
+}
+
+function renderPast(projects) {
+  pastRuns = [...projects]
+    .filter((p) => (p.scenes || []).some((s) => s.before && s.after))
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+
+  const open = el("scn-past-open");
+  if (!open) return;
+  // No button at all until there is something behind it: an entry point to an
+  // empty list is worse than no entry point.
+  open.hidden = pastRuns.length === 0;
+  const badge = el("scn-past-count");
+  if (badge) badge.textContent = pastRuns.length ? String(pastRuns.length) : "";
+}
+
+(function initPastModal() {
+  const box = el("scn-past-modal");
+  const open = el("scn-past-open");
+  if (!box || !open) return;
+
+  open.addEventListener("click", openPastModal);
+  box.querySelectorAll("[data-close]").forEach((node) =>
+    node.addEventListener("click", closePastModal));
+  el("scn-past-search").addEventListener("input", renderPastList);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !box.classList.contains("hidden")) closePastModal();
+  });
+})();
 
 fetch("/studio/api/projects")
   .then((r) => r.json())
