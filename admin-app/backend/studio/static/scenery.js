@@ -970,3 +970,126 @@ async function retryRoom(photo, styleKey) {
     return;
   }
 }
+
+
+/* ---------- past runs ----------
+
+   Scenery was write-only from its own page: every visit started at step 1
+   with an empty wizard, and the way back to work already done was the lead
+   profile or the dashboard. Opening one here rebuilds the results view from
+   what was saved -- the same panels the run ended on, because the images
+   already exist and looking at them should cost nothing.
+
+   Nothing here regenerates. What is offered is what was made. */
+
+function pastWhen(project) {
+  const seconds = project.created_at || project.updated_at;
+  if (!seconds) return "";
+  const then = new Date(seconds * 1000);
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return days + " days ago";
+  return then.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/* A saved run, back into the shape the wizard works in. The scenes carry
+   everything needed: the original is the room, and each style that was made
+   for it becomes one of its variants. */
+function openPastProject(project) {
+  const scenes = (project.scenes || []).filter((s) => s.before && s.after);
+  if (!scenes.length) return;
+
+  state.leadId = project.lead_id ?? null;
+  state.address = project.address || project.name || null;
+  state.photos = [];
+  state.selected = new Set();
+  state.staged = {};
+  state.styles = {};
+  state.warnings = {};
+  state.roomState = {};
+  state.projectId = project.id;
+
+  scenes.forEach((scene) => {
+    if (!state.staged[scene.before]) {
+      state.photos.push({
+        url: scene.before,
+        room: null,
+        label: scene.label || "Room",
+        order: state.photos.length,
+      });
+      state.selected.add(scene.before);
+      state.staged[scene.before] = {};
+      // The first style made for a room is what it opens on; the rest are a
+      // click away on the panel.
+      state.styles[scene.before] = scene.style;
+    }
+    state.staged[scene.before][scene.style] = scene.after;
+    state.roomState[scene.before] = "completed";
+  });
+
+  const done = el("scn-done");
+  if (done) {
+    const n = scenes.length;
+    done.innerHTML = `
+      <div class="scn-run scn-run-done">
+        <strong>${escapeHtml(state.address || "Saved run")}.</strong>
+        ${n} image${n === 1 ? "" : "s"} staged ${escapeHtml(pastWhen(project))}.
+        Nothing here is being regenerated.
+      </div>`;
+  }
+
+  goToStep(3);
+}
+
+function renderPast(projects) {
+  const box = el("scn-past");
+  const list = el("scn-past-list");
+  if (!box || !list) return;
+
+  const runs = [...projects].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  if (!runs.length) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+
+  list.innerHTML = runs.map((run, i) => {
+    const scenes = (run.scenes || []).filter((s) => s.before && s.after);
+    const rooms = new Set(scenes.map((s) => s.before)).size;
+    return `
+      <button type="button" class="scn-past-card" data-run="${i}">
+        <span class="scn-past-shots">
+          ${scenes.slice(0, 4).map((s) => `
+            <img src="${escapeHtml(s.after)}" alt="" loading="lazy">`).join("")}
+        </span>
+        <span class="scn-past-meta">
+          <span class="scn-past-name">${escapeHtml(run.address || run.name || "Staged rooms")}</span>
+          <span class="scn-past-sub">
+            ${rooms} room${rooms === 1 ? "" : "s"} · ${scenes.length} image${scenes.length === 1 ? "" : "s"}
+            · ${escapeHtml(pastWhen(run))}
+          </span>
+        </span>
+      </button>`;
+  }).join("");
+
+  list.querySelectorAll(".scn-past-card").forEach((card) => {
+    card.addEventListener("click", () => openPastProject(runs[Number(card.dataset.run)]));
+  });
+}
+
+const pastToggle = el("scn-past-toggle");
+if (pastToggle) {
+  pastToggle.addEventListener("click", () => {
+    const list = el("scn-past-list");
+    const hidden = list.hasAttribute("hidden");
+    if (hidden) list.removeAttribute("hidden");
+    else list.setAttribute("hidden", "");
+    pastToggle.textContent = hidden ? "Hide" : "Show";
+  });
+}
+
+fetch("/studio/api/projects")
+  .then((r) => r.json())
+  .then((projects) => renderPast((projects || []).filter((p) => p.kind === "scenery")))
+  .catch(() => {});
