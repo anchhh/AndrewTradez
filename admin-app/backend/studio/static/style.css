@@ -4056,6 +4056,51 @@ gmp-map-3d {
 
 
 /* ---------- sending clips to CapCut ---------- */
+
+/* The button wears CapCut's own mark and typeface, both served from the local
+   installation rather than shipped here -- see services/capcut.py BRAND.
+   font-display: swap so the label is readable immediately, and so a machine
+   without CapCut installed simply keeps the fallback face instead of waiting
+   on a font that will 404. The mark is a background-image for the same
+   reason: it fails to nothing rather than to a broken-image glyph. */
+@font-face {
+  font-family: "CapCut Sans Text";
+  src: url("/studio/capcut-asset/font") format("opentype");
+  font-weight: 500;
+  font-display: swap;
+}
+
+.btn-capcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+  color: #0f0f0f;
+  border: 1px solid var(--line);
+  font-family: "CapCut Sans Text", "Segoe UI", system-ui, sans-serif;
+  font-weight: 500;
+  /* CapCut's face runs a shade wide; a little negative tracking keeps the
+     button the same width as the one beside it. */
+  letter-spacing: -0.01em;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-capcut::before {
+  content: "";
+  flex: 0 0 auto;
+  /* Sized to the label's cap height rather than its font-size, so the mark
+     sits level with the text instead of reading as a small icon beside it. */
+  width: 16px;
+  height: 16px;
+  background: url("/studio/capcut-asset/logo") center / contain no-repeat;
+}
+
+.btn-capcut:hover {
+  background: #fff;
+  border-color: #0f0f0f;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+}
+
 .cc-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; margin-top: 12px; }
 .cc-row {
   display: grid;

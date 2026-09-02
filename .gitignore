@@ -52,3 +52,8 @@ admin-app/backend/backups/
 VIDEO_PROMPTS.txt
 admin-app/backend/studio/_layout/
 admin-app/backend/studio/capcut.json
+
+# Probe pages: throwaway harnesses that render a real template or stylesheet
+# against stubbed data. They routinely inline assets (fonts, images) that must
+# not be redistributed from a public repo.
+admin-app/backend/studio/static/_*.html

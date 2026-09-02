@@ -293,3 +293,27 @@ def bundled_ffmpeg():
         return None
     candidate = os.path.join(os.path.dirname(exe), "ffmpeg.exe")
     return candidate if os.path.exists(candidate) else None
+
+
+# CapCut's own mark and brand font, read from the installation.
+#
+# Deliberately NOT copied into this repo. Both are ByteDance's -- the mark is
+# a trademark and CapCutSansText is a proprietary typeface -- and this repo is
+# public, so committing them would be redistributing them. Reading the copy
+# already licensed onto this machine is the same thing the drafts folder does.
+# If CapCut isn't installed there is simply no asset, and the button falls
+# back to plain text.
+BRAND = {
+    "logo": ("Resources", "logo_cc.png"),
+    "font": ("Resources", "Font", "SystemFont", "CapCutSansText-Medium.otf"),
+}
+
+
+def brand_asset(name):
+    """Absolute path to one of CapCut's own assets, or None."""
+    parts = BRAND.get(name)
+    exe = executable()
+    if not parts or not exe:
+        return None
+    path = os.path.join(os.path.dirname(exe), *parts)
+    return path if os.path.exists(path) else None

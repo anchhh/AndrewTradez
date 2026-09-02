@@ -31,7 +31,8 @@ from urllib.parse import urljoin, urlparse
 import requests
 from authlib.integrations.flask_client import OAuth
 from bs4 import BeautifulSoup
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+from flask import (Blueprint, jsonify, redirect, render_template, request,
+                   send_file, session, url_for)
 from PIL import Image
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -2306,6 +2307,22 @@ def api_video_layout():
         })
 
     return jsonify({"clips": out})
+
+
+@studio_bp.route("/capcut-asset/<name>")
+@login_required
+def capcut_asset(name):
+    """CapCut's own mark and brand font, served from the local installation.
+
+    Served rather than vendored: both are ByteDance's and this repo is public.
+    See services.capcut.BRAND. A missing asset is a 404 the CSS shrugs off.
+    """
+    from services import capcut
+
+    path = capcut.brand_asset(name)
+    if not path:
+        return jsonify({"error": "CapCut isn't installed."}), 404
+    return send_file(path, max_age=86400)
 
 
 @studio_bp.route("/api/video/capcut", methods=["POST"])

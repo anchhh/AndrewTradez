@@ -386,7 +386,7 @@ function renderVideo(project) {
         render${runs.length === 1 ? "" : "s"}. Rendered with
         ${escapeHtml(runs[0].model_label || "the video model")}.
       </p>
-      <button type="button" class="btn-secondary btn-tiny" id="lp-capcut">Open in CapCut</button>
+      <button type="button" class="btn-capcut btn-tiny" id="lp-capcut">Open in CapCut</button>
       <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">Open</a>
     </div>
     ${runs.map((run) => `
