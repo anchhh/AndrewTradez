@@ -421,6 +421,46 @@ function renderSetAll() {
   applyAll(res, (url, v) => { state.quality[url] = v; });
 }
 
+/* Adding more photos, from the bottom of the clip list.
+
+   The room grid is collapsed at the top of this step, which is fine when you
+   arrive and useless once you have scrolled past five clips -- the way back
+   to it was to scroll up and remember it was a dropdown. This opens it and
+   takes you there.
+
+   It says how many are left rather than just "add photos", because the
+   answer to "is it worth opening" is that number. */
+function renderAddMore() {
+  const box = el("rn-addmore");
+  if (!box) return;
+
+  const spare = state.available.filter((u) => !state.photos.includes(u)).length;
+  if (!state.available.length) {
+    box.innerHTML = "";
+    return;
+  }
+
+  box.innerHTML = spare
+    ? `<button type="button" class="rn-addmore-btn" id="rn-addmore-btn">
+         <span class="rn-addmore-plus" aria-hidden="true">+</span>
+         Add photos from this listing
+         <span class="rn-addmore-count">${spare} more</span>
+       </button>`
+    : `<p class="hint rn-addmore-none">Every photo from this listing is already a clip.</p>`;
+
+  const button = el("rn-addmore-btn");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    state.photosOpen = true;
+    renderPhotos();
+    renderClipMoves();
+    renderCost();
+    // Opening it silently above the fold would look like nothing happened.
+    const grid = el("rn-photos");
+    if (grid) grid.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 function renderClipMoves() {
   const box = el("rn-clip-moves");
   if (!box) return;
@@ -507,6 +547,8 @@ function renderClipMoves() {
       });
     });
   });
+
+  renderAddMore();
 }
 
 /* ---------- cost, stated before it is spent ---------- */
