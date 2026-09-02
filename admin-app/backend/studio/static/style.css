@@ -974,12 +974,32 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   white-space: nowrap;
 }
 
+/* Orange, like the mark in the logo. It is the one thing on the sidebar
+   that starts work rather than going somewhere, so it does not look like
+   the links under it. */
 .sidenav-cta {
   margin-bottom: 10px;
-  background: var(--ink);
-  color: var(--cream);
+  background: var(--accent);
+  color: #fff;
 }
-.sidenav-cta:hover { background: var(--accent); }
+.sidenav-cta:hover { background: #d94a1e; }
+
+/* The same button on a lead, carrying that listing into Create. */
+.lp-create {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.lp-create:hover { background: #d94a1e; }
 
 .sidenav-links { display: grid; gap: 2px; }
 

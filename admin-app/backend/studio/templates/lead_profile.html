@@ -83,6 +83,14 @@
     </section>
 
     <aside class="lp-side">
+      {# Carries this listing into Create, so its photos and address are
+         already there rather than being picked again. #}
+      <a class="lp-create" href="/studio/create?lead_id={{ lead_id }}">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor"
+                stroke-width="1.9" stroke-linecap="round"/></svg>
+        Create
+      </a>
       <div class="lp-panel">
         <div id="lp-checklist" class="lp-checklist"></div>
       </div>
