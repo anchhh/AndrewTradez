@@ -4329,10 +4329,65 @@ gmp-map-3d {
 .page-header-actions { display: flex; align-items: center; gap: 9px; }
 
 .vh-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-.vh-render {
+
+/* One card per home. The card is the border; the header and any runs inside
+   it are borderless, so a home with three renders still reads as one thing. */
+.vh-group {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--cream-soft);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.vh-group:hover { border-color: var(--accent); }
+.vh-group.is-open { background: #fff; }
+
+.vh-chev {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  display: flex;
+  transition: transform 0.18s ease;
+}
+.vh-group.is-open .vh-chev { transform: rotate(180deg); }
+
+.vh-runs {
+  display: grid;
+  gap: 2px;
+  padding: 0 8px 8px;
+}
+.vh-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream-soft);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.vh-run:hover { border-color: var(--accent); }
+.vh-run.is-running { border-color: var(--accent); background: #fdf3ef; }
+/* Numbered oldest-to-newest as they were made, so "the second one I tried"
+   is findable -- the list itself is newest first. */
+.vh-run-n {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--line);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.vh-render {
+  border-radius: 10px;
+  background: none;
   overflow: hidden;
 }
 .vh-render {
@@ -4341,7 +4396,7 @@ gmp-map-3d {
   font: inherit;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
-.vh-render:hover { border-color: var(--accent); transform: translateY(-1px); }
+/* Hover now belongs to .vh-group, which is the card. */
 
 .vh-head {
   display: flex;
