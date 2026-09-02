@@ -163,6 +163,7 @@ class Lead(db.Model):
             "sqft": self.sqft,
             "property_type": self.property_type,
             "photo_urls": self.photo_urls,
+            "thumbnail_url": self.thumbnail_url,
             "brokerage": self.brokerage,
             "agent_name": self.agent_name,
             "agent_email": self.agent_email,

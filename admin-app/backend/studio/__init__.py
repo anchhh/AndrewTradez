@@ -1565,6 +1565,15 @@ def api_update_lead_status(lead_id):
             return jsonify({"error": "That doesn't look like an email address."}), 400
         lead.agent_email = email or None
 
+    # Which photo represents this lead on a card. Only one of the lead's own
+    # photos: this ends up rendered in the Lead Manager and the dashboard, so
+    # it is not a place to accept an arbitrary URL.
+    if "thumbnail_url" in data:
+        chosen = (data["thumbnail_url"] or "").strip()
+        if chosen and chosen not in (lead.photo_urls or []):
+            return jsonify({"error": "That photo doesn't belong to this lead."}), 400
+        lead.thumbnail_url = chosen or None
+
     # The finished video for this listing. Nothing in this app renders one
     # yet, so it is pasted in from wherever it was produced -- and it is
     # what makes the lead eligible for outreach, since the pitch is the video.

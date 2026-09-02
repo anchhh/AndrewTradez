@@ -114,7 +114,9 @@ function confidenceDetail(conf) {
 function outreachRow(item, kind) {
   const lead = item.lead;
   const conf = item.confidence;
-  const photo = (lead.photo_urls || [])[0];
+  // Same chosen thumbnail the Lead Manager uses -- one lead should not
+  // look like two different listings on two pages.
+  const photo = lead.thumbnail_url || (lead.photo_urls || [])[0];
   const place = [lead.city, lead.state].filter(Boolean).join(", ");
   const sub = [lead.agent_name, lead.brokerage || place].filter(Boolean).join(" · ");
   const hasWhy = (conf.supports || []).length || (conf.concerns || []).length;
