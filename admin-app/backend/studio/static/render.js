@@ -205,6 +205,14 @@ function renderPhotos() {
     ? included.slice(0, 5).join(", ") + (included.length > 5 ? ` +${included.length - 5} more` : "")
     : "nothing selected";
 
+  // The split matters here now: exterior clips are drone moves anchored to a
+  // rear photograph, interior ones are not, so which is which is worth saying
+  // while the grid is closed.
+  const chosenOutside = state.photos.filter(isExterior).length;
+  const split = state.photos.length
+    ? `${chosenOutside} exterior, ${state.photos.length - chosenOutside} interior`
+    : "";
+
   box.innerHTML = `
     <button type="button" class="rn-photos-head" id="rn-photos-toggle"
             aria-expanded="${state.photosOpen}" aria-controls="rn-grid">
@@ -214,7 +222,8 @@ function renderPhotos() {
           <strong>${state.photos.length}</strong> of ${state.available.length} photos
           — one clip each, in walkthrough order
         </span>
-        <span class="rn-photos-rooms">${escapeHtml(summary)}</span>
+        <span class="rn-photos-rooms">${escapeHtml(
+          split ? split + " — " + summary : summary)}</span>
       </span>
       <span class="btn-secondary btn-tiny" id="rn-clear" role="button">Clear</span>
     </button>
@@ -232,6 +241,36 @@ function renderPhotos() {
   });
 
   const grid = el("rn-grid");
+
+  // Two scopes, each holding its room sections. Same split as the clip list
+  // underneath, so what you tick and what you then set a move on are
+  // organised the same way rather than being two different orders.
+  const scopes = [
+    { key: "exterior", label: "Exterior", groups: [] },
+    { key: "interior", label: "Interior", groups: [] },
+  ];
+  groupedPhotos().forEach((group) => {
+    scopes[isExteriorRoom(group.key) ? 0 : 1].groups.push(group);
+  });
+
+  const hosts = {};
+  scopes.forEach((scope) => {
+    if (!scope.groups.length) return;
+    const photos = scope.groups.reduce((n, g) => n + g.photos.length, 0);
+    const on = scope.groups.reduce(
+      (n, g) => n + g.photos.filter((u) => state.photos.includes(u)).length, 0);
+
+    const wrap = document.createElement("section");
+    wrap.className = "photo-scope";
+    wrap.innerHTML = `
+      <div class="photo-scope-head">
+        <span class="photo-scope-label">${scope.label}</span>
+        <span class="photo-scope-count">${on}/${photos}</span>
+      </div>`;
+    grid.appendChild(wrap);
+    hosts[scope.key] = wrap;
+  });
+
   groupedPhotos().forEach((group) => {
     const on = group.photos.filter((u) => state.photos.includes(u)).length;
     const section = document.createElement("section");
@@ -260,7 +299,8 @@ function renderPhotos() {
       renderCost();
     });
 
-    grid.appendChild(section);
+    (hosts[isExteriorRoom(group.key) ? "exterior" : "interior"] || grid)
+      .appendChild(section);
   });
 
   const clear = el("rn-clear");
@@ -325,6 +365,10 @@ document.querySelectorAll(".style-card").forEach((card) => {
 function isExterior(url) {
   const room = (roomOf(url) || {}).room;
   return state.exteriorRooms.includes(room);
+}
+
+function isExteriorRoom(key) {
+  return state.exteriorRooms.includes(key);
 }
 
 function exteriorMoveOptions() {

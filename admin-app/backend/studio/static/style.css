@@ -3480,6 +3480,35 @@ gmp-map-3d {
 .photo-grid.is-grouped {
   display: block;   /* sections stack; each carries its own grid */
 }
+/* Exterior / Interior over the room sections, matching how the clip list
+   below is split and how the lead profile sorts the same photos. */
+.photo-scope + .photo-scope {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.photo-scope-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.photo-scope-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink);
+}
+.photo-scope-count {
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--line);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
 .photo-room { margin-bottom: 18px; }
 .photo-room:last-child { margin-bottom: 0; }
 .photo-room-head {
