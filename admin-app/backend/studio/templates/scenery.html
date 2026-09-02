@@ -199,8 +199,11 @@
       Rooms you've already staged. Opening one goes straight to the results —
       switching between the looks it holds is instant and costs nothing.
     </p>
-    <input id="scn-past-search" type="search" autocomplete="off"
+    <div class="search-field">
+      <svg class="search-field-icon" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8.75" cy="8.75" r="5.25"/><path d="M12.6 12.6 16.5 16.5"/></svg>
+      <input id="scn-past-search" type="search" autocomplete="off"
            placeholder="Search by address…">
+    </div>
     <p id="scn-past-total" class="lead-modal-count"></p>
     <div id="scn-past-list" class="scn-past-list"></div>
     <p id="scn-past-empty" class="empty-note hidden">
@@ -216,8 +219,11 @@
       <h2 id="lead-modal-title">Your leads</h2>
       <button type="button" class="lead-modal-x" data-close aria-label="Close">&times;</button>
     </header>
-    <input id="lead-search" type="search" autocomplete="off"
+    <div class="search-field">
+      <svg class="search-field-icon" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8.75" cy="8.75" r="5.25"/><path d="M12.6 12.6 16.5 16.5"/></svg>
+      <input id="lead-search" type="search" autocomplete="off"
            placeholder="Search address, agent, brokerage, city…">
+    </div>
     <div class="lm-filters lead-modal-filters">
       <label class="lm-filter">
         <span class="lm-filter-label">Qualification</span>
