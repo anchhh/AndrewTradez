@@ -60,19 +60,22 @@ function render() {
   const crumbs = el("pj-crumbs");
   crumbs.hidden = !folder;
   if (folder) {
+    // A real button rather than a breadcrumb link. The title changes to the
+    // folder name inside one, so without an obvious way out the page reads
+    // like the whole Projects page emptied itself.
     crumbs.innerHTML =
-      '<button type="button" class="pj-crumb" data-up="1">Projects</button>' +
+      '<button type="button" class="pj-back" data-up="1">' +
+      '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">' +
+      '<path d="M9.5 3.5 5 8l4.5 4.5" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      'Back to projects</button>' +
       '<span class="pj-crumb-sep">/</span>' +
       '<span class="pj-crumb is-current">' + escapeHtml(folder.name) + "</span>" +
       '<span class="pj-crumb-actions">' +
       '<button type="button" class="pj-linkbtn" id="pj-rename">Rename</button>' +
       '<button type="button" class="pj-linkbtn" id="pj-delete">Delete folder</button>' +
       "</span>";
-    crumbs.querySelector("[data-up]").addEventListener("click", () => {
-      openFolder = null;
-      selected.clear();
-      render();
-    });
+    crumbs.querySelector("[data-up]").addEventListener("click", leaveFolder);
     el("pj-rename").addEventListener("click", () => renameFolder(folder));
     el("pj-delete").addEventListener("click", () => deleteFolder(folder));
   }
@@ -97,6 +100,19 @@ function render() {
   wireTiles();
   renderSelection();
 }
+
+function leaveFolder() {
+  if (openFolder == null) return;
+  openFolder = null;
+  selected.clear();
+  render();
+}
+
+// Escape leaves a folder too, since going in was a click and going out
+// should not have to be aimed at.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") leaveFolder();
+});
 
 function folderTile(f) {
   return `
