@@ -2438,78 +2438,38 @@ def api_video_capcut():
     return jsonify(result), 201
 
 
-@studio_bp.route("/api/money", methods=["GET"])
+@studio_bp.route("/api/stats", methods=["GET"])
 @login_required
-def api_money():
-    """Revenue, spend and profit across every lead this user owns.
+def api_stats():
+    """The dashboard's numbers, for one period.
 
-    Computed here rather than in the dashboard so the cost rules live in one
-    place: priced per delivered clip at today's rates, exactly as the lead
-    profile's spend panel does it. Two implementations of that would drift,
-    and the pair that disagreed would both be showing dollars.
+    Everything is computed here rather than in the browser so that spend is
+    priced the same way it is on a lead profile. Two implementations of that
+    would drift, and the pair that disagreed would both be showing dollars.
     """
-    from models import Lead, VideoJob
+    from models import Lead, StagingJob, VideoJob
+    from services import stats
 
-    # all | 30d | 1d. Anything else is treated as all time rather than
-    # refused: a bad window should show more than the truth, never less.
-    window = (request.args.get("range") or "all").lower()
-    days = {"1d": 1, "30d": 30}.get(window)
-    since = None
-    if days:
-        # Rows are stored as naive UTC, so the cutoff has to be naive UTC too.
-        # A tz-aware cutoff raises rather than compares, and a LOCAL naive one
-        # would silently shift the window by the offset -- seven hours here,
-        # which is most of a "past day".
-        since = (datetime.now(timezone.utc) - timedelta(days=days)).replace(tzinfo=None)
+    owner = session["user_id"]
+    # An unrecognised window falls back to all time rather than erroring: a
+    # bad period should show more than the truth, never less.
+    window = (request.args.get("range") or "day").lower()
+    if window not in stats.RANGES:
+        window = "all"
 
-    leads = Lead.query.filter_by(owner_id=session["user_id"]).all()
-    sold = [l for l in leads if l.sold_amount
-            and (since is None or (l.sold_at and l.sold_at >= since))]
-    revenue = sum(l.sold_amount for l in sold)
-
-    # Every render this user has paid for, whether or not its lead sold --
-    # money spent on a listing that never closed is still money spent. Dated
-    # by when the render ran, so it falls in the same window as the sale.
-    spend = 0.0
-    for job in VideoJob.query.filter_by(owner_id=session["user_id"]).all():
-        if since is not None and (not job.created_at or job.created_at < since):
-            continue
-        for clip in job.clips or []:
-            if clip.get("video_url"):
-                spend += clip_cost(job, clip)
-
-    return jsonify({
-        "range": window if days else "all",
-        "revenue": round(revenue, 2),
-        "spend": round(spend, 2),
-        "profit": round(revenue - spend, 2),
-        "sold_count": len(sold),
-        "lead_count": len(leads),
-    })
+    return jsonify(stats.collect(
+        owner_id=owner,
+        window=window,
+        leads=Lead.query.filter_by(owner_id=owner).all(),
+        video_jobs=VideoJob.query.filter_by(owner_id=owner).all(),
+        staging_jobs=StagingJob.query.filter_by(owner_id=owner).all(),
+        projects=[p for p in load_projects() if p.get("owner") == owner],
+    ))
 
 
-def clip_cost(job, clip):
-    """What one delivered clip cost, at the current rate for its model.
-
-    Falls back to nothing rather than to a guess: an unknown model has no
-    rate, and inventing one would put a wrong number under a dollar sign.
-    """
-    from services.video import MODELS, estimate_cost
-
-    cfg = MODELS.get(job.model)
-    if not cfg:
-        return 0.0
-    # Rounded to cents HERE, at the clip, because the clip is the unit that
-    # gets billed. Rounding later instead lets the same money add up to two
-    # different totals -- summing raw and rounding once gave the dashboard
-    # $3.94 while the lead panel, rounding per render first, showed $3.92.
-    # Two figures in dollars that disagree are worse than either being a cent
-    # off, so everything downstream sums numbers that are already exact.
-    return round(estimate_cost(
-        clip.get("duration") or job.duration,
-        cfg,
-        clip.get("resolution") or job.resolution,
-    ), 2)
+# Spend arithmetic lives in services.video, where Scenery-style callers can
+# reach it too. Re-exported under the name the routes below already use.
+from services.video import clip_cost  # noqa: E402
 
 
 @studio_bp.route("/api/video/jobs", methods=["GET"])

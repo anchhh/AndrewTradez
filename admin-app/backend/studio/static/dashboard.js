@@ -32,15 +32,8 @@ async function loadDashboard() {
     if (p.lead_id != null) projectByLeadId.set(p.lead_id, p);
   });
 
-  document.getElementById("stat-active-projects").textContent =
-    (projects || []).filter((p) => (p.status || "draft") !== "completed").length;
-  document.getElementById("stat-hot-leads").textContent =
-    (leads || []).filter((l) => l.status === "responded").length;
-  document.getElementById("stat-projects-todo").textContent =
-    (leads || []).filter((l) => !projectByLeadId.has(l.id)).length;
-
-  wireMoneyRange();
-  renderMoney();
+  wireStatRange();
+  renderStats();
 
   container.innerHTML = "";
 
@@ -135,49 +128,81 @@ loadDailyChecklist();
    arithmetic in the browser would drift from the lead profile's. The server
    computes both figures in one place, /api/money. */
 
-let moneyRange = "all";
+let statRange = "day";
 
-function wireMoneyRange() {
+function wireStatRange() {
   const group = document.getElementById("stat-range");
   if (!group) return;
   group.querySelectorAll("button").forEach((btn) => {
     btn.addEventListener("click", () => {
-      moneyRange = btn.dataset.range;
+      statRange = btn.dataset.range;
       group.querySelectorAll("button").forEach((b) =>
         b.classList.toggle("is-on", b === btn));
-      renderMoney();
+      renderStats();
     });
   });
 }
 
-async function renderMoney() {
-  const value = document.getElementById("stat-revenue");
-  const sub = document.getElementById("stat-profit");
-  if (!value) return;
+const set = (id, text) => {
+  const node = document.getElementById(id);
+  if (node) node.textContent = text;
+};
+
+/* Whole dollars where the figure is a headline, cents where it is the
+   detail underneath -- cents in a large number are noise, and rounding in a
+   small one is a lie. */
+const dollars = (n) => "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const cents = (n) => "$" + n.toLocaleString("en-US", {
+  minimumFractionDigits: 2, maximumFractionDigits: 2,
+});
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+async function renderStats() {
+  let s;
   try {
-    const res = await fetch("/studio/api/money?range=" + encodeURIComponent(moneyRange));
+    const res = await fetch("/studio/api/stats?range=" + encodeURIComponent(statRange));
     if (!res.ok) throw new Error("unavailable");
-    const money = await res.json();
-
-    // Whole dollars in the headline -- cents in a figure this size are
-    // noise -- but exact to the cent underneath, where they are the point.
-    const cents = (n) => "$" + n.toLocaleString("en-US", {
-      minimumFractionDigits: 2, maximumFractionDigits: 2,
-    });
-
-    value.textContent = "$" + money.revenue.toLocaleString("en-US", {
-      maximumFractionDigits: 0,
-    });
-    // Spend is shown next to profit because profit alone cannot say whether
-    // a thin margin came from charging little or from rendering a lot.
-    // The window is named in the empty case, because "Nothing sold yet" on a
-    // one-day view would otherwise read as never having sold anything.
-    const period = { all: " yet", "30d": " in 30 days", "1d": " today" }[money.range] || "";
-    sub.textContent = money.sold_count
-      ? `${cents(money.profit)} profit after ${cents(money.spend)} rendering`
-      : `Nothing sold${period} · ${cents(money.spend)} spent rendering`;
+    s = await res.json();
   } catch (err) {
-    value.textContent = "—";
-    sub.textContent = "";
+    set("stat-revenue", "—");
+    return;
   }
+
+  const m = s.money, a = s.activity, p = s.pipeline;
+  set("stat-period-title", s.label);
+
+  set("stat-revenue", dollars(m.revenue));
+  // Profit is stated against the spend it came from: a margin alone cannot
+  // say whether it is thin because the work was cheap or the price was.
+  set("stat-profit", m.revenue || m.spend
+    ? `${cents(m.profit)} profit after ${cents(m.spend)} rendering`
+    : "Nothing spent or earned");
+
+  set("stat-deals", a.deals_closed);
+  set("stat-avg-deal", a.deals_closed ? `${cents(m.avg_deal)} average` : "");
+
+  set("stat-leads-added", a.leads_added);
+
+  const touches = a.emails_sent + a.calls_made + a.videos_sent;
+  set("stat-outreach", touches);
+  set("stat-outreach-detail", touches
+    ? [plural(a.emails_sent, "email", "emails"),
+       plural(a.calls_made, "call", "calls"),
+       plural(a.videos_sent, "video", "videos")].join(" · ")
+    : "No calls or emails logged");
+
+  set("stat-clips", a.clips_rendered);
+  // The headline is the clip count, so the detail carries the other kind of
+  // media rather than repeating it. Renders are named too: six clips from
+  // one render and six from six are different days' work.
+  set("stat-media-detail", [
+    plural(a.renders, "render", "renders"),
+    plural(a.rooms_staged, "room staged", "rooms staged"),
+  ].join(" · "));
+
+  set("stat-active-projects", p.active_projects);
+  set("stat-projects-todo", p.projects_todo);
+  set("stat-to-contact", p.to_contact);
+  set("stat-follow-up", p.to_follow_up);
+  set("stat-hot-leads", p.hot_leads);
 }

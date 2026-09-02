@@ -716,3 +716,34 @@ def verify_connection():
         "cost_5s_1080p": estimate_cost(5, cfg, "1080p"),
         "cost_5s_480p": estimate_cost(5, cfg, "480p"),
     }
+
+
+def clip_cost(job, clip):
+    """What one delivered clip cost, at the current rate for its model.
+
+    Lives here rather than in the route that first needed it, because spend
+    is now asked for from three places and three implementations of it would
+    drift. Rounded to cents at the clip, which is the unit that gets billed:
+    rounding later instead lets the same money add up to two different
+    totals depending on where the sum was taken.
+
+    Returns 0.0 for a model with no rate rather than guessing one -- a wrong
+    number under a dollar sign is worse than a missing one.
+    """
+    cfg = MODELS.get(job.model)
+    if not cfg:
+        return 0.0
+    return round(estimate_cost(
+        clip.get("duration") or job.duration,
+        cfg,
+        clip.get("resolution") or job.resolution,
+    ), 2)
+
+
+def job_spend(job):
+    """What a render actually cost: its DELIVERED clips only.
+
+    A clip that failed before producing a file is not money spent.
+    """
+    return round(sum(clip_cost(job, c) for c in (job.clips or [])
+                     if c.get("video_url")), 2)

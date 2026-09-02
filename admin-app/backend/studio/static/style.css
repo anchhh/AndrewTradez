@@ -617,7 +617,33 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .lm-stat-placeholder { color: var(--ink-soft); }
 
-/* Period switch on the revenue stat. A segmented control rather than a
+/* Page head: title on the left, period switch on the right. */
+.lm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.lm-head .page-title { margin-bottom: 0; }
+
+/* A heading over each band of stats, so a period figure is never read as a
+   current one. The note spells out the distinction for the second band. */
+.lm-block-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 26px 0 10px;
+  font-size: 0.95rem;
+}
+.lm-block-note {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+/* Period switch. A segmented control rather than a
    select: three options that are compared against each other read better
    side by side than folded behind a menu. */
 .lm-range {

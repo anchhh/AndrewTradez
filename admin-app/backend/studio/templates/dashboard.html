@@ -10,8 +10,47 @@
 <body>
 {% include "_nav.html" %}
 <div class="wrap wrap-wide lm-wrap">
-  <h1 class="page-title">Welcome, {{ display_name or 'back' }}</h1>
+  <div class="lm-head">
+    <h1 class="page-title">Welcome, {{ display_name or 'back' }}</h1>
+    <div class="lm-range" id="stat-range" role="group" aria-label="Period">
+      <button type="button" data-range="day" class="is-on">Today</button>
+      <button type="button" data-range="week">This week</button>
+      <button type="button" data-range="month">This month</button>
+      <button type="button" data-range="all">All time</button>
+    </div>
+  </div>
 
+  <h2 class="lm-block-title" id="stat-period-title">Today</h2>
+  <div class="lm-stats">
+    <div class="lm-stat lm-stat-money">
+      <div class="lm-stat-label">Revenue</div>
+      <div class="lm-stat-value" id="stat-revenue">—</div>
+      <div class="lm-stat-sub" id="stat-profit"></div>
+    </div>
+    <div class="lm-stat">
+      <div class="lm-stat-label">Deals closed</div>
+      <div class="lm-stat-value" id="stat-deals">—</div>
+      <div class="lm-stat-sub" id="stat-avg-deal"></div>
+    </div>
+    <div class="lm-stat">
+      <div class="lm-stat-label">Leads added</div>
+      <div class="lm-stat-value" id="stat-leads-added">—</div>
+    </div>
+    <div class="lm-stat">
+      <div class="lm-stat-label">Outreach</div>
+      <div class="lm-stat-value" id="stat-outreach">—</div>
+      <div class="lm-stat-sub" id="stat-outreach-detail"></div>
+    </div>
+    <div class="lm-stat">
+      <div class="lm-stat-label">Clips rendered</div>
+      <div class="lm-stat-value" id="stat-clips">—</div>
+      <div class="lm-stat-sub" id="stat-media-detail"></div>
+    </div>
+  </div>
+
+  <h2 class="lm-block-title">On your plate
+    <span class="lm-block-note">right now, whatever period is selected</span>
+  </h2>
   <div class="lm-stats">
     <div class="lm-stat">
       <div class="lm-stat-label">Active projects</div>
@@ -20,20 +59,22 @@
     <div class="lm-stat">
       <div class="lm-stat-label">Projects to do</div>
       <div class="lm-stat-value" id="stat-projects-todo">—</div>
+      <div class="lm-stat-sub">Qualified, no project started</div>
+    </div>
+    <div class="lm-stat">
+      <div class="lm-stat-label">To contact</div>
+      <div class="lm-stat-value" id="stat-to-contact">—</div>
+      <div class="lm-stat-sub">No outreach yet</div>
+    </div>
+    <div class="lm-stat">
+      <div class="lm-stat-label">Awaiting reply</div>
+      <div class="lm-stat-value" id="stat-follow-up">—</div>
+      <div class="lm-stat-sub">Contacted, no answer</div>
     </div>
     <div class="lm-stat">
       <div class="lm-stat-label">Hot leads</div>
       <div class="lm-stat-value" id="stat-hot-leads">—</div>
-    </div>
-    <div class="lm-stat lm-stat-money">
-      <div class="lm-stat-label">Revenue</div>
-      <div class="lm-range" id="stat-range" role="group" aria-label="Revenue period">
-        <button type="button" data-range="all" class="is-on">All time</button>
-        <button type="button" data-range="30d">30 days</button>
-        <button type="button" data-range="1d">Past day</button>
-      </div>
-      <div class="lm-stat-value" id="stat-revenue">—</div>
-      <div class="lm-stat-sub" id="stat-profit"></div>
+      <div class="lm-stat-sub">Replied to you</div>
     </div>
   </div>
 
