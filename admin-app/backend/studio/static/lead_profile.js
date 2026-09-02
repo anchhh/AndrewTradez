@@ -408,8 +408,12 @@ function renderVideo(project) {
       ${clips.map((clip, i) => `
         <button type="button" class="lp-video-thumb ${i === videoPlaying ? "is-on" : ""}"
                 data-i="${i}" title="${escapeHtml(videoClipLabel(clip))}">
-          <video src="${escapeHtml(clip.video_url)}#t=0.5" preload="metadata" muted></video>
-          <span class="lp-video-thumb-n">${i + 1}</span>
+          <span class="lp-video-thumb-frame">
+            <video src="${escapeHtml(clip.video_url)}#t=0.5" preload="metadata" muted></video>
+            <span class="lp-video-thumb-n">${i + 1}</span>
+          </span>
+          <span class="lp-video-thumb-room">${
+            escapeHtml(videoClipRoom(clip) || "Unsorted")}</span>
         </button>`).join("")}
     </div>`;
 
@@ -434,10 +438,18 @@ function videoClips() {
   return out;
 }
 
+/* Which room a clip shows, via the photo it was rendered from. The labels
+   are already on the lead from room sorting, so nothing new is computed --
+   an unsorted photo just has no room, which is a real state, not an error. */
+function videoClipRoom(clip) {
+  if (!clip.photo) return "";
+  return (((lead && lead.photo_rooms) || {})[clip.photo] || {}).label || "";
+}
+
 function videoClipLabel(clip) {
   const move = clip.move ? VIDEO_MOVE_NAMES[clip.move] || clip.move : "";
-  return [move, clip.duration ? clip.duration + "s" : "", clip.when]
-    .filter(Boolean).join(" · ");
+  return [videoClipRoom(clip), move, clip.duration ? clip.duration + "s" : "",
+          clip.when].filter(Boolean).join(" · ");
 }
 
 function renderVideoCaption() {
@@ -904,7 +916,10 @@ function allClips() {
   const out = [];
   videoRuns.forEach((run) => (run.clips || []).forEach((clip) => out.push({
     video_url: clip.video_url,
-    label: (VIDEO_MOVE_NAMES[clip.move] || clip.move || "clip"),
+    // Room first here too: ordering clips into a walkthrough is a question
+    // about rooms, and "Push in" three times over says nothing about which.
+    label: [videoClipRoom(clip), VIDEO_MOVE_NAMES[clip.move] || clip.move]
+      .filter(Boolean).join(" · ") || "clip",
     duration: clip.duration || 5,
     when: sceneryWhen(run),
   })));

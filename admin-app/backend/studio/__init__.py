@@ -2472,6 +2472,10 @@ def api_video_jobs():
             "clips": [
                 {
                     "video_url": c.get("video_url"),
+                    # The photo this clip was made from, so the page can name
+                    # the room without a second lookup -- the room labels are
+                    # already on the lead, keyed by photo url.
+                    "photo": c.get("photo"),
                     "move": c.get("move"),
                     "duration": c.get("duration") or job.duration,
                     "resolution": c.get("resolution") or job.resolution,

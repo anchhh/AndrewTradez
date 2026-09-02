@@ -4029,17 +4029,41 @@ gmp-map-3d {
 }
 
 .lp-video-thumb {
-  position: relative;
   flex: 0 0 110px;
   padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease;
+}
+
+/* The frame carries the border and the black, so the room label underneath
+   sits on the page rather than inside a black box. */
+.lp-video-thumb-frame {
+  position: relative;
+  display: block;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #000;
   overflow: hidden;
-  cursor: pointer;
   line-height: 0;
-  transition: border-color 0.15s ease, transform 0.1s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+.lp-video-thumb-room {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  /* One line: room names are short, but "Primary bedroom" in a 110px column
+     would otherwise reflow the whole strip. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .lp-video-thumb video {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -4049,10 +4073,14 @@ gmp-map-3d {
      both noisy and clickable in ways that fight the button around it. */
   pointer-events: none;
 }
-.lp-video-thumb:hover { border-color: var(--ink-soft); }
-.lp-video-thumb.is-on {
+.lp-video-thumb:hover .lp-video-thumb-frame { border-color: var(--ink-soft); }
+.lp-video-thumb.is-on .lp-video-thumb-frame {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(239, 90, 43, 0.25);
+}
+.lp-video-thumb.is-on .lp-video-thumb-room {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .lp-video-thumb-n {
