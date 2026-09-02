@@ -3067,6 +3067,16 @@ def api_video_generate():
                 return jsonify({"error": check["reason"]}), 400
             if check.get("anchor"):
                 spec["anchor"] = check["anchor"]
+            # The overhead view's findings travel with the spec. Only the
+            # geometry -- which way the building faces and how much land there
+            # is. What the satellite can see BEHIND the house is deliberately
+            # not carried: describing it is an instruction to draw it, and the
+            # only honest source for the far side is the rear photograph, which
+            # is already the clip's last frame.
+            spec["site"] = {
+                "front_faces": site_data.get("front_faces"),
+                "depth": site_data.get("depth"),
+            }
 
     # Anchor every clip we can. The browser shows this before you press the
     # button, but attaching it here means a render is never sent unanchored

@@ -395,6 +395,35 @@ function moveFor(url) {
   return current;
 }
 
+/* Where a clip ends, when it ends somewhere real. */
+function anchorFor(url) {
+  if (!isExterior(url) || moveFor(url) !== "flyover_front_to_back") return null;
+  const verdict = state.siteVerdicts[url];
+  if (verdict && verdict.anchor) return verdict.anchor;
+  // Before the site call lands, the rear photo is still the only place a
+  // flyover can end, so the list does not flicker while it is in flight.
+  return (state.site && state.site.rear) || null;
+}
+
+/* Photos consumed as the ENDING of another clip. A front-to-back flyover
+   already contains the rear photograph -- it is the last frame -- so
+   rendering it again as its own clip is the same picture twice and twice the
+   money. It stays visible on the flight it belongs to. */
+function anchorsInUse() {
+  const used = new Set();
+  state.photos.forEach((url) => {
+    const anchor = anchorFor(url);
+    if (anchor) used.add(anchor);
+  });
+  return used;
+}
+
+/* What actually gets rendered and billed. */
+function renderablePhotos() {
+  const used = anchorsInUse();
+  return state.photos.filter((url) => !used.has(url));
+}
+
 const LEVEL_MARK = { anchored: "✓", safe: "•", risky: "!" };
 const LEVEL_WORD = { anchored: "anchored", safe: "safe", risky: "would invent" };
 
@@ -439,7 +468,7 @@ async function fetchAdvice() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         lead_id: project.lead_id,
-        clips: state.photos.map((url) => ({
+        clips: renderablePhotos().map((url) => ({
           photo: url, move: state.moves[url] || state.defaultMove,
         })),
       }),
@@ -600,6 +629,7 @@ function renderClipMoves() {
     const label = roomOf(url).label;
     const outside = isExterior(url);
     const move = moveFor(url);
+    const anchor = anchorFor(url);
 
     const advice = outside ? null : state.advice[url];
     const rec = advice ? advice.recommended : null;
@@ -631,6 +661,13 @@ function renderClipMoves() {
         <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
         <div class="rn-clip-body">
           <span class="rn-clip-name">Clip ${i + 1}${label ? " · " + escapeHtml(label) : ""}</span>
+          ${anchor ? `
+            <span class="rn-ends-on">
+              <img src="${escapeHtml(anchor)}" alt="" loading="lazy">
+              ends on ${escapeHtml(roomOf(anchor).label || "the rear photo")}
+              ${state.photos.includes(anchor)
+                ? " — not rendered separately" : ""}
+            </span>` : ""}
           ${verdict ? `
             <span class="rn-verdict rn-verdict-${verdict.level}">
               ${LEVEL_WORD[verdict.level] || verdict.level}${
@@ -657,7 +694,15 @@ function renderClipMoves() {
 
   const outside = [];
   const inside = [];
-  state.photos.forEach((url, i) => (isExterior(url) ? outside : inside).push(rowFor(url, i)));
+  const consumed = anchorsInUse();
+  // Numbered over what will actually render, so "Clip 2" means the second
+  // clip rather than the second thing ticked.
+  let n = 0;
+  state.photos.forEach((url) => {
+    if (consumed.has(url)) return;
+    (isExterior(url) ? outside : inside).push(rowFor(url, n));
+    n += 1;
+  });
 
   const site = state.site;
   const siteNote = !outside.length ? "" : (
@@ -727,12 +772,15 @@ function rateFor(resolution) {
 }
 
 function renderCost() {
-  const n = state.photos.length;
-  const totalSeconds = state.photos.reduce(
+  // Anchors are excluded: a photo used as a flyover's last frame is not a
+  // second clip and must not be billed as one.
+  const billable = renderablePhotos();
+  const n = billable.length;
+  const totalSeconds = billable.reduce(
     (sum, url) => sum + (state.seconds[url] || state.defaultDuration), 0);
   // Per clip at that clip's own resolution: 1080p is about four times 480p,
   // so one blended rate across a mixed selection would be wrong every time.
-  const totalCost = state.photos.reduce((sum, url) =>
+  const totalCost = billable.reduce((sum, url) =>
     sum + (state.seconds[url] || state.defaultDuration)
         * rateFor(state.quality[url] || state.defaultResolution), 0);
   const go = el("rn-go");
@@ -760,7 +808,7 @@ function renderCost() {
   }
   // Video is metered, unlike Scenery. The number goes next to the button, not
   // further down the page, because this click is the one that spends.
-  const used = [...new Set(state.photos.map(
+  const used = [...new Set(billable.map(
     (url) => state.quality[url] || state.defaultResolution))];
   const rateNote = used.length === 1
     ? `$${rateFor(used[0]).toFixed(3)}/second at ${used[0]}`
@@ -773,7 +821,7 @@ function renderCost() {
     .filter((res) => rateFor(res) < rateFor(used[0] || state.defaultResolution))
     .sort((a, b) => rateFor(a) - rateFor(b))[0];
   const saving = cheapest
-    ? state.photos.reduce((sum, url) =>
+    ? billable.reduce((sum, url) =>
         sum + (state.seconds[url] || state.defaultDuration) * rateFor(cheapest), 0)
     : null;
 
@@ -853,7 +901,7 @@ async function startRender() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         // Clips rather than bare photos: each carries its own camera move.
-        clips: state.photos.map((url) => ({
+        clips: renderablePhotos().map((url) => ({
           photo: url,
           move: state.moves[url] || state.defaultMove,
           duration: state.seconds[url] || state.defaultDuration,

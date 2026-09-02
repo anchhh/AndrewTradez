@@ -489,12 +489,47 @@ def needs_anchor(key):
     return (key or "").strip().lower() in NEEDS_ANCHOR
 
 
-def exterior_prompt(move, cfg=None):
+def site_context(site):
+    """What the overhead view established, as one line of prompt.
+
+    Deliberately narrow. The satellite says which way the building faces and
+    how much land there is -- geometry, which makes a flight path sensible.
+    It does NOT go on to describe what is behind the house, however clearly
+    it can see it: "there is a park behind" is an instruction to draw a park,
+    and the only honest source for the far side of a building is a photograph
+    of the far side of that building.
+    """
+    if not site:
+        return ""
+
+    # Kept terse on purpose. The full exterior stack is already close to
+    # Kling's 2500-character ceiling, and a wordier version of this was simply
+    # dropped by the ladder -- present in the code, absent from every prompt.
+    # The "invent nothing" half is not repeated here; it is already in the
+    # prompt twice.
+    bits = []
+    faces = (site.get("front_faces") or "").strip().lower()
+    if faces and faces != "unknown":
+        bits.append("the front faces %s and the rear is directly opposite" % faces)
+
+    depth = (site.get("depth") or "").strip().lower()
+    if depth == "short":
+        bits.append("the plot is shallow, so keep the flight short")
+    elif depth == "long":
+        bits.append("the plot is deep, so travel steadily")
+
+    if not bits:
+        return ""
+    return "SITE, from an overhead view, for orientation only: %s." % "; ".join(bits)
+
+
+def exterior_prompt(move, cfg=None, site=None):
     """The full prompt for one exterior clip, bracketed like the interior one:
     constraint, movement, constraint."""
     key = (move or "").strip().lower()
     instruction = EXTERIOR_PROMPTS.get(key) or EXTERIOR_PROMPTS["approach_front"]
     limit = model_info(cfg).get("max_prompt", 2500)
+    context = site_context(site)
 
     # A ladder, shortening from the least load-bearing end. What never goes:
     # the opening constraint, a "never change" of some length, no-invention
@@ -503,8 +538,13 @@ def exterior_prompt(move, cfg=None):
     # move that most needs them.
     ladders = [
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE, EXT_NO_INVENTION, instruction,
-         EXT_TEMPORAL, EXT_LOOK, EXT_ONLY_THE_CAMERA, EXT_NO_INVENTION,
+         context, EXT_TEMPORAL, EXT_LOOK, EXT_ONLY_THE_CAMERA, EXT_NO_INVENTION,
          EXT_WHEN_UNSURE],
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+         instruction, context, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION,
+         EXT_WHEN_UNSURE],
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+         instruction, context, EXT_TEMPORAL, EXT_NO_INVENTION, EXT_WHEN_UNSURE],
         # The itemised list goes to the negative prompt; the ban stays.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
          instruction, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION,
@@ -516,7 +556,7 @@ def exterior_prompt(move, cfg=None):
          instruction, EXT_TEMPORAL, EXT_NO_INVENTION],
     ]
     for parts in ladders:
-        text = " ".join(parts)
+        text = " ".join(part for part in parts if part)
         if len(text) <= limit:
             return text
 
@@ -568,7 +608,7 @@ def negative_for(move=None):
     return EXT_NEGATIVE if is_exterior_move(move) else NEGATIVE_PROMPT
 
 
-def prompt_for_clip(move=None, style=None, cfg=None):
+def prompt_for_clip(move=None, style=None, cfg=None, site=None):
     """The full prompt for one clip.
 
     Order matters and is deliberate: the constraint leads, the movement sits
@@ -581,7 +621,7 @@ def prompt_for_clip(move=None, style=None, cfg=None):
     # Outside is a different constraint list and a different failure -- an
     # invented rear elevation rather than an invented door.
     if is_exterior_move(key):
-        return exterior_prompt(key, cfg)
+        return exterior_prompt(key, cfg, site=site)
 
     if key not in MOVE_PROMPTS:
         key = STYLE_DEFAULT_MOVE.get((style or "").strip().lower(), DEFAULT_MOVE)
@@ -795,7 +835,7 @@ def upload_image(path, cfg=None):
 # which then fails for having no content. Probe with an empty body instead --
 # that is rejected on the missing model field before anything is made.
 def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p",
-                last_image=None, generate_audio=False, **extra):
+                last_image=None, generate_audio=False, move=None, **extra):
     """Start a generation. Returns the prediction id to poll.
 
     Audio is off by default. The model will happily invent a soundtrack, it
@@ -804,6 +844,10 @@ def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p"
     `last_image` is worth knowing about: give it a second photo and the model
     generates the move between two real rooms, rather than animating one still.
     That is the difference between a slideshow with motion and a walkthrough.
+
+    `move` only picks the negative prompt -- it is NOT sent. It has to be a
+    named argument rather than riding in `extra`, which goes straight into the
+    payload: an unknown field there is a silent change to the request.
 
     `extra` passes anything else straight through (watermark, output_format,
     return_last_frame, ratio).
@@ -828,7 +872,9 @@ def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p"
         # is silently ignored -- the clip generates unanchored and invents.
         payload[info["last_frame"]] = last_image
     if info["negative"]:
-        payload["negative_prompt"] = NEGATIVE_PROMPT
+        # Scoped: telling a drone shot not to add cabinetry helps nobody, and
+        # the outdoor failures were sitting in a constant nothing referenced.
+        payload["negative_prompt"] = negative_for(move)
     payload.update({k: v for k, v in extra.items() if v is not None})
 
     try:

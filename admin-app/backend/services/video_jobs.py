@@ -118,11 +118,16 @@ def _run(app, job_id):
 
                     prediction_id = submit_clip(
                         image_url,
-                        prompt=job.prompt or prompt_for_clip(move=spec["move"], cfg=cfg),
+                        # The site facts ride on the spec, put there when the
+                        # render was submitted -- the worker has no lead and
+                        # should not be re-reading satellites mid-run.
+                        prompt=job.prompt or prompt_for_clip(
+                            move=spec["move"], cfg=cfg, site=spec.get("site")),
                         cfg=cfg,
                         duration=spec["duration"],
                         resolution=spec["resolution"],
                         last_image=last_url,
+                        move=spec["move"],
                     )
                     entry["prediction_id"] = prediction_id
                     job.clips = clips

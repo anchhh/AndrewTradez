@@ -524,6 +524,26 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .lm-menu-note { padding: 4px 9px 6px; font-size: 0.74rem; color: var(--ink-soft); }
 .lm-menu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 
+/* Where a flight ends, shown on the flight rather than as a second clip. */
+.rn-ends-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 3px 9px 3px 3px;
+  border-radius: 20px;
+  background: var(--cream);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+.rn-ends-on img {
+  width: 26px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
 /* Exterior / Interior on the shots step. */
 .rn-scope + .rn-scope { margin-top: 22px; }
 .rn-scope-head {
