@@ -209,10 +209,11 @@ class VideoJob(db.Model):
     resolution = db.Column(db.String(20), nullable=False, default="720p")
 
     photos_json = db.Column(db.Text, nullable=False, default="[]")
-    # One camera move per photo, parallel to photos_json. Its own list rather
-    # than folded into photos_json, because `photos` must stay a list of urls
-    # -- local_path_for and the clip count both rely on that.
-    moves_json = db.Column(db.Text, nullable=False, default="[]")
+    # One spec per photo, parallel to photos_json: {move, duration, resolution}.
+    # Its own list rather than folded into photos_json, because `photos` must
+    # stay a list of urls -- local_path_for and the clip count both rely on
+    # that. The job's own duration/resolution stay as the run's summary.
+    specs_json = db.Column(db.Text, nullable=False, default="[]")
     clips_json = db.Column(db.Text, nullable=False, default="[]")
 
     # The finished video. With one clip that is the clip itself; with several
@@ -234,12 +235,22 @@ class VideoJob(db.Model):
         self.photos_json = json.dumps(value or [])
 
     @property
-    def moves(self):
-        return json.loads(self.moves_json or "[]")
+    def specs(self):
+        return json.loads(self.specs_json or "[]")
 
-    @moves.setter
-    def moves(self, value):
-        self.moves_json = json.dumps(value or [])
+    @specs.setter
+    def specs(self, value):
+        self.specs_json = json.dumps(value or [])
+
+    def spec_for(self, index):
+        """The spec for one clip, falling back to the job's own settings."""
+        specs = self.specs
+        spec = specs[index] if index < len(specs) else {}
+        return {
+            "move": spec.get("move"),
+            "duration": spec.get("duration") or self.duration,
+            "resolution": spec.get("resolution") or self.resolution,
+        }
 
     @property
     def clips(self):
@@ -263,7 +274,7 @@ class VideoJob(db.Model):
             "resolution": self.resolution,
             "photos": self.photos,
             "clips": clips,
-            "moves": self.moves,
+            "specs": self.specs,
             "clips_done": done,
             # Photos is the real total: clips is appended to as they run,
             # so trusting its length reports "1 of 2" on a 3-photo job.

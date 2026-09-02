@@ -3700,7 +3700,8 @@ gmp-map-3d {
 .rn-clip-moves { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 18px; }
 .rn-clip-row {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
+  /* shot | name | the three controls, which sit together on the right */
+  grid-template-columns: 132px minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
   padding: 10px;
@@ -3708,6 +3709,42 @@ gmp-map-3d {
   border-radius: 10px;
   background: var(--cream-soft);
 }
+.rn-clip-controls { display: flex; gap: 8px; align-items: center; }
+
+/* One select style for the card and the set-all row, so a row of three reads
+   as one control rather than three borrowed ones. */
+.rn-select {
+  padding: 8px 30px 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--ink);
+  cursor: pointer;
+  appearance: none;
+  /* The chevron, drawn rather than shipped as an asset. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%234a453e' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rn-select:hover { border-color: #cdc0aa; }
+.rn-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(239, 90, 43, 0.14);
+}
+.rn-select-sm { font-size: 0.8rem; }
+
+.rn-setall {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 14px 0 4px;
+}
+.rn-setall-label { font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
 .rn-clip-shot {
   width: 100%;
   height: 92px;
@@ -3715,18 +3752,16 @@ gmp-map-3d {
   border-radius: 7px;
   display: block;
 }
-.rn-clip-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 7px;
-}
 .rn-clip-name { font-weight: 600; font-size: 0.88rem; }
-.rn-clip-move { font-size: 0.76rem; color: var(--accent); font-weight: 600; }
 
+@media (max-width: 820px) {
+  .rn-clip-row { grid-template-columns: 110px minmax(0, 1fr); }
+  .rn-clip-controls { grid-column: 1 / -1; flex-wrap: wrap; }
+}
 @media (max-width: 640px) {
   .rn-clip-row { grid-template-columns: 1fr; }
   .rn-clip-shot { height: 140px; }
+  .rn-select { flex: 1 1 120px; }
 }
 
 

@@ -25,8 +25,14 @@ const state = {
   available: [],     // every still in the project
   photos: [],        // the ones ticked, one clip each
   moves: {},         // {url: moveKey} -- the camera move for that clip
+  seconds: {},       // {url: length}      -- and how long it runs
+  quality: {},       // {url: resolution}  -- and at what size
   moveList: [],      // [{key, name, desc}] from the server
+  durationList: [],
+  resolutionList: [],
   defaultMove: "push_in",
+  defaultDuration: 5,
+  defaultResolution: "1080p",
   ratePerSecond: null,
   configured: false,
   job: null,
@@ -246,19 +252,50 @@ function moveName(key) {
   return found ? found.name : key;
 }
 
-function renderSetAll() {
-  const box = el("rn-setall");
-  if (!box) return;
-  box.innerHTML = state.moveList.map((m) => `
-    <button type="button" class="scn-room-style" data-move="${m.key}"
-            title="${escapeHtml(m.desc)}">${escapeHtml(m.name)}</button>`).join("");
+/* Three dropdowns rather than a row of nine buttons plus two fields. The
+   buttons were fine when a move was the only per-clip setting; with length and
+   resolution beside them the card turned into a wall of controls, and a
+   dropdown says the current value in the space one button used. */
+function fillSelect(select, options, placeholder) {
+  select.innerHTML = `<option value="">${placeholder}</option>` +
+    options.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join("");
+}
 
-  box.querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.photos.forEach((url) => { state.moves[url] = btn.dataset.move; });
+function moveOptions() {
+  return state.moveList.map((m) => ({ value: m.key, label: m.name }));
+}
+function durationOptions() {
+  return state.durationList.map((d) => ({ value: String(d), label: d + " seconds" }));
+}
+function resolutionOptions() {
+  return state.resolutionList.map((r) => ({ value: r, label: r }));
+}
+
+function renderSetAll() {
+  const move = el("rn-all-move");
+  const dur = el("rn-all-duration");
+  const res = el("rn-all-resolution");
+  if (!move) return;
+
+  fillSelect(move, moveOptions(), "Camera move…");
+  fillSelect(dur, durationOptions(), "Length…");
+  fillSelect(res, resolutionOptions(), "Resolution…");
+
+  // Applying to every clip, then resetting to the placeholder: this row is an
+  // action, not a value, and leaving it showing "8 seconds" would imply every
+  // clip still says that after one of them is changed.
+  const applyAll = (select, apply) => {
+    select.addEventListener("change", () => {
+      if (!select.value) return;
+      state.photos.forEach((url) => apply(url, select.value));
+      select.value = "";
       renderClipMoves();
+      renderCost();
     });
-  });
+  };
+  applyAll(move, (url, v) => { state.moves[url] = v; });
+  applyAll(dur, (url, v) => { state.seconds[url] = Number(v); });
+  applyAll(res, (url, v) => { state.quality[url] = v; });
 }
 
 function renderClipMoves() {
@@ -270,31 +307,43 @@ function renderClipMoves() {
     return;
   }
 
+  const pick = (options, current) => options.map((o) =>
+    `<option value="${escapeHtml(o.value)}"${String(o.value) === String(current) ? " selected" : ""}>` +
+    `${escapeHtml(o.label)}</option>`).join("");
+
   box.innerHTML = state.photos.map((url, i) => {
-    const active = state.moves[url] || state.defaultMove;
     const label = roomOf(url).label;
     return `
       <div class="rn-clip-row" data-url="${escapeHtml(url)}">
         <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
         <div class="rn-clip-body">
-          <div class="rn-clip-head">
-            <span class="rn-clip-name">Clip ${i + 1}${label ? " · " + escapeHtml(label) : ""}</span>
-            <span class="rn-clip-move">${escapeHtml(moveName(active))}</span>
-          </div>
-          <div class="scn-room-styles">
-            ${state.moveList.map((m) => `
-              <button type="button" class="scn-room-style ${m.key === active ? "is-active" : ""}"
-                      data-move="${m.key}" title="${escapeHtml(m.desc)}">${escapeHtml(m.name)}</button>`).join("")}
-          </div>
+          <span class="rn-clip-name">Clip ${i + 1}${label ? " · " + escapeHtml(label) : ""}</span>
+        </div>
+        <div class="rn-clip-controls">
+          <select class="rn-select" data-field="move" aria-label="Camera move">
+            ${pick(moveOptions(), state.moves[url] || state.defaultMove)}
+          </select>
+          <select class="rn-select rn-select-sm" data-field="duration" aria-label="Clip length">
+            ${pick(durationOptions(), state.seconds[url] || state.defaultDuration)}
+          </select>
+          <select class="rn-select rn-select-sm" data-field="resolution" aria-label="Resolution">
+            ${pick(resolutionOptions(), state.quality[url] || state.defaultResolution)}
+          </select>
         </div>
       </div>`;
   }).join("");
 
   box.querySelectorAll(".rn-clip-row").forEach((row) => {
-    row.querySelectorAll(".scn-room-style").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.moves[row.dataset.url] = btn.dataset.move;
-        renderClipMoves();
+    const url = row.dataset.url;
+    row.querySelectorAll("select").forEach((select) => {
+      select.addEventListener("change", () => {
+        const value = select.value;
+        if (select.dataset.field === "move") state.moves[url] = value;
+        if (select.dataset.field === "duration") state.seconds[url] = Number(value);
+        if (select.dataset.field === "resolution") state.quality[url] = value;
+        // No re-render: the select already shows the new value, and rebuilding
+        // would close the dropdown the user is still looking at.
+        renderCost();
       });
     });
   });
@@ -303,8 +352,9 @@ function renderClipMoves() {
 /* ---------- cost, stated before it is spent ---------- */
 
 function renderCost() {
-  const seconds = Number(el("rn-duration").value) || 5;
   const n = state.photos.length;
+  const totalSeconds = state.photos.reduce(
+    (sum, url) => sum + (state.seconds[url] || state.defaultDuration), 0);
   const go = el("rn-go");
   const note = el("rn-note");
 
@@ -328,12 +378,13 @@ function renderCost() {
     el("rn-cost").textContent = "";
     return;
   }
-  const total = n * seconds * state.ratePerSecond;
+  const total = totalSeconds * state.ratePerSecond;
   // Video is metered, unlike Scenery. The number goes next to the button, not
-  // further down the page, because this click is the one that spends.
+  // further down the page, because this click is the one that spends. Clips
+  // can differ in length, so it is total seconds rather than count x length.
   el("rn-cost").innerHTML =
-    `${n} clip${n === 1 ? "" : "s"} × ${seconds}s at $${state.ratePerSecond.toFixed(3)}/second ` +
-    `— about <strong>$${total.toFixed(2)}</strong>.`;
+    `${n} clip${n === 1 ? "" : "s"}, ${totalSeconds}s of footage ` +
+    `at $${state.ratePerSecond.toFixed(3)}/second — about <strong>$${total.toFixed(2)}</strong>.`;
 }
 
 /* ---------- the run ---------- */
@@ -367,7 +418,10 @@ function renderClipList(clips, total) {
       : clip.status === "failed" ? "failed"
       : "running";
     const label = { waiting: "Queued", running: "Rendering…", done: "Done", failed: "Failed" }[status];
-    const move = state.photos[i] ? moveName(state.moves[state.photos[i]] || state.defaultMove) : "";
+    const url = state.photos[i];
+    const move = url
+      ? `${moveName(state.moves[url] || state.defaultMove)} · ${state.seconds[url] || state.defaultDuration}s`
+      : "";
     return `<li class="scn-gen-row ${status === "done" ? "is-done" : ""}">
         <span class="scn-gen-room">Clip ${i + 1}${move ? " · " + escapeHtml(move) : ""}</span>
         <span class="scn-gen-nums">${label}</span>
@@ -377,7 +431,8 @@ function renderClipList(clips, total) {
 
 async function startRender() {
   if (state.polling) return;
-  const seconds = Number(el("rn-duration").value) || 5;
+  const totalSeconds = state.photos.reduce(
+    (sum, url) => sum + (state.seconds[url] || state.defaultDuration), 0);
 
   state.polling = true;
   state.startedAt = Date.now();
@@ -387,8 +442,8 @@ async function startRender() {
   markStep(3);
   el("rn-run-title").textContent = "Rendering your clips";
   el("rn-run-sub").textContent =
-    `${state.photos.length} clip${state.photos.length === 1 ? "" : "s"} at ` +
-    `${seconds}s each. Clips take a couple of minutes apiece.`;
+    `${state.photos.length} clip${state.photos.length === 1 ? "" : "s"}, ` +
+    `${totalSeconds}s of footage. Clips take a couple of minutes apiece.`;
   setProgress(0, state.photos.length);
   renderClipList([], state.photos.length);
 
@@ -402,10 +457,10 @@ async function startRender() {
         clips: state.photos.map((url) => ({
           photo: url,
           move: state.moves[url] || state.defaultMove,
+          duration: state.seconds[url] || state.defaultDuration,
+          resolution: state.quality[url] || state.defaultResolution,
         })),
         lead_id: project.lead_id || null,
-        duration: seconds,
-        resolution: el("rn-resolution").value,
       }),
     });
     data = await res.json();
@@ -531,8 +586,10 @@ async function init() {
       banner(status.config_error ||
         "The video generator isn't connected. Add an Atlas Cloud key to studio/atlascloud.json.");
     }
-    if (status.min_duration) el("rn-duration").min = status.min_duration;
-    if (status.max_duration) el("rn-duration").max = status.max_duration;
+    state.durationList = status.durations || [4, 5, 6, 8, 10, 12, 15, 20, 30];
+    state.resolutionList = status.resolutions || ["480p", "720p", "1080p"];
+    if (status.default_duration) state.defaultDuration = status.default_duration;
+    if (status.default_resolution) state.defaultResolution = status.default_resolution;
 
     state.moveList = status.moves || [];
     state.styleDefaults = status.style_default_move || {};
@@ -553,8 +610,6 @@ async function init() {
   renderCost();
 }
 
-el("rn-duration").addEventListener("input", renderCost);
-el("rn-resolution").addEventListener("change", renderCost);
 el("rn-go").addEventListener("click", startRender);
 el("rn-back").addEventListener("click", () => {
   window.location.href = `/studio/create?project=${project.id}`;

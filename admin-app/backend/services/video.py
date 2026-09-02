@@ -238,6 +238,17 @@ def _explain(resp):
 
 MIN_DURATION, MAX_DURATION = 4, 30
 
+# Offered per clip. Not every number between 4 and 30 -- a dropdown of
+# twenty-seven lengths is a worse control than one of eight.
+DURATION_CHOICES = [4, 5, 6, 8, 10, 12, 15, 20, 30]
+RESOLUTION_CHOICES = ["480p", "720p", "1080p"]
+
+# 1080p because these go in front of buyers, and five seconds because that is
+# a listing clip: long enough to read the room, short enough that six of them
+# is still under a minute.
+DEFAULT_DURATION = 5
+DEFAULT_RESOLUTION = "1080p"
+
 
 def estimate_cost(seconds, cfg=None):
     """Rough dollar cost of a clip, for warning before spending."""

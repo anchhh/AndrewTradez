@@ -2138,10 +2138,14 @@ def api_scenery_generate():
 def api_video_status():
     """Whether the generator is connected, and what a clip would cost."""
     from services.video import (
+        DEFAULT_DURATION,
+        DEFAULT_RESOLUTION,
+        DURATION_CHOICES,
         MAX_DURATION,
         MIN_DURATION,
         MOVES,
         REAL_ESTATE_PROMPT,
+        RESOLUTION_CHOICES,
         STYLE_DEFAULT_MOVE,
         estimate_cost,
         load_config,
@@ -2162,6 +2166,11 @@ def api_video_status():
         # the prompts can never drift apart.
         "moves": [{"key": k, "name": n, "desc": d} for k, n, d, _ in MOVES],
         "style_default_move": STYLE_DEFAULT_MOVE,
+        # What the per-clip dropdowns offer, and what they start on.
+        "durations": DURATION_CHOICES,
+        "resolutions": RESOLUTION_CHOICES,
+        "default_duration": DEFAULT_DURATION,
+        "default_resolution": DEFAULT_RESOLUTION,
         "busy": is_busy(),
     })
 
@@ -2209,9 +2218,12 @@ def api_video_generate():
     from flask import current_app
 
     from services.video import (
+        DEFAULT_DURATION,
+        DEFAULT_RESOLUTION,
         MAX_DURATION,
         MIN_DURATION,
         MOVE_PROMPTS,
+        RESOLUTION_CHOICES,
         estimate_cost,
         load_config,
     )
@@ -2228,32 +2240,53 @@ def api_video_generate():
     # Either a bare list of photos, or clips carrying a camera move each. The
     # render page sends the second; the first stays valid so a caller that does
     # not care about moves still works.
+    # A clip carries its own move, length and resolution -- different rooms
+    # want different lengths, and one setting for the whole render was the
+    # wrong grain for the same reason one camera move was.
+    fallback_duration = data.get("duration") or DEFAULT_DURATION
+    fallback_resolution = data.get("resolution") or DEFAULT_RESOLUTION
+
     incoming = data.get("clips")
+    specs = []
     if incoming:
         photos = [(c.get("photo") or "").strip() for c in incoming]
-        moves = [(c.get("move") or "").strip().lower() or None for c in incoming]
         if any(not photo for photo in photos):
             return jsonify({"error": "A clip arrived without a photo."}), 400
-        unknown = [m for m in moves if m and m not in MOVE_PROMPTS]
-        if unknown:
-            return jsonify({"error": "Unknown camera move: %s" % unknown[0]}), 400
+
+        for clip in incoming:
+            move = (clip.get("move") or "").strip().lower() or None
+            if move and move not in MOVE_PROMPTS:
+                return jsonify({"error": "Unknown camera move: %s" % move}), 400
+
+            try:
+                seconds = int(clip.get("duration") or fallback_duration)
+            except (TypeError, ValueError):
+                return jsonify({"error": "A clip's length must be a number."}), 400
+            if not MIN_DURATION <= seconds <= MAX_DURATION:
+                return jsonify({"error": "Clip length must be between %s and %s seconds."
+                                % (MIN_DURATION, MAX_DURATION)}), 400
+
+            res = (clip.get("resolution") or fallback_resolution).strip()
+            if res not in RESOLUTION_CHOICES:
+                return jsonify({"error": "Unknown resolution: %s" % res}), 400
+
+            specs.append({"move": move, "duration": seconds, "resolution": res})
     else:
         photos = [p for p in (data.get("photos") or []) if p]
-        moves = []
 
     if not photos:
         return jsonify({"error": "Pick at least one photo."}), 400
 
     try:
-        duration = int(data.get("duration") or 5)
+        duration = int(fallback_duration)
     except (TypeError, ValueError):
         return jsonify({"error": "Duration must be a number."}), 400
     if not MIN_DURATION <= duration <= MAX_DURATION:
         return jsonify({"error": "Duration must be between %s and %s seconds."
                         % (MIN_DURATION, MAX_DURATION)}), 400
 
-    resolution = (data.get("resolution") or "720p").strip()
-    if resolution not in ("480p", "720p", "1080p"):
+    resolution = str(fallback_resolution).strip()
+    if resolution not in RESOLUTION_CHOICES:
         return jsonify({"error": "Unknown resolution: %s" % resolution}), 400
 
     lead_id = data.get("lead_id")
@@ -2274,7 +2307,7 @@ def api_video_generate():
             # with no prompt at all -- an unguided clip is where the room starts
             # rearranging itself.
             prompt=(data.get("prompt") or "").strip() or None,
-            moves=moves,
+            specs=specs,
             duration=duration,
             resolution=resolution,
         )
@@ -2283,7 +2316,11 @@ def api_video_generate():
 
     return jsonify({
         "job": job.to_dict(),
-        "estimated_cost": round(estimate_cost(duration, cfg) * len(photos), 2),
+        "estimated_cost": round(
+            sum(estimate_cost(s["duration"], cfg) for s in specs)
+            if specs else estimate_cost(duration, cfg) * len(photos),
+            2,
+        ),
     }), 201
 
 

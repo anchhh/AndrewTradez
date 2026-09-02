@@ -53,28 +53,14 @@
 
     <div id="rn-photos" class="rn-photos"></div>
 
-    <div class="scn-applyall">
-      <span class="scn-applyall-label">Set every clip to</span>
-      <div id="rn-setall" class="scn-styles"></div>
+    <div class="rn-setall">
+      <span class="rn-setall-label">Set every clip to</span>
+      <select id="rn-all-move" class="rn-select"><option value="">Camera move…</option></select>
+      <select id="rn-all-duration" class="rn-select"><option value="">Length…</option></select>
+      <select id="rn-all-resolution" class="rn-select"><option value="">Resolution…</option></select>
     </div>
 
     <div id="rn-clip-moves" class="rn-clip-moves"></div>
-
-    <div class="rn-controls">
-      <label class="lp-field">
-        <span class="lp-field-label">Seconds per clip</span>
-        <input id="rn-duration" type="number" min="4" max="30" step="1" value="5">
-      </label>
-
-      <label class="lp-field">
-        <span class="lp-field-label">Resolution</span>
-        <select id="rn-resolution">
-          <option value="480p">480p — cheapest to test with</option>
-          <option value="720p" selected>720p</option>
-          <option value="1080p">1080p</option>
-        </select>
-      </label>
-    </div>
 
     <p class="rn-cost" id="rn-cost"></p>
 
