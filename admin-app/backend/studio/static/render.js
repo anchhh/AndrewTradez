@@ -638,12 +638,34 @@ async function openSavedJob(jobId) {
     if (!res.ok || !body.job) throw new Error(body.error || "That render is gone.");
     show("rn-setup", false);
     show("rn-running", false);
+
+    // Seed the shots step from what this render actually used, so going back
+    // to it offers the same setup rather than the defaults.
+    const specs = body.job.specs || [];
+    const clips = body.job.clips || [];
+    const used = [];
+    clips.forEach((clip, i) => {
+      const url = clip.photo;
+      if (!url || !state.available.includes(url)) return;
+      used.push(url);
+      const spec = specs[i] || {};
+      if (spec.move || clip.move) state.moves[url] = spec.move || clip.move;
+      if (spec.duration || clip.duration) state.seconds[url] = spec.duration || clip.duration;
+      if (spec.resolution || clip.resolution) state.quality[url] = spec.resolution || clip.resolution;
+    });
+    if (used.length) {
+      state.photos = walkthroughOrder().filter((u) => used.includes(u));
+      renderPhotos();
+      renderClipMoves();
+      renderCost();
+    }
+
     finish(body.job);
-    // "Render again" would have nothing to render from without a project, so
-    // it becomes the way back to a fresh run.
+    // Step 2 is reachable from here, so this is the same journey either way.
     const again = el("rn-again");
     if (again) {
-      again.textContent = project.id ? "Render again" : "New render";
+      again.textContent = state.available.length ? "Change shots and render again"
+                                                 : "New render";
     }
   } catch (err) {
     show("rn-setup", true);
@@ -715,23 +737,33 @@ el("rn-go").addEventListener("click", startRender);
 el("rn-back").addEventListener("click", () => {
   window.location.href = `/studio/create?project=${project.id}`;
 });
-el("rn-again").addEventListener("click", () => {
-  if (state.reopened && !project.id) {
+function backToShots() {
+  // Nothing to go back TO without photos -- that only happens when a saved
+  // render's lead has since lost them.
+  if (!state.available.length) {
     window.location.href = "/studio/create";
     return;
   }
   state.reopened = false;
   show("rn-results", false);
+  show("rn-running", false);
   show("rn-setup", true);
   markStep(2);
-});
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+el("rn-again").addEventListener("click", backToShots);
 // Backwards only, like Scenery's, and never mid-render.
 document.querySelectorAll("#steps .step").forEach((li) => {
   li.addEventListener("click", () => {
     if (state.polling) return;
-    if (Number(li.dataset.step) === 1) {
-      window.location.href = `/studio/create?project=${project.id}`;
+    const step = Number(li.dataset.step);
+    if (step === 1) {
+      window.location.href = project.id
+        ? `/studio/create?project=${project.id}`
+        : "/studio/create";
     }
+    if (step === 2) backToShots();
   });
 });
 

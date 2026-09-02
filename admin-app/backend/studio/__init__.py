@@ -1099,6 +1099,8 @@ def create_render():
     to render comes from the project, so arriving here without one is a
     redirect rather than an empty form.
     """
+    from extensions import db
+
     project_id = request.args.get("project")
     project = (
         next(
@@ -1117,9 +1119,29 @@ def create_render():
     if not project and not job_id:
         return redirect(url_for("studio.create"))
 
+    project = dict(project or {})
+
+    # Opening a saved render without a project: rebuild enough of one from the
+    # job's lead. Without this, going back to the shots step from a saved
+    # render lands on an empty picker -- the clips are on the job, but the
+    # photos they were made from are on the listing.
+    if not project and job_id:
+        from models import VideoJob
+
+        job = db.session.get(VideoJob, int(job_id)) if str(job_id).isdigit() else None
+        if job is not None and job.owner_id == session["user_id"] and job.lead_id:
+            lead = get_owned_lead(job.lead_id)
+            if lead is not None:
+                project = {
+                    "id": None,
+                    "lead_id": lead.id,
+                    "address": lead.address,
+                    "name": lead.address,
+                    "photos": lead.photo_urls or [],
+                }
+
     # Room labels, when this project came from a lead: they let the default
     # selection be one clip per room rather than six angles of one lounge.
-    project = dict(project or {})
     if project.get("lead_id"):
         lead = get_owned_lead(int(project["lead_id"]))
         if lead is not None:
