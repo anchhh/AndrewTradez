@@ -100,7 +100,8 @@
 
   </div>
 </div>
-<script>window.LEAD_ID = {{ lead_id }};</script>
+<script>window.LEAD_ID = {{ lead_id }};
+window.PACKAGES = {{ packages | tojson }};</script>
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='staged_rooms.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='lead_profile.js') }}"></script>

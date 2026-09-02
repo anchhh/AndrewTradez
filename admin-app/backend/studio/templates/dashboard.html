@@ -25,8 +25,13 @@
       <div class="lm-stat-label">Hot leads</div>
       <div class="lm-stat-value" id="stat-hot-leads">—</div>
     </div>
-    <div class="lm-stat">
+    <div class="lm-stat lm-stat-money">
       <div class="lm-stat-label">Revenue</div>
+      <div class="lm-range" id="stat-range" role="group" aria-label="Revenue period">
+        <button type="button" data-range="all" class="is-on">All time</button>
+        <button type="button" data-range="30d">30 days</button>
+        <button type="button" data-range="1d">Past day</button>
+      </div>
       <div class="lm-stat-value" id="stat-revenue">—</div>
       <div class="lm-stat-sub" id="stat-profit"></div>
     </div>

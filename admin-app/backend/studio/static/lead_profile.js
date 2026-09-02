@@ -886,37 +886,40 @@ function leadVideoSpend() {
   return videoRuns.reduce((n, r) => n + (r.cost || 0), 0);
 }
 
+function packageList() {
+  return window.PACKAGES || [];
+}
+
 function renderSold() {
   const box = el("lp-sold");
   if (!box) return;
 
   const spend = leadVideoSpend();
   const amount = lead.sold_amount;
+  const chosen = lead.sold_package;
 
+  // Picking, either because nothing is sold yet or because Change was hit.
   if (soldEditing || amount == null) {
     box.innerHTML = `
-      <label class="lp-sold-label" for="lp-sold-input">Paid by client</label>
-      <div class="lp-sold-edit">
-        <span class="lp-sold-currency">$</span>
-        <input type="text" inputmode="decimal" id="lp-sold-input"
-               class="lp-sold-input" placeholder="0.00"
-               value="${amount == null ? "" : amount}">
+      <p class="lp-sold-label">Which package?</p>
+      <div class="lp-pkg-list">
+        ${packageList().map((pkg) => `
+          <button type="button" class="lp-pkg ${pkg.key === chosen ? "is-on" : ""}"
+                  data-key="${escapeHtml(pkg.key)}">
+            <span class="lp-pkg-name">${escapeHtml(pkg.name)}</span>
+            <span class="lp-pkg-price">${money(pkg.price)}</span>
+          </button>`).join("")}
       </div>
-      <div class="lp-sold-actions">
-        <button type="button" class="btn-send btn-tiny" id="lp-sold-save">Save</button>
-        ${amount != null ? `
+      ${amount != null ? `
+        <div class="lp-sold-actions">
           <button type="button" class="btn-secondary btn-tiny" id="lp-sold-cancel">Cancel</button>
-          <button type="button" class="lp-sold-clear" id="lp-sold-clear">Not sold</button>` : ""}
-      </div>
+          <button type="button" class="lp-sold-clear" id="lp-sold-clear">Not sold</button>
+        </div>` : ""}
       <p id="lp-sold-note" class="lp-sold-note"></p>`;
 
-    const input = el("lp-sold-input");
-    input.focus();
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") saveSold(input.value);
-      if (e.key === "Escape" && amount != null) { soldEditing = false; renderSold(); }
+    box.querySelectorAll(".lp-pkg").forEach((btn) => {
+      btn.addEventListener("click", () => saveSold(btn.dataset.key));
     });
-    el("lp-sold-save").addEventListener("click", () => saveSold(input.value));
     if (amount != null) {
       el("lp-sold-cancel").addEventListener("click", () => {
         soldEditing = false;
@@ -930,7 +933,7 @@ function renderSold() {
   const profit = amount - spend;
   box.innerHTML = `
     <p class="lp-sold-total">${money(amount)}</p>
-    <p class="lp-sold-sub">Paid by client${
+    <p class="lp-sold-sub">${escapeHtml(packageName(chosen))}${
       lead.sold_at ? " · " + sceneryWhen({ created_at: Date.parse(lead.sold_at) / 1000 })
                    : ""}</p>
     <ul class="lp-spend-rows lp-sold-rows">
@@ -939,11 +942,19 @@ function renderSold() {
       <li class="lp-sold-profit"><span class="lp-spend-model">Profit</span>
           <span class="lp-spend-amt">${money(profit)}</span></li>
     </ul>
-    <button type="button" class="lp-sold-editbtn" id="lp-sold-edit">Edit</button>`;
+    <button type="button" class="lp-sold-editbtn" id="lp-sold-edit">Change</button>`;
   el("lp-sold-edit").addEventListener("click", () => {
     soldEditing = true;
     renderSold();
   });
+}
+
+/* The name as it was sold, falling back to the key: a package removed from
+   the list later should not blank out a sale that already happened. */
+function packageName(key) {
+  if (!key) return "Sold";
+  const pkg = packageList().find((p) => p.key === key);
+  return pkg ? pkg.name : key;
 }
 
 /* Thousands separators, and a leading minus outside the dollar sign rather
@@ -956,25 +967,26 @@ function money(n) {
   });
 }
 
-async function saveSold(raw) {
+/* `key` is a package key, or "" for not sold. The price is never sent -- the
+   server reads it off its own list, so what revenue counts cannot be set by
+   the page. */
+async function saveSold(key) {
   const note = el("lp-sold-note");
-  const btn = el("lp-sold-save");
-  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
   try {
     const res = await fetch(`/studio/api/leads/${lead.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sold_amount: raw }),
+      body: JSON.stringify({ sold_package: key }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "Couldn't save that.");
     lead.sold_amount = body.sold_amount;
     lead.sold_at = body.sold_at;
+    lead.sold_package = body.sold_package;
     soldEditing = false;
     renderSold();
   } catch (err) {
     if (note) note.textContent = err.message;
-    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
   }
 }
 

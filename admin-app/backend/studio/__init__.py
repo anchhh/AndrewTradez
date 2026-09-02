@@ -23,7 +23,7 @@ import re
 import secrets
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -1160,7 +1160,13 @@ def dashboard():
 @studio_bp.route("/leads/<int:lead_id>")
 @login_required
 def lead_profile(lead_id):
-    return render_template("lead_profile.html", lead_id=lead_id)
+    # The price list is handed to the page rather than fetched, so the panel
+    # has it on first paint and there is no moment where a sold lead shows
+    # nothing to click.
+    from services.packages import PACKAGES
+
+    return render_template("lead_profile.html", lead_id=lead_id,
+                           packages=PACKAGES)
 
 
 @studio_bp.route("/scenery")
@@ -1553,6 +1559,7 @@ def api_update_lead_status(lead_id):
                      "notes", "agent_email", "agent_name", "agent_phone", "brokerage",
                      "video_url")
     if ("status" not in data and "sold_amount" not in data
+            and "sold_package" not in data
             and not any(f in data for f in EDITABLE_TEXT)):
         return jsonify({"error": "Nothing to update."}), 400
 
@@ -1576,6 +1583,27 @@ def api_update_lead_status(lead_id):
             return jsonify({"error": "That photo doesn't belong to this lead."}), 400
         lead.thumbnail_url = chosen or None
 
+    # Which package was sold. The price comes from the server's own list and
+    # never from the request: a figure the browser can name is a figure the
+    # browser can get wrong, and this one is revenue.
+    if "sold_package" in data:
+        from services import packages
+
+        key = (data["sold_package"] or "").strip()
+        if not key:
+            lead.sold_package = None
+            lead.sold_amount = None
+            lead.sold_at = None
+        else:
+            price = packages.price_of(key)
+            if price is None:
+                return jsonify({"error": "No such package."}), 400
+            if lead.sold_at is None:
+                lead.sold_at = datetime.now(timezone.utc)
+            lead.sold_package = key
+            # Copied, not looked up later -- see services/packages.py.
+            lead.sold_amount = price
+
     # What the client paid for this listing's marketing. Empty clears it back
     # to unsold, which has to stay possible -- a figure typed into the wrong
     # lead is otherwise permanent.
@@ -1584,6 +1612,7 @@ def api_update_lead_status(lead_id):
         if raw is None or (isinstance(raw, str) and not raw.strip()):
             lead.sold_amount = None
             lead.sold_at = None
+            lead.sold_package = None
         else:
             try:
                 # Typed by hand, so tolerate what a person types: "$1,200".
@@ -2421,19 +2450,36 @@ def api_money():
     """
     from models import Lead, VideoJob
 
+    # all | 30d | 1d. Anything else is treated as all time rather than
+    # refused: a bad window should show more than the truth, never less.
+    window = (request.args.get("range") or "all").lower()
+    days = {"1d": 1, "30d": 30}.get(window)
+    since = None
+    if days:
+        # Rows are stored as naive UTC, so the cutoff has to be naive UTC too.
+        # A tz-aware cutoff raises rather than compares, and a LOCAL naive one
+        # would silently shift the window by the offset -- seven hours here,
+        # which is most of a "past day".
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).replace(tzinfo=None)
+
     leads = Lead.query.filter_by(owner_id=session["user_id"]).all()
-    sold = [l for l in leads if l.sold_amount]
+    sold = [l for l in leads if l.sold_amount
+            and (since is None or (l.sold_at and l.sold_at >= since))]
     revenue = sum(l.sold_amount for l in sold)
 
     # Every render this user has paid for, whether or not its lead sold --
-    # money spent on a listing that never closed is still money spent.
+    # money spent on a listing that never closed is still money spent. Dated
+    # by when the render ran, so it falls in the same window as the sale.
     spend = 0.0
     for job in VideoJob.query.filter_by(owner_id=session["user_id"]).all():
+        if since is not None and (not job.created_at or job.created_at < since):
+            continue
         for clip in job.clips or []:
             if clip.get("video_url"):
                 spend += clip_cost(job, clip)
 
     return jsonify({
+        "range": window if days else "all",
         "revenue": round(revenue, 2),
         "spend": round(spend, 2),
         "profit": round(revenue - spend, 2),

@@ -77,6 +77,10 @@ class Lead(db.Model):
     # reported as half a million dollars of income.
     sold_amount = db.Column(db.Float, nullable=True)
     sold_at = db.Column(db.DateTime, nullable=True)
+    # Which package was sold. The amount above is copied from the price list
+    # at the moment of sale and is the figure revenue uses -- repricing a
+    # package must not silently rewrite what past listings earned.
+    sold_package = db.Column(db.String(20), nullable=True)
 
     # Every lead captured (e.g. via the Chrome extension) lands on the
     # Lead Manager page first for sorting; only leads explicitly marked
@@ -188,6 +192,7 @@ class Lead(db.Model):
             "outreach_skipped": bool(self.outreach_skipped),
             "video_url": self.video_url,
             "sold_amount": self.sold_amount,
+            "sold_package": self.sold_package,
             "sold_at": (self.sold_at.replace(tzinfo=timezone.utc).isoformat()
                         if self.sold_at else None),
             "photo_rooms": self.photo_rooms,

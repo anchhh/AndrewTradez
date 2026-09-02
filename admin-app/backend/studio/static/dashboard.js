@@ -39,6 +39,7 @@ async function loadDashboard() {
   document.getElementById("stat-projects-todo").textContent =
     (leads || []).filter((l) => !projectByLeadId.has(l.id)).length;
 
+  wireMoneyRange();
   renderMoney();
 
   container.innerHTML = "";
@@ -134,12 +135,27 @@ loadDailyChecklist();
    arithmetic in the browser would drift from the lead profile's. The server
    computes both figures in one place, /api/money. */
 
+let moneyRange = "all";
+
+function wireMoneyRange() {
+  const group = document.getElementById("stat-range");
+  if (!group) return;
+  group.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      moneyRange = btn.dataset.range;
+      group.querySelectorAll("button").forEach((b) =>
+        b.classList.toggle("is-on", b === btn));
+      renderMoney();
+    });
+  });
+}
+
 async function renderMoney() {
   const value = document.getElementById("stat-revenue");
   const sub = document.getElementById("stat-profit");
   if (!value) return;
   try {
-    const res = await fetch("/studio/api/money");
+    const res = await fetch("/studio/api/money?range=" + encodeURIComponent(moneyRange));
     if (!res.ok) throw new Error("unavailable");
     const money = await res.json();
 
@@ -154,9 +170,12 @@ async function renderMoney() {
     });
     // Spend is shown next to profit because profit alone cannot say whether
     // a thin margin came from charging little or from rendering a lot.
+    // The window is named in the empty case, because "Nothing sold yet" on a
+    // one-day view would otherwise read as never having sold anything.
+    const period = { all: " yet", "30d": " in 30 days", "1d": " today" }[money.range] || "";
     sub.textContent = money.sold_count
       ? `${cents(money.profit)} profit after ${cents(money.spend)} rendering`
-      : `Nothing sold yet · ${cents(money.spend)} spent rendering`;
+      : `Nothing sold${period} · ${cents(money.spend)} spent rendering`;
   } catch (err) {
     value.textContent = "—";
     sub.textContent = "";

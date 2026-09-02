@@ -617,6 +617,36 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .lm-stat-placeholder { color: var(--ink-soft); }
 
+/* Period switch on the revenue stat. A segmented control rather than a
+   select: three options that are compared against each other read better
+   side by side than folded behind a menu. */
+.lm-range {
+  display: inline-flex;
+  gap: 2px;
+  margin: 6px 0 2px;
+  padding: 2px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lm-range button {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lm-range button:hover { color: var(--ink); }
+.lm-range button.is-on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
 .lm-stat-sub {
   margin-top: 3px;
   font-size: 0.7rem;
@@ -4035,35 +4065,39 @@ gmp-map-3d {
 .lp-sold-clear { margin-top: 0; margin-left: auto; }
 
 .lp-sold-label {
-  display: block;
-  margin-top: 8px;
+  margin: 8px 0 8px;
   font-size: 0.74rem;
   color: var(--ink-soft);
 }
 
-.lp-sold-edit {
+.lp-pkg-list { display: grid; gap: 6px; }
+
+.lp-pkg {
   display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-top: 4px;
-  padding: 6px 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.lp-sold-edit:focus-within { border-color: var(--accent); }
-.lp-sold-currency { font-size: 1.3rem; font-weight: 700; color: var(--ink-soft); }
-.lp-sold-input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: none;
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--ink);
+.lp-pkg:hover { border-color: var(--ink-soft); }
+.lp-pkg.is-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(239, 90, 43, 0.2);
+}
+
+.lp-pkg-name { font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+.lp-pkg-price {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
-.lp-sold-input:focus { outline: none; }
 
 .lp-sold-actions {
   display: flex;
