@@ -4050,3 +4050,6 @@ gmp-map-3d {
 .lp-set-thumb.is-current { opacity: 1; background: rgba(239, 90, 43, 0.9); cursor: default; }
 
 .lp-thumb.is-thumbnail { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* A render that has produced nothing YET is not a render that failed. */
+.scn-run-busy { border-left-color: var(--accent); }

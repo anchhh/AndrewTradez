@@ -77,7 +77,7 @@
               <span class="vh-name">${esc(r.address)}</span>
               <span class="vh-sub">
                 Rendering — ${done} of ${total} clip${total === 1 ? "" : "s"} done
-                · started ${esc(when(r.created_at))}
+                · started ${esc(when(r.created_at))} · open to watch
               </span>
             </span>
           </button>`;

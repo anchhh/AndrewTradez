@@ -707,9 +707,14 @@ function finish(job) {
     ? fmtDuration((Date.now() - state.startedAt) / 1000) : null;
 
   if (!clips.length) {
-    el("rn-done").innerHTML =
-      `<div class="scn-run scn-run-error"><strong>Nothing rendered.</strong> ` +
-      `${escapeHtml(job.error || (job.clips || [])[0]?.error || "The render failed.")}</div>`;
+    // Only a genuinely failed job says so. A job with no clips that is still
+    // queued or running has simply not produced one yet.
+    const stillGoing = job.status === "queued" || job.status === "running";
+    el("rn-done").innerHTML = stillGoing
+      ? `<div class="scn-run scn-run-busy"><span class="scn-spin" aria-hidden="true"></span>
+           <span>Still rendering — nothing has landed yet.</span></div>`
+      : `<div class="scn-run scn-run-error"><strong>Nothing rendered.</strong> ` +
+        `${escapeHtml(job.error || (job.clips || [])[0]?.error || "The render failed.")}</div>`;
     el("rn-clips").innerHTML = "";
     return;
   }
@@ -751,6 +756,33 @@ async function openSavedJob(jobId) {
     const res = await fetch(`/studio/api/video/jobs/${jobId}`);
     const body = await res.json();
     if (!res.ok || !body.job) throw new Error(body.error || "That render is gone.");
+
+    // Still going. Reopening one must rejoin the progress screen, not hand a
+    // clipless job to finish() -- which read "no clips" as "failed" and told
+    // you a healthy render had died.
+    if (body.job.status === "queued" || body.job.status === "running") {
+      state.polling = true;
+      // created_at is a naive-UTC ISO string, so it needs the Z or the elapsed
+      // time comes out hours wrong -- the same trap that made a render read
+      // "-1 days ago" in the picker.
+      const started = body.job.created_at
+        ? Date.parse(body.job.created_at + "Z") : NaN;
+      state.startedAt = state.startedAt
+        || (Number.isNaN(started) ? Date.now() : started);
+      show("rn-setup", false);
+      show("rn-results", false);
+      show("rn-running", true);
+      markStep(3);
+      el("rn-run-title").textContent = "Rendering your clips";
+      el("rn-run-sub").textContent =
+        "Picked up a render already in progress. It keeps going whether or not "
+        + "this page is open.";
+      setProgress(body.job.clips_done || 0, body.job.clips_total || 1);
+      renderClipList(body.job.clips || [], body.job.clips_total || 1);
+      pollJob(jobId);
+      return;
+    }
+
     show("rn-setup", false);
     show("rn-running", false);
 
