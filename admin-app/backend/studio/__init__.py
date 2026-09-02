@@ -1109,18 +1109,23 @@ def create_render():
         if project_id
         else None
     )
-    if not project:
+
+    # ?job= opens straight on a finished render. It does not need a project --
+    # the clips are on the job -- so arriving from the renders picker works
+    # whether or not the project that made them is still to hand.
+    job_id = request.args.get("job")
+    if not project and not job_id:
         return redirect(url_for("studio.create"))
 
     # Room labels, when this project came from a lead: they let the default
     # selection be one clip per room rather than six angles of one lounge.
-    project = dict(project)
+    project = dict(project or {})
     if project.get("lead_id"):
         lead = get_owned_lead(int(project["lead_id"]))
         if lead is not None:
             project["photo_rooms"] = lead.photo_rooms or {}
 
-    return render_template("render.html", project=project)
+    return render_template("render.html", project=project, job_id=job_id)
 
 
 @studio_bp.route("/dashboard")

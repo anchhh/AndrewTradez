@@ -24,6 +24,7 @@ const state = {
   style: null,       // the style card, which is a preset for the moves
   available: [],     // every still in the project
   photos: [],        // the ones ticked, one clip each
+  reopened: false,   // opened from the renders picker rather than just rendered
   photosOpen: false, // the room grid, collapsed until you want to change it
   moves: {},         // {url: moveKey} -- the camera move for that clip
   seconds: {},       // {url: length}      -- and how long it runs
@@ -587,7 +588,8 @@ function finish(job) {
 
   const clips = (job.clips || []).filter((c) => c.video_url);
   const failed = (job.clips_total || 0) - clips.length;
-  const took = state.startedAt ? fmtDuration((Date.now() - state.startedAt) / 1000) : null;
+  const took = state.startedAt
+    ? fmtDuration((Date.now() - state.startedAt) / 1000) : null;
 
   if (!clips.length) {
     el("rn-done").innerHTML =
@@ -598,7 +600,7 @@ function finish(job) {
   }
 
   el("rn-done").innerHTML =
-    `<div class="scn-run scn-run-done"><strong>Done.</strong> ` +
+    `<div class="scn-run scn-run-done"><strong>${state.reopened ? "Saved render." : "Done."}</strong> ` +
     `${clips.length} clip${clips.length === 1 ? "" : "s"} rendered` +
     `${took ? " in " + took : ""}` +
     `${job.estimated_cost != null ? ` · about $${job.estimated_cost.toFixed(2)}` : ""}.` +
@@ -624,6 +626,30 @@ function banner(message) {
 }
 
 /* ---------- init ---------- */
+
+/* Opening a finished render: the same results view a run ends on, which is
+   the point -- what you want back is the thing you were looking at, not a
+   different summary of it. Nothing regenerates; the clips already exist. */
+async function openSavedJob(jobId) {
+  state.reopened = true;
+  try {
+    const res = await fetch(`/studio/api/video/jobs/${jobId}`);
+    const body = await res.json();
+    if (!res.ok || !body.job) throw new Error(body.error || "That render is gone.");
+    show("rn-setup", false);
+    show("rn-running", false);
+    finish(body.job);
+    // "Render again" would have nothing to render from without a project, so
+    // it becomes the way back to a fresh run.
+    const again = el("rn-again");
+    if (again) {
+      again.textContent = project.id ? "Render again" : "New render";
+    }
+  } catch (err) {
+    show("rn-setup", true);
+    banner(err.message);
+  }
+}
 
 async function init() {
   // Only the photos the project actually selected -- and never a video file,
@@ -681,6 +707,8 @@ async function init() {
   }
 
   renderCost();
+
+  if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
 }
 
 el("rn-go").addEventListener("click", startRender);
@@ -688,6 +716,11 @@ el("rn-back").addEventListener("click", () => {
   window.location.href = `/studio/create?project=${project.id}`;
 });
 el("rn-again").addEventListener("click", () => {
+  if (state.reopened && !project.id) {
+    window.location.href = "/studio/create";
+    return;
+  }
+  state.reopened = false;
   show("rn-results", false);
   show("rn-setup", true);
   markStep(2);

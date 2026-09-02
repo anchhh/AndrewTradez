@@ -3902,7 +3902,13 @@ gmp-map-3d {
   background: var(--cream-soft);
   overflow: hidden;
 }
-.vh-render.is-open { border-color: var(--accent); }
+.vh-render {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.vh-render:hover { border-color: var(--accent); transform: translateY(-1px); }
 
 .vh-head {
   display: flex;
@@ -3931,12 +3937,17 @@ gmp-map-3d {
 }
 .vh-head[aria-expanded="true"] .vh-chevron { transform: rotate(45deg); }
 
-.vh-clips {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-  padding: 0 13px 13px;
+/* A frame from each of the first three clips, so a render is recognisable
+   without opening it. Muted and metadata-only: these are 30MB files and the
+   picker should not download them to draw a list. */
+.vh-thumbs { display: flex; gap: 4px; flex: 0 0 auto; }
+.vh-thumbs video {
+  width: 68px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #000;
+  pointer-events: none;
 }
-.vh-download { margin-left: 8px; font-weight: 600; }
 
 @media (prefers-reduced-motion: reduce) { .vh-chevron { transition: none; } }

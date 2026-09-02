@@ -15,7 +15,6 @@
   const byId = (id) => document.getElementById(id);
 
   let renders = [];
-  let openId = null;
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -65,42 +64,32 @@
 
     list.innerHTML = shown.map((r) => {
       const seconds = r.clips.reduce((n, c) => n + (c.duration || 0), 0);
-      const open = r.id === openId;
       return `
-        <div class="vh-render ${open ? "is-open" : ""}">
-          <button type="button" class="vh-head" data-id="${r.id}" aria-expanded="${open}">
-            <span class="vh-chevron" aria-hidden="true"></span>
-            <span class="vh-meta">
-              <span class="vh-name">${esc(r.address)}</span>
-              <span class="vh-sub">
-                ${r.clips.length} clip${r.clips.length === 1 ? "" : "s"} · ${seconds}s
-                · ${esc(r.clips[0].resolution || "")} · ${esc(when(r.created_at))}
-                ${r.estimated_cost != null ? " · $" + r.estimated_cost.toFixed(2) : ""}
-              </span>
+        <button type="button" class="vh-render vh-head" data-id="${r.id}">
+          <span class="vh-thumbs">
+            ${r.clips.slice(0, 3).map((c) => `
+              <video src="${esc(c.video_url)}#t=0.5" preload="metadata" muted></video>`).join("")}
+          </span>
+          <span class="vh-meta">
+            <span class="vh-name">${esc(r.address)}</span>
+            <span class="vh-sub">
+              ${r.clips.length} clip${r.clips.length === 1 ? "" : "s"} · ${seconds}s
+              · ${esc(r.clips[0].resolution || "")} · ${esc(when(r.created_at))}
+              ${r.estimated_cost != null ? " · $" + r.estimated_cost.toFixed(2) : ""}
             </span>
-          </button>
-          ${open ? `
-            <div class="vh-clips">
-              ${r.clips.map((c, i) => `
-                <figure class="rn-clip">
-                  <video src="${esc(c.video_url)}" controls preload="metadata"></video>
-                  <figcaption>
-                    Clip ${i + 1}${c.move ? " · " + esc(MOVE_NAMES[c.move] || c.move) : ""}
-                    · ${c.duration}s
-                    <a href="${esc(c.video_url)}" download class="vh-download">Download</a>
-                  </figcaption>
-                </figure>`).join("")}
-            </div>` : ""}
-        </div>`;
+          </span>
+        </button>`;
     }).join("");
 
-    // One open at a time: these are 30MB videos, and mounting every player at
-    // once is a lot of decoding for a list you are scanning.
+    // Straight to the results view on the render page, the way Scenery opens a
+    // saved run on its own last step. Carrying the project when there is one
+    // keeps "Render again" able to start a fresh run.
     list.querySelectorAll(".vh-head").forEach((head) => {
       head.addEventListener("click", () => {
-        const id = Number(head.dataset.id);
-        openId = openId === id ? null : id;
-        renderList();
+        const project = (window.__PROJECT__ || {}).id;
+        const params = new URLSearchParams({ job: head.dataset.id });
+        if (project) params.set("project", project);
+        window.location.href = "/studio/create/render?" + params.toString();
       });
     });
   }
@@ -110,7 +99,6 @@
     box.classList.remove("hidden");
     box.setAttribute("aria-hidden", "false");
     byId("vh-search").value = "";
-    openId = renders.length === 1 ? renders[0].id : null;
     renderList();
     byId("vh-search").focus();
   }
@@ -137,7 +125,7 @@
           <h2 id="vh-title">Your renders</h2>
           <button type="button" class="lead-modal-x" data-close aria-label="Close">&times;</button>
         </header>
-        <p class="hint">Every clip you've generated. Opening one plays it here.</p>
+        <p class="hint">Every render you've made. Opening one takes you to its clips.</p>
         <div class="search-field">
           <svg class="search-field-icon" viewBox="0 0 20 20" aria-hidden="true" fill="none"
                stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
