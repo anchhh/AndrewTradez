@@ -118,7 +118,7 @@ def _run(app, job_id):
 
                     prediction_id = submit_clip(
                         image_url,
-                        prompt=job.prompt or prompt_for_clip(move=spec["move"]),
+                        prompt=job.prompt or prompt_for_clip(move=spec["move"], cfg=cfg),
                         cfg=cfg,
                         duration=spec["duration"],
                         resolution=spec["resolution"],

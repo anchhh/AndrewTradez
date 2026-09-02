@@ -48,6 +48,10 @@ MODELS = {
         "durations": [3, 4, 5, 6, 7, 8, 9, 10, 12, 15],
         "last_frame": "end_image",
         "negative": True,
+        # Kling documents a 2,500-character prompt ceiling. Ours was 3,205.
+        "max_prompt": 2500,
+        # Kling says `sound`; Seedance says `generate_audio`.
+        "audio_field": "sound",
     },
     "kwaivgi/kling-v3.0-std/image-to-video": {
         "label": "Kling 3.0 Standard",
@@ -56,6 +60,8 @@ MODELS = {
         "durations": [3, 4, 5, 6, 7, 8, 9, 10, 12, 15],
         "last_frame": "end_image",
         "negative": True,
+        "max_prompt": 2500,
+        "audio_field": "sound",
     },
     "bytedance/seedance-2.5/image-to-video": {
         "label": "Seedance 2.5",
@@ -66,6 +72,8 @@ MODELS = {
         "durations": [4, 5, 6, 8, 10, 12, 15, 20, 30],
         "last_frame": "last_image",
         "negative": False,
+        "max_prompt": 5000,
+        "audio_field": "generate_audio",
     },
 }
 
@@ -100,6 +108,8 @@ def model_info(cfg=None):
         "durations": [4, 5, 6, 8, 10],
         "last_frame": "last_image",
         "negative": False,
+        "max_prompt": 2500,
+        "audio_field": "generate_audio",
     })
 
 # Per second of output, BY RESOLUTION. This is not a detail: Atlas Cloud's
@@ -283,7 +293,22 @@ STYLE_DEFAULT_MOVE = {
 }
 
 
-def prompt_for_clip(move=None, style=None):
+# The short form of NEVER_CHANGE, for models that take a negative prompt.
+#
+# The full enumeration is 733 characters and is stated twice -- 1,466 of a
+# 2,500-character budget spent restating a list the negative prompt already
+# carries. This keeps the categories, so the positive prompt still says what
+# must not change, and leaves the itemising to the negative.
+NEVER_CHANGE_SHORT = (
+    "Do NOT add, remove, move, resize, restyle or re-colour anything in the "
+    "property at any point in the clip: no walls, doors, doorways, windows, "
+    "cabinetry, fixtures, fittings, flooring, furniture or objects. Do not "
+    "open or close anything. Do not change any visible text or sign, or what "
+    "is seen through any window, doorway or mirror."
+)
+
+
+def prompt_for_clip(move=None, style=None, cfg=None):
     """The full prompt for one clip.
 
     Order matters and is deliberate: the constraint leads, the movement sits
@@ -294,25 +319,45 @@ def prompt_for_clip(move=None, style=None):
     key = (move or "").strip().lower()
     if key not in MOVE_PROMPTS:
         key = STYLE_DEFAULT_MOVE.get((style or "").strip().lower(), DEFAULT_MOVE)
-    return " ".join([
-        ONLY_THE_CAMERA,
-        NEVER_CHANGE,
-        NO_INVENTION,
-        MOVE_PROMPTS[key],
-        TEMPORAL,
-        LOOK,
-        ONLY_THE_CAMERA,
-        NEVER_CHANGE,
-        WHEN_UNSURE,
+
+    limit = model_info(cfg).get("max_prompt", 2500)
+
+    full = " ".join([
+        ONLY_THE_CAMERA, NEVER_CHANGE, NO_INVENTION, MOVE_PROMPTS[key],
+        TEMPORAL, LOOK, ONLY_THE_CAMERA, NEVER_CHANGE, WHEN_UNSURE,
     ])
+    if len(full) <= limit:
+        return full
+
+    # Over the ceiling. Truncating would cut the CLOSING constraint, which is
+    # the half that does the work -- so shorten deliberately instead: the
+    # itemised ban moves to the negative prompt, the categories stay, and the
+    # constraint still opens and closes.
+    short = " ".join([
+        ONLY_THE_CAMERA, NEVER_CHANGE_SHORT, NO_INVENTION, MOVE_PROMPTS[key],
+        TEMPORAL, LOOK, ONLY_THE_CAMERA, NEVER_CHANGE_SHORT, WHEN_UNSURE,
+    ])
+    if len(short) <= limit:
+        return short
+
+    # Still over: drop the look, never the constraint.
+    return " ".join([
+        ONLY_THE_CAMERA, NEVER_CHANGE_SHORT, NO_INVENTION, MOVE_PROMPTS[key],
+        TEMPORAL, ONLY_THE_CAMERA, WHEN_UNSURE,
+    ])[:limit]
 
 
 # Kept so a project with neither a move nor a style still renders something
 # sane, and so older callers do not break.
+# Built at import time, so they must not reach load_config -- which is defined
+# below. An explicit model dict keeps model_info from looking one up.
+_BOOT_CFG = {"model": DEFAULT_MODEL}
+
 STYLE_PROMPTS = {
-    style: prompt_for_clip(move=move) for style, move in STYLE_DEFAULT_MOVE.items()
+    style: prompt_for_clip(move=move, cfg=_BOOT_CFG)
+    for style, move in STYLE_DEFAULT_MOVE.items()
 }
-REAL_ESTATE_PROMPT = prompt_for_clip(move=DEFAULT_MOVE)
+REAL_ESTATE_PROMPT = prompt_for_clip(move=DEFAULT_MOVE, cfg=_BOOT_CFG)
 
 
 def prompt_for(style):
@@ -507,9 +552,11 @@ def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p"
         "image": image_url,
         "duration": duration,
         "resolution": resolution,
-        "generate_audio": generate_audio,
     }
     info = model_info(cfg)
+    # Audio off, under whatever this model calls it. A listing video gets music
+    # laid over it later, and audio costs about 50% more.
+    payload[info.get("audio_field", "generate_audio")] = generate_audio
     if last_image and info["last_frame"]:
         # Seedance says last_image, Kling says end_image. Sending the wrong one
         # is silently ignored -- the clip generates unanchored and invents.
