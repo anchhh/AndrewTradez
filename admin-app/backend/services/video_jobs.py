@@ -19,6 +19,7 @@ from services.video import (
     download,
     estimate_cost,
     load_config,
+    prompt_for_clip,
     submit_clip,
     upload_image,
     wait_for_clip,
@@ -76,6 +77,7 @@ def _run(app, job_id):
             _update(db, job, status="running", model=cfg["model"])
 
             clips = []
+            moves = job.moves
             for index, photo_url in enumerate(job.photos):
                 # Re-read each time: the job may have been cancelled while the
                 # previous clip was generating, and that should stop the spend.
@@ -94,9 +96,13 @@ def _run(app, job_id):
                         raise VideoError(f"photo missing on disk: {os.path.basename(path)}")
 
                     image_url = upload_image(path, cfg)
+                    # The move is per clip, so the prompt is too. job.prompt is
+                    # used only when one was typed by hand for the whole run.
+                    move = moves[index] if index < len(moves) else None
+                    entry["move"] = move
                     prediction_id = submit_clip(
                         image_url,
-                        prompt=job.prompt,
+                        prompt=job.prompt or prompt_for_clip(move=move),
                         cfg=cfg,
                         duration=job.duration,
                         resolution=job.resolution,
@@ -157,7 +163,7 @@ def _run(app, job_id):
 
 
 def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
-              resolution="720p"):
+              resolution="720p", moves=None):
     """Create a job for these photos and run it in the background."""
     from extensions import db
     from models import VideoJob
@@ -177,6 +183,7 @@ def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
         estimated_cost=round(estimate_cost(duration, cfg) * max(1, len(photos)), 2),
     )
     job.photos = photos
+    job.moves = moves or []
     db.session.add(job)
     db.session.commit()
 

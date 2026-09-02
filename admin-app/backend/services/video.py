@@ -60,38 +60,97 @@ LOOK = (
     "exposure, no flicker, no vignette pulsing, no lens distortion."
 )
 
-# One per style card on the style page, so choosing "Drone" actually changes
-# the footage rather than only the label stored on the project.
-STYLE_PROMPTS = {
-    "drone": (
-        HOLD_THE_ROOM + " "
-        "Smooth aerial drone move over and around the property: a slow, "
-        "steady rise or orbit that reveals the house and its lot. Cinematic, "
-        "level horizon, no sudden acceleration. " + LOOK + " " + HOLD_THE_ROOM
-    ),
-    "walkthrough": (
-        HOLD_THE_ROOM + " "
-        "Slow, smooth dolly move forward through the space, as though walking "
-        "it at an even pace with a stabilised camera. Steady height, level "
-        "framing, no hand-held shake and no rotation of the room around the "
-        "camera. " + LOOK + " " + HOLD_THE_ROOM
-    ),
-    "basic": (
-        HOLD_THE_ROOM + " "
-        "A gentle, almost imperceptible camera move on the still: a slow push "
-        "in or a slow lateral pan, of the kind used to give a listing photo "
-        "life without drawing attention to itself. " + LOOK + " "
-        + HOLD_THE_ROOM
-    ),
+# The camera move, chosen per clip.
+#
+# This is the video equivalent of Scenery's per-room styles, and for the same
+# reason: one setting for a whole listing is the wrong grain. A pull-out
+# reveals the house on the exterior shot and a push-in sells the kitchen, and
+# being forced to pick one for both makes a worse video than either.
+#
+# Each is a movement only. The constraint and the look are bolted on by
+# prompt_for_clip so a new move cannot accidentally ship without them.
+#
+#   key: (label, one-line description for the button, movement instruction)
+MOVES = [
+    ("push_in", "Push in",
+     "Slow dolly forward into the space",
+     "Move the camera slowly and steadily FORWARD into the space, a smooth "
+     "dolly push-in that closes the distance without ever tilting or turning."),
+    ("pull_out", "Pull out",
+     "Slow dolly back, revealing the room",
+     "Move the camera slowly and steadily BACKWARD, a smooth dolly pull-out "
+     "that reveals more of the space as it goes, without tilting or turning."),
+    ("pan_left", "Pan left",
+     "Sweep the view leftwards",
+     "Rotate the camera slowly and smoothly to the LEFT from a fixed "
+     "position, an even horizontal pan with no dolly movement."),
+    ("pan_right", "Pan right",
+     "Sweep the view rightwards",
+     "Rotate the camera slowly and smoothly to the RIGHT from a fixed "
+     "position, an even horizontal pan with no dolly movement."),
+    ("orbit_left", "Orbit left",
+     "Arc around the space to the left",
+     "Arc the camera slowly to the LEFT around the space, keeping the centre "
+     "of the frame fixed, as though walking a circle around the subject."),
+    ("orbit_right", "Orbit right",
+     "Arc around the space to the right",
+     "Arc the camera slowly to the RIGHT around the space, keeping the centre "
+     "of the frame fixed, as though walking a circle around the subject."),
+    ("rise", "Rise",
+     "Crane upward — best on exteriors",
+     "Raise the camera slowly and steadily UPWARD on a crane or drone, "
+     "keeping the horizon level and the framing steady as the height opens up "
+     "the view."),
+    ("tilt_up", "Tilt up",
+     "Reveal ceiling height",
+     "Tilt the camera slowly UPWARD from a fixed position, revealing the "
+     "height of the space, with no dolly movement and no rotation."),
+    ("static", "Hold",
+     "Almost still — for detail shots",
+     "Hold the camera almost completely still, with only the faintest, "
+     "barely perceptible drift, as a locked-off shot that gives the still a "
+     "sense of life without drawing attention."),
+]
+
+MOVE_PROMPTS = {key: instruction for key, _, _, instruction in MOVES}
+DEFAULT_MOVE = "push_in"
+
+# The style cards are presets now, not the movement itself: picking one sets
+# every clip's move, and any clip can then be changed. Same pattern as
+# Scenery's "set all to" above its per-room buttons.
+STYLE_DEFAULT_MOVE = {
+    "drone": "rise",
+    "walkthrough": "push_in",
+    "basic": "static",
 }
 
-# The fallback, and what a project with no style chosen gets.
-REAL_ESTATE_PROMPT = STYLE_PROMPTS["walkthrough"]
+
+def prompt_for_clip(move=None, style=None):
+    """The full prompt for one clip: constraint, movement, look, constraint.
+
+    Movement comes from the move; the style only decides the default when no
+    move was chosen. The constraint brackets it on both sides -- a rule stated
+    once, in the middle, is the one the model drops.
+    """
+    key = (move or "").strip().lower()
+    if key not in MOVE_PROMPTS:
+        key = STYLE_DEFAULT_MOVE.get((style or "").strip().lower(), DEFAULT_MOVE)
+    return (
+        HOLD_THE_ROOM + " " + MOVE_PROMPTS[key] + " " + LOOK + " " + HOLD_THE_ROOM
+    )
+
+
+# Kept so a project with neither a move nor a style still renders something
+# sane, and so older callers do not break.
+STYLE_PROMPTS = {
+    style: prompt_for_clip(move=move) for style, move in STYLE_DEFAULT_MOVE.items()
+}
+REAL_ESTATE_PROMPT = prompt_for_clip(move=DEFAULT_MOVE)
 
 
 def prompt_for(style):
-    """The prompt for a style card, falling back to the walkthrough."""
-    return STYLE_PROMPTS.get((style or "").strip().lower(), REAL_ESTATE_PROMPT)
+    """The prompt a whole-project style implies. Superseded by prompt_for_clip."""
+    return prompt_for_clip(style=style)
 
 
 # Atlas Cloud reports success as either word depending on the model.

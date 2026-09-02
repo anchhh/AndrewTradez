@@ -209,6 +209,10 @@ class VideoJob(db.Model):
     resolution = db.Column(db.String(20), nullable=False, default="720p")
 
     photos_json = db.Column(db.Text, nullable=False, default="[]")
+    # One camera move per photo, parallel to photos_json. Its own list rather
+    # than folded into photos_json, because `photos` must stay a list of urls
+    # -- local_path_for and the clip count both rely on that.
+    moves_json = db.Column(db.Text, nullable=False, default="[]")
     clips_json = db.Column(db.Text, nullable=False, default="[]")
 
     # The finished video. With one clip that is the clip itself; with several
@@ -229,25 +233,13 @@ class VideoJob(db.Model):
     def photos(self, value):
         self.photos_json = json.dumps(value or [])
 
-    def to_dict(self):
-        clips = self.clips
-        done = [c for c in clips if c.get("video_url")]
-        return {
-            "id": self.id,
-            "lead_id": self.lead_id,
-            "status": self.status,
-            "error": self.error,
-            "model": self.model,
-            "duration": self.duration,
-            "resolution": self.resolution,
-            "clips": clips,
-            "output_url": self.output_url,
-            "estimated_cost": self.estimated_cost,
-            "done": len(done),
-            # The photo list, not the partially-built clip list: counting the
-            # latter reported "1 of 2" on a three-photo job.
-            "total": max(len(clips), len(self.photos)),
-        }
+    @property
+    def moves(self):
+        return json.loads(self.moves_json or "[]")
+
+    @moves.setter
+    def moves(self, value):
+        self.moves_json = json.dumps(value or [])
 
     @property
     def clips(self):
@@ -271,6 +263,7 @@ class VideoJob(db.Model):
             "resolution": self.resolution,
             "photos": self.photos,
             "clips": clips,
+            "moves": self.moves,
             "clips_done": done,
             # Photos is the real total: clips is appended to as they run,
             # so trusting its length reports "1 of 2" on a 3-photo job.

@@ -23,6 +23,9 @@ const DEFAULT_CLIPS = 6;
 const state = {
   available: [],     // every still in the project
   photos: [],        // the ones ticked, one clip each
+  moves: {},         // {url: moveKey} -- the camera move for that clip
+  moveList: [],      // [{key, name, desc}] from the server
+  defaultMove: "push_in",
   ratePerSecond: null,
   configured: false,
   job: null,
@@ -93,6 +96,7 @@ function renderPhotos() {
       else state.photos = state.available.filter(
         (u) => u === url || state.photos.includes(u));
       renderPhotos();
+      renderClipMoves();
       renderCost();
     });
   });
@@ -102,9 +106,77 @@ function renderPhotos() {
     clear.addEventListener("click", () => {
       state.photos = [];
       renderPhotos();
+      renderClipMoves();
       renderCost();
     });
   }
+}
+
+/* ---------- camera moves ----------
+
+   The video answer to Scenery's per-room styles, and the same reasoning: one
+   setting for a whole listing is the wrong grain. A pull-out reveals the house
+   on the exterior and a push-in sells the kitchen; being made to choose one
+   for both produces a worse video than either. */
+
+function moveName(key) {
+  const found = state.moveList.find((m) => m.key === key);
+  return found ? found.name : key;
+}
+
+function renderSetAll() {
+  const box = el("rn-setall");
+  if (!box) return;
+  box.innerHTML = state.moveList.map((m) => `
+    <button type="button" class="scn-room-style" data-move="${m.key}"
+            title="${escapeHtml(m.desc)}">${escapeHtml(m.name)}</button>`).join("");
+
+  box.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.photos.forEach((url) => { state.moves[url] = btn.dataset.move; });
+      renderClipMoves();
+    });
+  });
+}
+
+function renderClipMoves() {
+  const box = el("rn-clip-moves");
+  if (!box) return;
+
+  if (!state.photos.length) {
+    box.innerHTML = "";
+    return;
+  }
+
+  const rooms = project.photo_rooms || {};
+  box.innerHTML = state.photos.map((url, i) => {
+    const active = state.moves[url] || state.defaultMove;
+    const label = (rooms[url] || {}).label;
+    return `
+      <div class="rn-clip-row" data-url="${escapeHtml(url)}">
+        <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
+        <div class="rn-clip-body">
+          <div class="rn-clip-head">
+            <span class="rn-clip-name">Clip ${i + 1}${label ? " · " + escapeHtml(label) : ""}</span>
+            <span class="rn-clip-move">${escapeHtml(moveName(active))}</span>
+          </div>
+          <div class="scn-room-styles">
+            ${state.moveList.map((m) => `
+              <button type="button" class="scn-room-style ${m.key === active ? "is-active" : ""}"
+                      data-move="${m.key}" title="${escapeHtml(m.desc)}">${escapeHtml(m.name)}</button>`).join("")}
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  box.querySelectorAll(".rn-clip-row").forEach((row) => {
+    row.querySelectorAll(".scn-room-style").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.moves[row.dataset.url] = btn.dataset.move;
+        renderClipMoves();
+      });
+    });
+  });
 }
 
 /* ---------- cost, stated before it is spent ---------- */
@@ -174,8 +246,9 @@ function renderClipList(clips, total) {
       : clip.status === "failed" ? "failed"
       : "running";
     const label = { waiting: "Queued", running: "Rendering…", done: "Done", failed: "Failed" }[status];
+    const move = state.photos[i] ? moveName(state.moves[state.photos[i]] || state.defaultMove) : "";
     return `<li class="scn-gen-row ${status === "done" ? "is-done" : ""}">
-        <span class="scn-gen-room">Clip ${i + 1}</span>
+        <span class="scn-gen-room">Clip ${i + 1}${move ? " · " + escapeHtml(move) : ""}</span>
         <span class="scn-gen-nums">${label}</span>
       </li>`;
   }).join("");
@@ -203,9 +276,12 @@ async function startRender() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        photos: state.photos,
+        // Clips rather than bare photos: each carries its own camera move.
+        clips: state.photos.map((url) => ({
+          photo: url,
+          move: state.moves[url] || state.defaultMove,
+        })),
         lead_id: project.lead_id || null,
-        style: el("rn-style").value,
         duration: seconds,
         resolution: el("rn-resolution").value,
       }),
@@ -240,8 +316,8 @@ async function pollJob(jobId) {
   }
 
   state.job = job;
-  setProgress(job.done, job.total);
-  renderClipList(job.clips || [], job.total);
+  setProgress(job.clips_done, job.clips_total);
+  renderClipList(job.clips || [], job.clips_total);
 
   if (job.status === "queued" || job.status === "running") {
     // Slower than Scenery's poll on purpose: clips take minutes, not seconds.
@@ -259,7 +335,7 @@ function finish(job) {
   show("rn-results", true);
 
   const clips = (job.clips || []).filter((c) => c.video_url);
-  const failed = (job.total || 0) - clips.length;
+  const failed = (job.clips_total || 0) - clips.length;
   const took = state.startedAt ? fmtDuration((Date.now() - state.startedAt) / 1000) : null;
 
   if (!clips.length) {
@@ -280,7 +356,7 @@ function finish(job) {
   el("rn-clips").innerHTML = clips.map((clip, i) => `
     <figure class="rn-clip">
       <video src="${escapeHtml(clip.video_url)}" controls preload="metadata"></video>
-      <figcaption>Clip ${i + 1}</figcaption>
+      <figcaption>Clip ${i + 1}${clip.move ? " · " + escapeHtml(moveName(clip.move)) : ""}</figcaption>
     </figure>`).join("");
 
   // Stitching is the next arrow in the chain and does not exist yet; saying so
@@ -321,7 +397,6 @@ async function init() {
   }
   if (!state.photos.length) state.photos = state.available.slice(0, DEFAULT_CLIPS);
 
-  if (project.style) el("rn-style").value = project.style;
   el("rn-sub").textContent = project.address || project.name || el("rn-sub").textContent;
 
   renderPhotos();
@@ -336,6 +411,18 @@ async function init() {
     }
     if (status.min_duration) el("rn-duration").min = status.min_duration;
     if (status.max_duration) el("rn-duration").max = status.max_duration;
+
+    state.moveList = status.moves || [];
+    // The style card picked earlier is a preset: it seeds every clip's move,
+    // and any clip can then be changed. Same shape as Scenery's "set all to"
+    // sitting above its per-room buttons.
+    const preset = (status.style_default_move || {})[project.style];
+    if (preset) state.defaultMove = preset;
+    state.photos.forEach((url) => {
+      if (!state.moves[url]) state.moves[url] = state.defaultMove;
+    });
+    renderSetAll();
+    renderClipMoves();
   } catch (err) {
     banner("Couldn't reach the server to check the generator.");
   }

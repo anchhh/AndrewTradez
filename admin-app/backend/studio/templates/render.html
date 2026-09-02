@@ -25,16 +25,14 @@
 
     <div id="rn-photos" class="rn-photos"></div>
 
-    <div class="rn-controls">
-      <label class="lp-field">
-        <span class="lp-field-label">Style</span>
-        <select id="rn-style">
-          <option value="walkthrough">Walkthrough — steady glide through the space</option>
-          <option value="drone">Drone — aerial rise and orbit</option>
-          <option value="basic">Basic — a slow push in on the still</option>
-        </select>
-      </label>
+    <div class="scn-applyall">
+      <span class="scn-applyall-label">Set every clip to</span>
+      <div id="rn-setall" class="scn-styles"></div>
+    </div>
 
+    <div id="rn-clip-moves" class="rn-clip-moves"></div>
+
+    <div class="rn-controls">
       <label class="lp-field">
         <span class="lp-field-label">Seconds per clip</span>
         <input id="rn-duration" type="number" min="4" max="30" step="1" value="5">

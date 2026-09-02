@@ -2141,7 +2141,9 @@ def api_video_status():
     from services.video import (
         MAX_DURATION,
         MIN_DURATION,
+        MOVES,
         REAL_ESTATE_PROMPT,
+        STYLE_DEFAULT_MOVE,
         estimate_cost,
         load_config,
     )
@@ -2157,6 +2159,10 @@ def api_video_status():
         "min_duration": MIN_DURATION,
         "max_duration": MAX_DURATION,
         "default_prompt": REAL_ESTATE_PROMPT,
+        # The camera moves, served from the one definition so the buttons and
+        # the prompts can never drift apart.
+        "moves": [{"key": k, "name": n, "desc": d} for k, n, d, _ in MOVES],
+        "style_default_move": STYLE_DEFAULT_MOVE,
         "busy": is_busy(),
     })
 
@@ -2206,9 +2212,9 @@ def api_video_generate():
     from services.video import (
         MAX_DURATION,
         MIN_DURATION,
+        MOVE_PROMPTS,
         estimate_cost,
         load_config,
-        prompt_for,
     )
     from services.video_jobs import VideoJobBusy, start_job
 
@@ -2219,7 +2225,23 @@ def api_video_generate():
                         "Cloud key to studio/atlascloud.json."}), 400
 
     data = request.get_json(force=True, silent=True) or {}
-    photos = [p for p in (data.get("photos") or []) if p]
+
+    # Either a bare list of photos, or clips carrying a camera move each. The
+    # render page sends the second; the first stays valid so a caller that does
+    # not care about moves still works.
+    incoming = data.get("clips")
+    if incoming:
+        photos = [(c.get("photo") or "").strip() for c in incoming]
+        moves = [(c.get("move") or "").strip().lower() or None for c in incoming]
+        if any(not photo for photo in photos):
+            return jsonify({"error": "A clip arrived without a photo."}), 400
+        unknown = [m for m in moves if m and m not in MOVE_PROMPTS]
+        if unknown:
+            return jsonify({"error": "Unknown camera move: %s" % unknown[0]}), 400
+    else:
+        photos = [p for p in (data.get("photos") or []) if p]
+        moves = []
+
     if not photos:
         return jsonify({"error": "Pick at least one photo."}), 400
 
@@ -2248,11 +2270,12 @@ def api_video_generate():
             session["user_id"],
             photos,
             lead_id=lead_id,
-            # The style card the project chose decides the movement. A typed
-            # prompt overrides it, but there is deliberately no way to end up
-            # with no prompt at all -- an unguided clip is where the room
-            # starts rearranging itself.
-            prompt=(data.get("prompt") or "").strip() or prompt_for(data.get("style")),
+            # Left empty unless typed by hand: the worker builds each clip's
+            # prompt from its own move. There is deliberately no way to end up
+            # with no prompt at all -- an unguided clip is where the room starts
+            # rearranging itself.
+            prompt=(data.get("prompt") or "").strip() or None,
+            moves=moves,
             duration=duration,
             resolution=resolution,
         )
