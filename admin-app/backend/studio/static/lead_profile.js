@@ -504,6 +504,7 @@ async function load() {
   // the video panel has to say which kind it wants or it shows a staging run.
   currentProject = mine.find((p) => p.kind !== "scenery") || null;
   renderVideo(currentProject);
+  renderSpend();
   renderScenery(mine.filter((p) => p.kind === "scenery"));
   initMediaTabs();
   renderPhotos(lead.photo_urls);
@@ -749,6 +750,57 @@ function renderScenery(projects) {
     <div id="lp-scenery-rooms" class="scn-rooms"></div>`;
 
   renderSceneryRooms();
+}
+
+
+/* ---------- what this listing has cost ----------
+
+   Priced from the clips that were actually DELIVERED, at today's rates --
+   both of which are the server's doing, in clip_cost. A run that failed
+   before producing a file is not money spent, and a run priced before the
+   1080p rate was corrected is not what was billed. */
+
+function renderSpend() {
+  const box = el("lp-spend");
+  if (!box) return;
+
+  const runs = videoRuns.filter((r) => (r.clips || []).length);
+  const clips = runs.reduce((n, r) => n + r.clips.length, 0);
+  const total = runs.reduce((n, r) => n + (r.cost || 0), 0);
+
+  if (!clips) {
+    box.innerHTML = `<p class="lp-spend-empty">Nothing rendered yet.</p>`;
+    return;
+  }
+
+  // Grouped by model, because the two differ by more than 6x and a single
+  // figure hides which one the money went to.
+  const byModel = new Map();
+  runs.forEach((run) => {
+    const key = run.model_label || "Unknown model";
+    const at = byModel.get(key) || { clips: 0, cost: 0 };
+    at.clips += run.clips.length;
+    at.cost += run.cost || 0;
+    byModel.set(key, at);
+  });
+
+  const rows = [...byModel.entries()]
+    .sort((a, b) => b[1].cost - a[1].cost)
+    .map(([label, at]) => `
+      <li>
+        <span class="lp-spend-model">${escapeHtml(label)}</span>
+        <span class="lp-spend-count">${at.clips} clip${at.clips === 1 ? "" : "s"}</span>
+        <span class="lp-spend-amt">$${at.cost.toFixed(2)}</span>
+      </li>`).join("");
+
+  box.innerHTML = `
+    <p class="lp-spend-total">$${total.toFixed(2)}</p>
+    <p class="lp-spend-sub">
+      ${clips} clip${clips === 1 ? "" : "s"} across
+      ${runs.length} render${runs.length === 1 ? "" : "s"}
+    </p>
+    <ul class="lp-spend-rows">${rows}</ul>
+    <p class="lp-spend-foot">Staging is free on Gemini, so none of this is Scenery.</p>`;
 }
 
 

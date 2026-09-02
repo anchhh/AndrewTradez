@@ -2382,6 +2382,24 @@ def api_video_capcut():
     return jsonify(result), 201
 
 
+def clip_cost(job, clip):
+    """What one delivered clip cost, at the current rate for its model.
+
+    Falls back to nothing rather than to a guess: an unknown model has no
+    rate, and inventing one would put a wrong number under a dollar sign.
+    """
+    from services.video import MODELS, estimate_cost
+
+    cfg = MODELS.get(job.model)
+    if not cfg:
+        return 0.0
+    return estimate_cost(
+        clip.get("duration") or job.duration,
+        cfg,
+        clip.get("resolution") or job.resolution,
+    )
+
+
 @studio_bp.route("/api/video/jobs", methods=["GET"])
 @login_required
 def api_video_jobs():
@@ -2440,12 +2458,24 @@ def api_video_jobs():
             # page carrying its own copy of the registry.
             "model_label": (MODELS.get(job.model) or {}).get("label") or job.model,
             "estimated_cost": job.estimated_cost,
+            # What the delivered clips cost, priced at today's rates.
+            #
+            # Deliberately not job.estimated_cost, which is frozen at whatever
+            # the rate table said when the job was submitted -- the first
+            # Seedance run here still carries $0.67 from before 1080p was
+            # corrected to $0.597/s, against $2.98 actually billed. A total
+            # built from those would understate spending by 4x.
+            #
+            # Priced per DELIVERED clip too, so a run that failed before
+            # producing a file is not counted as money spent.
+            "cost": round(sum(clip_cost(job, c) for c in clips), 2),
             "clips": [
                 {
                     "video_url": c.get("video_url"),
                     "move": c.get("move"),
                     "duration": c.get("duration") or job.duration,
                     "resolution": c.get("resolution") or job.resolution,
+                    "cost": clip_cost(job, c),
                 }
                 for c in clips
             ],

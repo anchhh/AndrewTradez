@@ -4055,6 +4055,58 @@ gmp-map-3d {
 .scn-run-busy { border-left-color: var(--accent); }
 
 
+/* ---------- what this listing has cost ---------- */
+
+.lp-spend-total {
+  margin: 8px 0 0;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--ink);
+  /* Tabular figures so the total does not shuffle sideways when a render
+     lands and the cents change. */
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-spend-sub {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.lp-spend-rows {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+}
+
+.lp-spend-rows li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.lp-spend-model { color: var(--ink); font-weight: 600; }
+.lp-spend-count { color: var(--ink-soft); font-size: 0.74rem; }
+.lp-spend-amt { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.lp-spend-foot {
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.lp-spend-empty {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
 /* ---------- sending clips to CapCut ---------- */
 
 /* The button wears CapCut's own mark and typeface, both served from the local
