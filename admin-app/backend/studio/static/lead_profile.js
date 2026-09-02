@@ -802,7 +802,7 @@ function renderScenery(projects) {
     box.innerHTML = `
       <div class="lp-scenery-empty">
         <span>No rooms staged for this listing yet.</span>
-        <a class="cta-btn cta-btn-sm" href="/studio/scenery?lead_id=${LEAD_ID}">Stage rooms</a>
+        <a class="cta-btn cta-btn-sm" href="/studio/create/scenery?lead_id=${LEAD_ID}">Stage rooms</a>
       </div>`;
     return;
   }
@@ -814,7 +814,7 @@ function renderScenery(projects) {
         Drag the divider to compare with the original. Every image is virtually
         staged and saved with that notice printed on it.
       </p>
-      <a class="btn-secondary btn-tiny" href="/studio/scenery?lead_id=${LEAD_ID}">Stage more</a>
+      <a class="btn-secondary btn-tiny" href="/studio/create/scenery?lead_id=${LEAD_ID}">Stage more</a>
     </div>
     <div id="lp-scenery-rooms" class="scn-rooms"></div>`;
 

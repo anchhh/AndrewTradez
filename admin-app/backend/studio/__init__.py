@@ -1171,12 +1171,21 @@ def lead_profile(lead_id):
 
 @studio_bp.route("/scenery")
 @login_required
+def scenery_legacy():
+    """Where Scenery used to live. Kept so saved links and the lead profile's
+    existing buttons keep working after the move under Create."""
+    return redirect(url_for("studio.scenery", **request.args))
+
+
+@studio_bp.route("/create/scenery")
+@login_required
 def scenery():
     """Virtual staging: the same captured photos, furnished differently.
 
-    Shares Create Video's starting point -- a lead already carries its photos,
-    address and room labels -- but the output is a styled still of a room
-    rather than a clip, so it gets its own page rather than a mode switch.
+    One of the two things Create makes, and it lives under /create for that
+    reason. Still its own document rather than a panel on the video page:
+    the two flows share the listing picker's element ids, so a single page
+    would have each script wiring the other's markup.
     """
     prefill = None
     lead_id = request.args.get("lead_id")

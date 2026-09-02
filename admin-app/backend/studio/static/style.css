@@ -417,6 +417,42 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---------- Top nav (Create Video / Dashboard pages) ---------- */
 
+/* The two tasks Create can do. A strip of links, not panels: each flow is
+   its own document (see _create_tabs.html for why). */
+.task-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 22px;
+  flex-wrap: wrap;
+}
+.task-tab {
+  flex: 1 1 200px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--cream-soft);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.task-tab:hover { border-color: var(--ink-soft); background: #fff; }
+.task-tab.active {
+  background: #fff;
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.task-tab-name {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.task-tab-note {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
 /* ---------- the sidebar ----------
 
    Fixed to the left on every signed-in page. Three states: full width,

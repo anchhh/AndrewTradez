@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>estly Studio — Scenery</title>
+<title>estly Studio — Create</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23efe8dd'/%3E%3Ctext x='16' y='42' font-family='Arial' font-weight='800' font-size='30' fill='%2317130f'%3Ee%3C/text%3E%3Crect x='42' y='16' width='7' height='16' fill='%23ef5a2b' transform='skewX(-18)'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
 </head>
@@ -12,13 +12,15 @@
 <div class="wrap wrap-wide">
   <header class="page-header">
     <div>
-      <h1 class="page-title">Scenery</h1>
+      <h1 class="page-title">Create</h1>
       <p class="sub">Furnish a room that's empty, or restyle one that isn't. Same photos you already captured — a different room, not a different house.</p>
     </div>
     <button type="button" id="scn-past-open" class="cta-btn cta-btn-sm" hidden>
       See projects <span id="scn-past-count" class="scn-past-badge"></span>
     </button>
   </header>
+
+  {% with task = 'scenery' %}{% include "_create_tabs.html" %}{% endwith %}
 
   <ol class="steps" id="steps">
     <li class="step is-current" data-step="1"><span class="step-num">1</span><span class="step-label">Listing</span></li>

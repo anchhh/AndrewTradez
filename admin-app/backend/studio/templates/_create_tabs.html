@@ -1,0 +1,18 @@
+{# The two things "Create" can mean, as one strip.
+
+   These stay separate documents rather than two panels in one, because the
+   video and scenery flows share 32 element ids -- both reuse the listing
+   picker -- and putting them in one page would have each script wiring the
+   other's markup. The tab navigates; the page underneath is whole. #}
+<nav class="task-tabs" aria-label="What to make">
+  <a href="/studio/create"
+     class="task-tab {{ 'active' if task == 'video' else '' }}">
+    <span class="task-tab-name">Video</span>
+    <span class="task-tab-note">Bring listing photos to life</span>
+  </a>
+  <a href="/studio/create/scenery"
+     class="task-tab {{ 'active' if task == 'scenery' else '' }}">
+    <span class="task-tab-name">Scenery</span>
+    <span class="task-tab-note">Stage a room, or empty it</span>
+  </a>
+</nav>
