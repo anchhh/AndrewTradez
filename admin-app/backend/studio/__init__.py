@@ -1208,6 +1208,13 @@ def closed_clients():
     return render_template("closed.html")
 
 
+@studio_bp.route("/calendar")
+@login_required
+def calendar_page():
+    """Bookings, month by month, read from Calendly."""
+    return render_template("calendar.html")
+
+
 @studio_bp.route("/projects")
 @login_required
 def active_projects():
@@ -2471,6 +2478,44 @@ def api_calendly_upcoming():
     try:
         return jsonify({"configured": True,
                         "events": calendly.upcoming(limit=5)})
+    except calendly.CalendlyError as exc:
+        return jsonify({"configured": True, "events": [], "error": str(exc)})
+
+
+@studio_bp.route("/api/calendly/events", methods=["GET"])
+@login_required
+def api_calendly_events():
+    """Bookings between two instants, for the calendar page.
+
+    The window comes from the page as ISO timestamps, because the month it
+    is showing is a LOCAL month and only the browser knows where its
+    boundaries fall.
+    """
+    from services import calendly
+
+    if not calendly.is_configured():
+        return jsonify({"configured": False, "events": []})
+
+    def parse(value, fallback):
+        if not value:
+            return fallback
+        try:
+            when = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return fallback
+        # A naive value would be compared against aware ones downstream and
+        # raise; assume UTC rather than fail the request.
+        return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    start = parse(request.args.get("from"), now - timedelta(days=31))
+    end = parse(request.args.get("to"), now + timedelta(days=62))
+    if end < start:
+        start, end = end, start
+
+    try:
+        return jsonify({"configured": True,
+                        "events": calendly.events_between(start, end)})
     except calendly.CalendlyError as exc:
         return jsonify({"configured": True, "events": [], "error": str(exc)})
 

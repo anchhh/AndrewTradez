@@ -94,6 +94,68 @@ def verify_connection():
             "scheduling_url": who.get("scheduling_url")}
 
 
+def events_between(start, end, limit=100, with_invitees=True):
+    """Active meetings whose start falls between two aware datetimes.
+
+    Invitee lookups are one HTTP call per event and a month of bookings would
+    make that a visibly slow page, so they run on a small thread pool. Six
+    workers rather than one per event: Calendly rate-limits, and a burst of
+    forty parallel requests is how an integration gets throttled.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    cfg = load_config()
+    if not cfg["token"]:
+        raise CalendlyError("No Calendly token is configured.")
+
+    uri = me(cfg["token"]).get("uri")
+    if not uri:
+        raise CalendlyError("Calendly didn't say who the token belongs to.")
+
+    payload = _get(
+        "/scheduled_events", cfg["token"],
+        user=uri,
+        status="active",
+        min_start_time=_z(start),
+        max_start_time=_z(end),
+        sort="start_time:asc",
+        count=max(1, min(int(limit), 100)),
+    )
+
+    events = [_event(raw) for raw in (payload.get("collection") or [])]
+
+    if with_invitees and events:
+        def fill(event):
+            # Best effort per event: a missing name is worth far less than a
+            # calendar that fails because one lookup did.
+            try:
+                event["invitee"] = _first_invitee(event["uri"], cfg["token"])
+            except CalendlyError:
+                pass
+
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            list(pool.map(fill, events))
+
+    return events
+
+
+def _z(when):
+    """Calendly wants RFC3339 with a Z, not +00:00."""
+    return when.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _event(raw):
+    return {
+        "name": raw.get("name") or "Meeting",
+        "start": raw.get("start_time"),
+        "end": raw.get("end_time"),
+        "status": raw.get("status"),
+        "uri": raw.get("uri") or "",
+        "location": _location_of(raw),
+        "invitee": None,
+    }
+
+
 def upcoming(limit=5, days=30, with_invitees=True):
     """The next `limit` active meetings inside the next `days` days.
 
@@ -101,46 +163,9 @@ def upcoming(limit=5, days=30, with_invitees=True):
     the next few, and an unbounded query on a busy calendar is a slow page
     and a large response for something nobody scrolls.
     """
-    cfg = load_config()
-    if not cfg["token"]:
-        raise CalendlyError("No Calendly token is configured.")
-
-    who = me(cfg["token"])
-    uri = who.get("uri")
-    if not uri:
-        raise CalendlyError("Calendly didn't say who the token belongs to.")
-
     now = datetime.now(timezone.utc)
-    payload = _get(
-        "/scheduled_events", cfg["token"],
-        user=uri,
-        status="active",
-        min_start_time=now.isoformat().replace("+00:00", "Z"),
-        max_start_time=(now + timedelta(days=days)).isoformat().replace("+00:00", "Z"),
-        sort="start_time:asc",
-        count=max(1, min(int(limit), 20)),
-    )
-
-    events = []
-    for raw in payload.get("collection") or []:
-        event = {
-            "name": raw.get("name") or "Meeting",
-            "start": raw.get("start_time"),
-            "end": raw.get("end_time"),
-            "status": raw.get("status"),
-            "url": (raw.get("uri") or ""),
-            "location": _location_of(raw),
-            "invitee": None,
-        }
-        if with_invitees:
-            # Best effort: a missing invitee name is worth far less than a
-            # panel that fails because one lookup did.
-            try:
-                event["invitee"] = _first_invitee(raw.get("uri"), cfg["token"])
-            except CalendlyError:
-                pass
-        events.append(event)
-    return events
+    return events_between(now, now + timedelta(days=days),
+                          limit=limit, with_invitees=with_invitees)
 
 
 def _location_of(raw):

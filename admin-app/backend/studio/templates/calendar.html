@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Calendar</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide lm-wrap">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Calendar</h1>
+      <p class="sub">Everything booked through Calendly. Read-only here &mdash;
+        booking, moving and cancelling stay in Calendly, where your invitee
+        gets told about it.</p>
+    </div>
+    <a id="cal-book-link" class="btn-secondary btn-tiny" href="#" target="_blank"
+       rel="noopener" hidden>Your booking page</a>
+  </header>
+
+  <div id="cal-notice" class="empty-note hidden"></div>
+
+  <div class="cal-layout">
+    <section class="cal-main">
+      <div class="cal-toolbar">
+        <button type="button" class="btn-secondary btn-tiny" id="cal-prev"
+                aria-label="Previous month">&larr;</button>
+        <h2 id="cal-month" class="cal-month">&nbsp;</h2>
+        <button type="button" class="btn-secondary btn-tiny" id="cal-next"
+                aria-label="Next month">&rarr;</button>
+        <button type="button" class="btn-secondary btn-tiny" id="cal-today">Today</button>
+      </div>
+
+      <div class="cal-grid-head">
+        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span>
+        <span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
+    </section>
+
+    <aside class="cal-side">
+      <h2 id="cal-side-title">Next up</h2>
+      <div id="cal-side-list" class="cal-panel"></div>
+    </aside>
+  </div>
+</div>
+<script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='calendar.js') }}"></script>
+</body>
+</html>
