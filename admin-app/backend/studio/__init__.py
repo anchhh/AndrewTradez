@@ -2463,7 +2463,6 @@ def api_stats():
         leads=Lead.query.filter_by(owner_id=owner).all(),
         video_jobs=VideoJob.query.filter_by(owner_id=owner).all(),
         staging_jobs=StagingJob.query.filter_by(owner_id=owner).all(),
-        projects=[p for p in load_projects() if p.get("owner") == owner],
     ))
 
 

@@ -169,7 +169,6 @@ async function renderStats() {
   }
 
   const m = s.money, a = s.activity, p = s.pipeline;
-  set("stat-period-title", s.label);
 
   set("stat-revenue", dollars(m.revenue));
   // Profit is stated against the spend it came from: a margin alone cannot
@@ -182,6 +181,7 @@ async function renderStats() {
   set("stat-avg-deal", a.deals_closed ? `${cents(m.avg_deal)} average` : "");
 
   set("stat-leads-added", a.leads_added);
+  set("stat-leads-sub", s.label.toLowerCase());
 
   const touches = a.emails_sent + a.calls_made + a.videos_sent;
   set("stat-outreach", touches);
@@ -189,20 +189,17 @@ async function renderStats() {
     ? [plural(a.emails_sent, "email", "emails"),
        plural(a.calls_made, "call", "calls"),
        plural(a.videos_sent, "video", "videos")].join(" · ")
-    : "No calls or emails logged");
+    : "Nothing sent " + s.label.toLowerCase());
 
-  set("stat-clips", a.clips_rendered);
-  // The headline is the clip count, so the detail carries the other kind of
-  // media rather than repeating it. Renders are named too: six clips from
-  // one render and six from six are different days' work.
-  set("stat-media-detail", [
-    plural(a.renders, "render", "renders"),
-    plural(a.rooms_staged, "room staged", "rooms staged"),
-  ].join(" · "));
-
+  // These do not move with the period, so they say "now" rather than
+  // borrowing the heading the period cards sit under.
   set("stat-active-projects", p.active_projects);
-  set("stat-projects-todo", p.projects_todo);
+  set("stat-projects-todo-sub", p.projects_todo
+    ? `${p.projects_todo} with no media yet`
+    : "All have media made");
   set("stat-to-contact", p.to_contact);
-  set("stat-follow-up", p.to_follow_up);
+  set("stat-follow-up-sub", p.to_follow_up
+    ? `${p.to_follow_up} awaiting a reply`
+    : "None awaiting a reply");
   set("stat-hot-leads", p.hot_leads);
 }

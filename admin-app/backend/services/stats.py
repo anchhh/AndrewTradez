@@ -55,7 +55,7 @@ def _in_period(when, since):
     return when is not None and (since is None or when >= since)
 
 
-def collect(owner_id, window, leads, video_jobs, staging_jobs, projects):
+def collect(owner_id, window, leads, video_jobs, staging_jobs):
     """Every figure the dashboard shows, for one owner and one window."""
     from services.video import job_spend
 
@@ -98,8 +98,21 @@ def collect(owner_id, window, leads, video_jobs, staging_jobs, projects):
     }
 
     # ---- pipeline: the state of things right now ----
-    lead_ids_with_project = {p.get("lead_id") for p in projects if p.get("lead_id")}
+    #
+    # A "project" here is a QUALIFIED LEAD -- one card on the dashboard's
+    # Projects list -- and deliberately not a row in projects.json. That file
+    # gets a row every time Create Video or Scenery is opened, so one listing
+    # worked on seven times counts seven times; it was reporting 16 active
+    # projects against a board showing one. What is on the board is the
+    # honest answer to "how many am I working on".
     qualified = [l for l in leads if l.qualified and l.status != "dead"]
+
+    # Which leads have had any media made for them at all. Started means
+    # something was actually produced, not that a page was opened.
+    started = {j.lead_id for j in video_jobs
+               for c in (j.clips or []) if c.get("video_url") and j.lead_id}
+    started |= {j.lead_id for j in staging_jobs
+                for r in (j.rooms or []) if r.get("staged_url") and j.lead_id}
 
     # Contacted and still waiting. Not "status == contacted": the status is
     # set by hand and the timestamp is set by the act of sending, so the
@@ -117,10 +130,8 @@ def collect(owner_id, window, leads, video_jobs, staging_jobs, projects):
     ]
 
     pipeline = {
-        "active_projects": sum(1 for p in projects
-                               if (p.get("status") or "draft") != "completed"),
-        "projects_todo": sum(1 for l in qualified
-                             if l.id not in lead_ids_with_project),
+        "active_projects": len(qualified),
+        "projects_todo": sum(1 for l in qualified if l.id not in started),
         "hot_leads": sum(1 for l in leads if l.status == "responded"),
         "to_follow_up": len(awaiting),
         "to_contact": len(untouched),
