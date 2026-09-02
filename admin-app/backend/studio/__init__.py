@@ -3038,7 +3038,14 @@ def api_video_generate():
                 return jsonify({"error": "%s doesn't offer %s. It does: %s."
                                 % (info["label"], res, ", ".join(allowed_res))}), 400
 
-            specs.append({"move": move, "duration": seconds, "resolution": res})
+            spec = {"move": move, "duration": seconds, "resolution": res}
+            # An ending chosen by hand in the viewer. Validated below against
+            # this lead's own photos -- an anchor is uploaded and used as a
+            # real frame, so it is not a field to take on trust.
+            chosen = (clip.get("anchor") or "").strip()
+            if chosen:
+                spec["chosen_anchor"] = chosen
+            specs.append(spec)
 
     # Exterior moves are anchored from the SITE analysis, and a flyover that
     # cannot be anchored is refused outright rather than downgraded. Indoors
@@ -3059,9 +3066,30 @@ def api_video_generate():
                                      "analysed, so an exterior clip can't be "
                                      "rendered safely: %s" % exc}), 400
 
+        allowed = set(ext_lead.photo_urls or [])
         for spec, photo in zip(specs, photos):
             if not is_exterior_move(spec["move"]):
                 continue
+
+            # A hand-picked ending replaces the analysis's guess, but only if
+            # it is one of this listing's own photographs and not the frame
+            # the clip starts from -- a clip that ends where it began is not a
+            # flight, and an arbitrary URL here would be an upload of anything.
+            chosen = spec.pop("chosen_anchor", None)
+            if chosen:
+                if chosen not in allowed:
+                    return jsonify({"error": "That ending photo doesn't belong "
+                                             "to this listing."}), 400
+                if chosen == photo:
+                    return jsonify({"error": "A clip can't end on the photo it "
+                                             "starts from."}), 400
+                spec["anchor"] = chosen
+                spec["site"] = {
+                    "front_faces": site_data.get("front_faces"),
+                    "depth": site_data.get("depth"),
+                }
+                continue
+
             check = site_svc.check_move(spec["move"], photo, site_data)
             if check["level"] == "blocked":
                 return jsonify({"error": check["reason"]}), 400
@@ -3077,6 +3105,11 @@ def api_video_generate():
                 "front_faces": site_data.get("front_faces"),
                 "depth": site_data.get("depth"),
             }
+
+    # Interior clips are anchored by the layout pass, not by hand, so any
+    # anchor the browser sent for one is dropped rather than trusted.
+    for spec in specs:
+        spec.pop("chosen_anchor", None)
 
     # Anchor every clip we can. The browser shows this before you press the
     # button, but attaching it here means a render is never sent unanchored

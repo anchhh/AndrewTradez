@@ -43,6 +43,7 @@ const state = {
   exteriorMoves: [], // drone moves, offered only on exterior photos
   exteriorRooms: [], // which room labels count as outside
   site: null,        // what the property looks like from the outside
+  anchorOverride: {},// {clipUrl: photoUrl} when the ending was chosen by hand
   siteVerdicts: {},  // {url: {level, reason, anchor}} for the chosen move
   siting: false,
   configured: false,
@@ -398,6 +399,10 @@ function moveFor(url) {
 /* Where a clip ends, when it ends somewhere real. */
 function anchorFor(url) {
   if (!isExterior(url) || moveFor(url) !== "flyover_front_to_back") return null;
+  // A hand-picked ending wins over the analysis. The analysis is a good
+  // guess about which photograph shows the back; the person looking at the
+  // house knows.
+  if (state.anchorOverride[url]) return state.anchorOverride[url];
   const verdict = state.siteVerdicts[url];
   if (verdict && verdict.anchor) return verdict.anchor;
   // Before the site call lands, the rear photo is still the only place a
@@ -658,16 +663,30 @@ function renderClipMoves() {
 
     return `
       <div class="rn-clip-row ${verdict ? "is-" + verdict.level : ""}" data-url="${escapeHtml(url)}">
-        <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
+        ${anchor ? `
+          <div class="rn-frames">
+            <button type="button" class="rn-frame" data-frame="start"
+                    title="First frame — click to view or change">
+              <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
+              <span class="rn-frame-tag">Start</span>
+            </button>
+            <span class="rn-frames-arrow" aria-hidden="true">→</span>
+            <button type="button" class="rn-frame" data-frame="end"
+                    title="Last frame — click to view or change">
+              <img class="rn-clip-shot" src="${escapeHtml(anchor)}" alt="" loading="lazy">
+              <span class="rn-frame-tag">End</span>
+            </button>
+          </div>`
+        : `<button type="button" class="rn-frame rn-frame-solo" data-frame="start"
+                   title="Click to view full screen">
+             <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
+           </button>`}
         <div class="rn-clip-body">
           <span class="rn-clip-name">Clip ${i + 1}${label ? " · " + escapeHtml(label) : ""}</span>
           ${anchor ? `
-            <span class="rn-ends-on">
-              <img src="${escapeHtml(anchor)}" alt="" loading="lazy">
-              ends on ${escapeHtml(roomOf(anchor).label || "the rear photo")}
-              ${state.photos.includes(anchor)
-                ? " — not rendered separately" : ""}
-            </span>` : ""}
+            <span class="rn-ends-on">Ends on ${escapeHtml(
+              roomOf(anchor).label || "the rear photo")}${
+              state.photos.includes(anchor) ? " — not rendered separately" : ""}</span>` : ""}
           ${verdict ? `
             <span class="rn-verdict rn-verdict-${verdict.level}">
               ${LEVEL_WORD[verdict.level] || verdict.level}${
@@ -737,6 +756,52 @@ function renderClipMoves() {
     // goes through selectPhoto -- the numbering and the walkthrough order are
     // that function's job, not this button's. The grid stays shut: removing a
     // clip is not a reason to unfold thirty-seven thumbnails.
+    // Full screen, with "Use this…" so a frame can be swapped without
+    // leaving the viewer. Exterior clips choose from the exterior photos --
+    // offering a bathroom as the end of a drone flight is not a choice.
+    row.querySelectorAll(".rn-frame").forEach((frame) => {
+      frame.addEventListener("click", () => {
+        const outside = isExterior(url);
+        const pool = (outside
+          ? state.available.filter(isExterior)
+          : state.available.slice());
+        const anchor = anchorFor(url);
+        const isEnd = frame.dataset.frame === "end";
+        const showing = isEnd ? anchor : url;
+
+        openLightbox(pool, pool.indexOf(showing), project.photo_rooms || null, {
+          label: isEnd ? "ending" : "start",
+          isSelected: (candidate) => candidate === (isEnd ? anchor : url),
+          toggle: (candidate) => {
+            if (isEnd) {
+              // The clip cannot end on the photo it starts from.
+              if (candidate === url) return;
+              state.anchorOverride[url] = candidate;
+            } else {
+              if (candidate === anchor) return;
+              // Swapping the start swaps which photo this clip IS, keeping
+              // its place in the running order.
+              const at = state.photos.indexOf(url);
+              if (at < 0) return;
+              if (state.photos.includes(candidate)) return;
+              state.photos[at] = candidate;
+              state.moves[candidate] = state.moves[url] || moveFor(url);
+              state.seconds[candidate] = state.seconds[url] || state.defaultDuration;
+              state.quality[candidate] = state.quality[url] || state.defaultResolution;
+              if (state.anchorOverride[url]) {
+                state.anchorOverride[candidate] = state.anchorOverride[url];
+                delete state.anchorOverride[url];
+              }
+            }
+            renderPhotos();
+            renderClipMoves();
+            renderCost();
+            fetchSite();
+          },
+        });
+      });
+    });
+
     row.querySelector(".rn-clip-x").addEventListener("click", () => {
       selectPhoto(url, false);
       renderPhotos();
@@ -903,9 +968,12 @@ async function startRender() {
         // Clips rather than bare photos: each carries its own camera move.
         clips: renderablePhotos().map((url) => ({
           photo: url,
-          move: state.moves[url] || state.defaultMove,
+          move: moveFor(url),
           duration: state.seconds[url] || state.defaultDuration,
           resolution: state.quality[url] || state.defaultResolution,
+          // Only when chosen by hand; otherwise the server picks it, which is
+          // the path that also refuses a flyover with nowhere to land.
+          anchor: state.anchorOverride[url] || undefined,
         })),
         lead_id: project.lead_id || null,
       }),

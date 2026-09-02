@@ -524,24 +524,57 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .lm-menu-note { padding: 4px 9px 6px; font-size: 0.74rem; color: var(--ink-soft); }
 .lm-menu-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 
-/* Where a flight ends, shown on the flight rather than as a second clip. */
-.rn-ends-on {
-  display: inline-flex;
+/* An anchored flight shows both of its real frames, at a size worth looking
+   at. They are the two photographs the clip travels between, so a thumbnail
+   the size of a favicon was the wrong call. */
+.rn-frames {
+  display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
-  padding: 3px 9px 3px 3px;
+  flex: 0 0 auto;
+}
+.rn-frames-arrow { color: var(--ink-soft); font-size: 1rem; }
+
+.rn-frame {
+  position: relative;
+  display: block;
+  width: 120px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.rn-frame:hover { border-color: var(--accent); }
+.rn-frame-solo { width: 132px; }
+.rn-frame-tag {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  padding: 1px 7px;
   border-radius: 20px;
-  background: var(--cream);
+  background: rgba(23, 19, 15, 0.72);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.rn-ends-on {
+  display: inline-block;
+  margin-top: 3px;
   font-size: 0.72rem;
   color: var(--ink-soft);
 }
-.rn-ends-on img {
-  width: 26px;
-  height: 20px;
-  object-fit: cover;
-  border-radius: 4px;
-  display: block;
+
+@media (max-width: 780px) {
+  /* Stacked rather than shrunk: two 60px frames tell you nothing. */
+  .rn-frames { flex-wrap: wrap; }
+  .rn-frame, .rn-frame-solo { width: 100%; }
+  .rn-frames-arrow { transform: rotate(90deg); }
 }
 
 /* Exterior / Interior on the shots step. */
@@ -4765,8 +4798,11 @@ gmp-map-3d {
 .rn-clip-moves { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 18px; }
 .rn-clip-row {
   display: grid;
-  /* shot | name | the three controls, which sit together on the right */
-  grid-template-columns: 132px minmax(0, 1fr) auto auto;
+  /* shot | name | the three controls, which sit together on the right.
+     The first column sizes to its content so an anchored clip can show both
+     of its frames -- pinned at 132px they were squeezed to 53px each, which
+     is smaller than the single frame it replaced. */
+  grid-template-columns: minmax(132px, max-content) minmax(0, 1fr) auto auto;
   gap: 14px;
   align-items: center;
   padding: 10px;
