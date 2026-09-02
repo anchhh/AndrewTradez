@@ -1200,7 +1200,12 @@ def scenery():
 @studio_bp.route("/outreach")
 @login_required
 def outreach_queue():
-    return render_template("outreach.html")
+    """The send queue moved into Lead management, which is where the leads
+    it acts on already were. Kept as a redirect so saved links, and the
+    dashboard's focus links, still land in the right place."""
+    args = dict(request.args)
+    args["tab"] = "outreach"
+    return redirect(url_for("studio.leads_manager", **args))
 
 
 @studio_bp.route("/leads")

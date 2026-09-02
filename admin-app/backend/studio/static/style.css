@@ -1,3 +1,10 @@
+/* The hidden attribute must beat any class that sets a display.
+   Its UA rule is display:none at the lowest specificity, so a single
+   `.thing { display: flex }` silently defeats it -- which is exactly what
+   kept "See renders", "See projects" and the outreach focus bar on screen
+   when their scripts had marked them hidden. */
+[hidden] { display: none !important; }
+
 :root {
   --cream: #efe8dd;
   --cream-soft: #f6f2ea;
@@ -416,6 +423,87 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 /* ---------- Top nav (Create Video / Dashboard pages) ---------- */
+
+/* ---------- Lead management summary ---------- */
+
+.lm-summary {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  margin: 6px 0 22px;
+  padding: 18px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+@media (max-width: 780px) {
+  .lm-summary { grid-template-columns: 1fr; }
+}
+
+.lm-summary-chart {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.lm-donut { width: 118px; height: 118px; flex: 0 0 auto; }
+.lm-donut-num {
+  text-anchor: middle;
+  font-size: 26px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+.lm-donut-cap {
+  text-anchor: middle;
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lm-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lm-legend-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto 34px;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.76rem;
+}
+/* A status nobody is in stays listed but recedes -- the shape of the
+   pipeline includes the stages that are empty. */
+.lm-legend-row.is-zero { opacity: 0.45; }
+.lm-swatch { width: 10px; height: 10px; border-radius: 3px; }
+.lm-legend-name { color: var(--ink-soft); }
+.lm-legend-n { font-weight: 700; color: var(--ink); }
+.lm-legend-pct { color: var(--ink-soft); text-align: right; }
+
+.lm-summary-stats { display: grid; gap: 10px; }
+.lm-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.lm-summary-grid .lm-stat {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.lm-summary-grid .lm-stat-value { font-size: 1.5rem; }
+
+.lm-tabs { margin-bottom: 18px; }
+.lm-tabs .task-tab { cursor: pointer; font: inherit; text-align: left; }
+.task-tab-count {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 20px;
+  background: var(--line);
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+.task-tab.active .task-tab-count { background: var(--accent); color: #fff; }
 
 /* The two tasks Create can do. A strip of links, not panels: each flow is
    its own document (see _create_tabs.html for why). */

@@ -234,6 +234,12 @@ async function load() {
   el("empty-waiting").hidden = data.waiting.length > 0;
   el("empty-sent").hidden = sent.length > 0;
 
+  // The merged page's tab shows what is waiting to go out. Published from
+  // here because this is the script that fetched it; the summary reading
+  // into this file's variables would be the coupling worth avoiding.
+  var tabCount = document.getElementById("tab-count-outreach");
+  if (tabCount) tabCount.textContent = data.ready.length || "";
+
   el("skipped-note").textContent = data.skipped_count
     ? `${data.skipped_count} lead${data.skipped_count > 1 ? "s" : ""} skipped and hidden from this queue.`
     : "";
