@@ -46,6 +46,10 @@ class Lead(db.Model):
     property_type = db.Column(db.String(60), nullable=True)
 
     photo_urls_json = db.Column(db.Text, nullable=False, default="[]")
+    # Which photo represents this lead. Listings do not always lead with their
+    # best shot -- the first photo is whatever the site listed first, which on
+    # one lead was a dusk exterior of the wrong end of the house.
+    thumbnail_url = db.Column(db.String(500), nullable=True)
 
     # The listing agent's brokerage, taken from the site's own structured
     # data rather than page text. Needed to look up an agent whose email the

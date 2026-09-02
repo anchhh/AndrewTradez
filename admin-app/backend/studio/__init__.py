@@ -1548,7 +1548,8 @@ def api_update_lead_status(lead_id):
 
     # Contact details are editable because a listing often doesn't publish the
     # agent's email -- Zillow never does -- so it gets looked up and typed in.
-    EDITABLE_TEXT = ("notes", "agent_email", "agent_name", "agent_phone", "brokerage",
+    EDITABLE_TEXT = ("thumbnail_url",
+                     "notes", "agent_email", "agent_name", "agent_phone", "brokerage",
                      "video_url")
     if "status" not in data and not any(f in data for f in EDITABLE_TEXT):
         return jsonify({"error": "Nothing to update."}), 400

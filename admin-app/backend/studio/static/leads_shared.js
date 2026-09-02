@@ -186,7 +186,12 @@ function attachNotes(textarea, leadId, stateEl) {
 function leadCardHtml(lead, opts = {}) {
   const meta = STATUS_GROUPS[groupKeyFor(lead)];
   const project = opts.project || null;
-  const photo = (project && (project.photos || [])[0]) || (lead.photo_urls || [])[0] || null;
+  // A chosen thumbnail wins over the listing's own first photo, which is
+  // whatever the site happened to put first rather than the best shot.
+  const photo = lead.thumbnail_url
+    || (project && (project.photos || [])[0])
+    || (lead.photo_urls || [])[0]
+    || null;
 
   const statusSelect = opts.showStatusSelect
     ? `<select class="lead-status-select" aria-label="Lead status">${LEAD_STATUSES.map(
@@ -854,7 +859,7 @@ function outreachDotsHtml(lead) {
 
 function leadRowHtml(lead) {
   const meta = STATUS_GROUPS[groupKeyFor(lead)];
-  const photo = (lead.photo_urls || [])[0] || null;
+  const photo = lead.thumbnail_url || (lead.photo_urls || [])[0] || null;
   const place = [lead.city, lead.state].filter(Boolean).join(", ");
 
   return `

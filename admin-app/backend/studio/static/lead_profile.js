@@ -33,11 +33,50 @@ function renderPhotos(photos) {
   let heroIndex = 0;
   const showHero = (url) => {
     heroIndex = Math.max(0, list.indexOf(url));
-    hero.innerHTML = isVideoUrl(url)
+    const isCurrent = (lead.thumbnail_url || list[0]) === url;
+    hero.innerHTML = (isVideoUrl(url)
       ? `<video src="${escapeHtml(url)}" controls muted></video>`
-      : `<img src="${escapeHtml(url)}" alt="">`;
+      : `<img src="${escapeHtml(url)}" alt="">`) +
+      // A listing leads with whatever the site listed first, which is not
+      // always the shot worth putting on a card.
+      `<button type="button" class="lp-set-thumb ${isCurrent ? "is-current" : ""}"
+               data-url="${escapeHtml(url)}" ${isVideoUrl(url) ? "hidden" : ""}>
+         ${isCurrent ? "★ Lead thumbnail" : "☆ Use as thumbnail"}
+       </button>`;
+
+    const setBtn = hero.querySelector(".lp-set-thumb");
+    if (setBtn) {
+      setBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (isCurrent) return;
+        setBtn.textContent = "Saving…";
+        try {
+          const updated = await fetchJSON(`/studio/api/leads/${LEAD_ID}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ thumbnail_url: url }),
+          });
+          Object.assign(lead, updated);
+          showHero(url);
+          markThumbs();
+        } catch (err) {
+          setBtn.textContent = "Couldn't save";
+        }
+      });
+    }
   };
-  showHero(list[0]);
+
+  /* A star on the strip, so which one is the thumbnail is visible without
+     opening each in turn. */
+  const markThumbs = () => {
+    const chosen = lead.thumbnail_url || list[0];
+    thumbs.querySelectorAll(".lp-thumb").forEach((b) => {
+      b.classList.toggle("is-thumbnail", b.dataset.url === chosen);
+    });
+  };
+
+  showHero(lead.thumbnail_url && list.includes(lead.thumbnail_url)
+    ? lead.thumbnail_url : list[0]);
 
   hero.onclick = (e) => {
     // A video in the hero has its own controls; clicking those shouldn't
@@ -62,6 +101,7 @@ function renderPhotos(photos) {
       showHero(btn.dataset.url);
     });
   });
+  markThumbs();
 }
 
 // Fires automatically on open so a profile already has its pictures, the way
