@@ -24,6 +24,7 @@ const state = {
   style: null,       // the style card, which is a preset for the moves
   available: [],     // every still in the project
   photos: [],        // the ones ticked, one clip each
+  photosOpen: false, // the room grid, collapsed until you want to change it
   moves: {},         // {url: moveKey} -- the camera move for that clip
   seconds: {},       // {url: length}      -- and how long it runs
   quality: {},       // {url: resolution}  -- and at what size
@@ -135,6 +136,9 @@ function photoTile(url) {
   div.addEventListener("click", (e) => {
     if (e.target.tagName === "INPUT") e.preventDefault();
     selectPhoto(url, !state.photos.includes(url));
+    // Stays open: you are picking, and re-rendering closed would end the job
+    // after one tick.
+    state.photosOpen = true;
     renderPhotos();
     renderClipMoves();
     renderCost();
@@ -150,16 +154,44 @@ function renderPhotos() {
     return;
   }
 
+  // Which rooms are in, named in the header -- collapsed, that line is the
+  // only thing standing in for thirty-seven thumbnails, so it has to say more
+  // than a number.
+  const included = [];
+  const seen = new Set();
+  state.photos.forEach((url) => {
+    const label = roomOf(url).label || "Unsorted";
+    if (!seen.has(label)) { seen.add(label); included.push(label); }
+  });
+  const summary = included.length
+    ? included.slice(0, 5).join(", ") + (included.length > 5 ? ` +${included.length - 5} more` : "")
+    : "nothing selected";
+
   box.innerHTML = `
-    <div class="rn-photos-head">
-      <span class="photo-count">
-        <strong>${state.photos.length}</strong> of ${state.available.length} photos
-        — one clip each, in walkthrough order
+    <button type="button" class="rn-photos-head" id="rn-photos-toggle"
+            aria-expanded="${state.photosOpen}" aria-controls="rn-grid">
+      <span class="rn-photos-chevron" aria-hidden="true"></span>
+      <span class="rn-photos-summary">
+        <span class="photo-count">
+          <strong>${state.photos.length}</strong> of ${state.available.length} photos
+          — one clip each, in walkthrough order
+        </span>
+        <span class="rn-photos-rooms">${escapeHtml(summary)}</span>
       </span>
-      <button type="button" class="btn-secondary btn-tiny" id="rn-clear">Clear</button>
-    </div>
-    <p class="hint">Click a photo to include or leave it out.</p>
-    <div id="rn-grid" class="photo-grid is-grouped"></div>`;
+      <span class="btn-secondary btn-tiny" id="rn-clear" role="button">Clear</span>
+    </button>
+    <div id="rn-photos-body" class="rn-photos-body" ${state.photosOpen ? "" : "hidden"}>
+      <p class="hint">Click a photo to include or leave it out.</p>
+      <div id="rn-grid" class="photo-grid is-grouped"></div>
+    </div>`;
+
+  el("rn-photos-toggle").addEventListener("click", (e) => {
+    if (e.target.closest("#rn-clear")) return;
+    state.photosOpen = !state.photosOpen;
+    renderPhotos();
+    renderClipMoves();
+    renderCost();
+  });
 
   const grid = el("rn-grid");
   groupedPhotos().forEach((group) => {
@@ -195,7 +227,8 @@ function renderPhotos() {
 
   const clear = el("rn-clear");
   if (clear) {
-    clear.addEventListener("click", () => {
+    clear.addEventListener("click", (e) => {
+      e.stopPropagation();
       state.photos = [];
       renderPhotos();
       renderClipMoves();

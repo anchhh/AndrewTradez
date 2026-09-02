@@ -3647,13 +3647,55 @@ gmp-map-3d {
   text-align: center;
 }
 
+/* The whole room grid folds away. It is thirty-seven thumbnails tall and
+   mostly not what you came to change -- the header carries the count and the
+   rooms in it, which is enough to leave it shut. */
 .rn-photos-head {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 4px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--cream-soft);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
 }
-.rn-photos-head .photo-count { flex: 1 1 auto; }
+.rn-photos-head:hover { border-color: #cdc0aa; }
+.rn-photos-head .photo-count { display: block; }
+
+.rn-photos-summary { flex: 1 1 auto; min-width: 0; }
+.rn-photos-rooms {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rn-photos-chevron {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-right: 1.8px solid var(--ink-soft);
+  border-bottom: 1.8px solid var(--ink-soft);
+  transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+}
+.rn-photos-head[aria-expanded="true"] .rn-photos-chevron {
+  transform: rotate(45deg);
+}
+
+.rn-photos-body { margin-top: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rn-photos-head, .rn-photos-chevron { transition: none; }
+}
 .rn-controls {
   display: flex;
   gap: 16px;
