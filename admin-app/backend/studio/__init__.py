@@ -2611,6 +2611,100 @@ def _clip_owner_job(job_id):
     return job
 
 
+@studio_bp.route("/api/folders", methods=["GET", "POST"])
+@login_required
+def api_folders():
+    """The Projects page's folders, and making a new one."""
+    from extensions import db
+    from models import Lead, ProjectFolder
+
+    owner = session["user_id"]
+
+    if request.method == "POST":
+        name = ((request.get_json(force=True, silent=True) or {}).get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "A folder needs a name."}), 400
+        if len(name) > 120:
+            return jsonify({"error": "That name is too long."}), 400
+        folder = ProjectFolder(owner_id=owner, name=name)
+        db.session.add(folder)
+        db.session.commit()
+        return jsonify(folder.to_dict()), 201
+
+    folders = (ProjectFolder.query.filter_by(owner_id=owner)
+               .order_by(ProjectFolder.name.asc()).all())
+    # One count query rather than one per folder.
+    counts = {}
+    for lead in Lead.query.filter_by(owner_id=owner).all():
+        if lead.folder_id:
+            counts[lead.folder_id] = counts.get(lead.folder_id, 0) + 1
+
+    return jsonify({"folders": [
+        dict(f.to_dict(), count=counts.get(f.id, 0)) for f in folders
+    ]})
+
+
+@studio_bp.route("/api/folders/<int:folder_id>", methods=["PATCH", "DELETE"])
+@login_required
+def api_folder(folder_id):
+    """Rename a folder, or remove it.
+
+    Deleting a folder never deletes what is in it: the projects inside are
+    put back at the top level. A folder is a way of arranging listings, and
+    tidying the arrangement away should not take the work with it.
+    """
+    from extensions import db
+    from models import Lead, ProjectFolder
+
+    folder = db.session.get(ProjectFolder, folder_id)
+    if folder is None or folder.owner_id != session["user_id"]:
+        return jsonify({"error": "Folder not found."}), 404
+
+    if request.method == "DELETE":
+        moved = Lead.query.filter_by(owner_id=session["user_id"],
+                                     folder_id=folder.id).all()
+        for lead in moved:
+            lead.folder_id = None
+        db.session.delete(folder)
+        db.session.commit()
+        return jsonify({"deleted": True, "released": len(moved)})
+
+    name = ((request.get_json(force=True, silent=True) or {}).get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "A folder needs a name."}), 400
+    folder.name = name[:120]
+    db.session.commit()
+    return jsonify(folder.to_dict())
+
+
+@studio_bp.route("/api/folders/move", methods=["POST"])
+@login_required
+def api_folder_move():
+    """Put projects into a folder, or back at the top level with folder null."""
+    from extensions import db
+    from models import Lead, ProjectFolder
+
+    data = request.get_json(force=True, silent=True) or {}
+    lead_ids = [int(i) for i in (data.get("lead_ids") or []) if str(i).isdigit()]
+    if not lead_ids:
+        return jsonify({"error": "Nothing to move."}), 400
+
+    target = data.get("folder_id")
+    if target is not None:
+        folder = db.session.get(ProjectFolder, int(target))
+        if folder is None or folder.owner_id != session["user_id"]:
+            return jsonify({"error": "Folder not found."}), 404
+        target = folder.id
+
+    moved = 0
+    for lead in Lead.query.filter(Lead.id.in_(lead_ids),
+                                  Lead.owner_id == session["user_id"]).all():
+        lead.folder_id = target
+        moved += 1
+    db.session.commit()
+    return jsonify({"moved": moved, "folder_id": target})
+
+
 @studio_bp.route("/api/video/clip/trash", methods=["POST"])
 @login_required
 def api_clip_trash():

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>estly Studio &mdash; Active projects</title>
+<title>estly Studio &mdash; Projects</title>
 <link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
 </head>
 <body>
@@ -11,17 +11,37 @@
 <div class="wrap wrap-wide lm-wrap">
   <header class="page-header">
     <div>
-      <h1 class="page-title">Active projects</h1>
-      <p class="sub">Qualified leads you are working on — the same set the dashboard counts.</p>
+      <h1 class="page-title" id="pj-title">Projects</h1>
+      <p class="sub">The listings you are working on. Group them into folders
+        the way you would files.</p>
+    </div>
+    <div class="page-header-actions">
+      <button type="button" class="btn-secondary btn-tiny" id="pj-new-folder">
+        + New folder</button>
     </div>
   </header>
 
-  <p id="list-summary" class="lm-count"></p>
-  <div id="lmg-list" class="lm-rows"></div>
-  <p id="lmg-empty" class="empty-note hidden"></p>
+  <nav class="pj-crumbs" id="pj-crumbs" hidden></nav>
+
+  <div class="pj-selbar" id="pj-selbar" hidden>
+    <span id="pj-selcount"></span>
+    <label class="pj-moveto">
+      Move to
+      <select id="pj-move"></select>
+    </label>
+    <button type="button" class="btn-secondary btn-tiny" id="pj-clearsel">Cancel</button>
+  </div>
+
+  <section id="pj-folders-wrap" hidden>
+    <h2 class="pj-section">Folders</h2>
+    <div class="pj-folders" id="pj-folders"></div>
+  </section>
+
+  <h2 class="pj-section" id="pj-projects-head">Projects</h2>
+  <div class="pj-grid" id="pj-grid"></div>
+  <p id="pj-empty" class="empty-note hidden"></p>
 </div>
-<script>window.LIST_MODE = "projects";</script>
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
-<script src="{{ url_for('studio.static', filename='lead_list.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='projects_page.js') }}"></script>
 </body>
 </html>

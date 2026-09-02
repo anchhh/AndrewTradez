@@ -424,6 +424,189 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---------- Top nav (Create Video / Dashboard pages) ---------- */
 
+/* ---------- Projects, arranged like files ---------- */
+
+.pj-section {
+  margin: 20px 0 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+}
+
+.pj-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 0.84rem;
+}
+.pj-crumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.pj-crumb:hover { color: var(--ink); }
+.pj-crumb.is-current { color: var(--ink); font-weight: 700; cursor: default; }
+.pj-crumb-sep { color: var(--ink-soft); }
+.pj-crumb-actions { margin-left: auto; display: flex; gap: 12px; }
+.pj-linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.pj-linkbtn:hover { color: var(--accent); }
+
+.pj-selbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 0 4px;
+  padding: 9px 14px;
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.pj-moveto { display: flex; align-items: center; gap: 7px; font-weight: 400; }
+.pj-moveto select {
+  padding: 4px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cream);
+  font: inherit;
+}
+.pj-moveto select option { color: var(--ink); }
+.pj-selbar .btn-secondary { margin-left: auto; color: var(--cream); }
+.pj-selbar .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+
+.pj-folders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.pj-folder {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--cream-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.pj-folder:hover { border-color: var(--ink-soft); background: #fff; }
+/* Lit while something is held over it, so a drop has an obvious target. */
+.pj-folder.is-drop {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(239, 90, 43, 0.25);
+}
+.pj-folder-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pj-folder-count {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--line);
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+.pj-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+.pj-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--cream-soft);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.pj-card:hover { border-color: var(--ink-soft); transform: translateY(-1px); }
+.pj-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(239, 90, 43, 0.22);
+  background: #fff;
+}
+.pj-card.is-dragging { opacity: 0.45; }
+
+.pj-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+/* Out of the way until wanted, but a ticked box stays visible or a selection
+   would be invisible the moment the pointer leaves. */
+.pj-card:hover .pj-check,
+.pj-card.is-selected .pj-check { opacity: 1; }
+.pj-check input { margin: 0; cursor: pointer; }
+
+.pj-thumb {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: #ddd3c2;
+}
+.pj-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pj-thumb-none {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+}
+
+.pj-body { padding: 9px 11px 11px; }
+.pj-name {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pj-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.73rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- Lead management summary ---------- */
 
 .lm-summary {

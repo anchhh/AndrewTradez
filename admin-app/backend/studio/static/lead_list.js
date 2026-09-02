@@ -1,9 +1,9 @@
 /* A page that is one filtered list of leads.
 
-   Both pages this drives -- closed deals and active projects -- are a
-   question the dashboard raises and cannot answer in a tile: "which ones?"
-   They use the same lead card as the Lead Manager and the Dashboard, so a
-   lead looks and behaves identically wherever it is met.
+   Drives the closed-deals page: a question the dashboard raises and cannot
+   answer in a tile -- "which ones?" It uses the same lead card as the Lead
+   Manager, so a lead looks and behaves identically wherever it is met.
+   Projects outgrew this and has its own page now.
 
    Which list is shown comes from window.LIST_MODE, set by the template. */
 
@@ -13,13 +13,6 @@ const LIST_MODES = {
     // Most recent sale first: what just closed is what you want to see.
     sort: (a, b) => String(b.sold_at || "").localeCompare(String(a.sold_at || "")),
     empty: "Nothing sold yet — mark a package on a lead's profile when a client pays.",
-  },
-  projects: {
-    // A project is a qualified lead: the same thing the dashboard counts and
-    // the same thing its Projects list shows.
-    keep: (lead) => lead.qualified && lead.status !== "dead",
-    sort: (a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")),
-    empty: "No active projects — mark a lead qualified in the Lead Manager.",
   },
 };
 

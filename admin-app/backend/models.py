@@ -77,6 +77,11 @@ class Lead(db.Model):
     # reported as half a million dollars of income.
     sold_amount = db.Column(db.Float, nullable=True)
     sold_at = db.Column(db.DateTime, nullable=True)
+    # Which folder this project sits in on the Projects page, or None for the
+    # top level. A plain nullable column rather than a join table: a project
+    # is in one folder, the way a file is in one folder.
+    folder_id = db.Column(db.Integer, index=True, nullable=True)
+
     # Which package was sold. The amount above is copied from the price list
     # at the moment of sale and is the figure revenue uses -- repricing a
     # package must not silently rewrite what past listings earned.
@@ -193,6 +198,7 @@ class Lead(db.Model):
             "video_url": self.video_url,
             "sold_amount": self.sold_amount,
             "sold_package": self.sold_package,
+            "folder_id": self.folder_id,
             "sold_at": (self.sold_at.replace(tzinfo=timezone.utc).isoformat()
                         if self.sold_at else None),
             "photo_rooms": self.photo_rooms,
@@ -204,6 +210,30 @@ class Lead(db.Model):
             # point leads land in the wrong day.
             "created_at": self.created_at.replace(tzinfo=timezone.utc).isoformat(),
             "updated_at": self.updated_at.replace(tzinfo=timezone.utc).isoformat(),
+        }
+
+
+class ProjectFolder(db.Model):
+    """A folder on the Projects page.
+
+    Flat by design: folders hold projects, not other folders. Nesting is the
+    part of a file tree that needs breadcrumbs, move-into-descendant guards
+    and recursive deletes, and none of that earns its keep for a few dozen
+    listings.
+    """
+
+    __tablename__ = "project_folders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.String(64), index=True, nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at.replace(tzinfo=timezone.utc).isoformat(),
         }
 
 
