@@ -2229,6 +2229,57 @@ def api_video_job_by_id(job_id):
     return jsonify({"job": job.to_dict()})
 
 
+@studio_bp.route("/api/video/layout", methods=["POST"])
+@login_required
+def api_video_layout():
+    """How the house fits together, and what each clip's move would reveal.
+
+    Run before rendering rather than after: a move that would invent a room is
+    worth knowing about while it is still free to change.
+    """
+    from services import layout
+
+    data = request.get_json(force=True, silent=True) or {}
+    lead_id = data.get("lead_id")
+    if not lead_id:
+        return jsonify({"error": "This listing has no lead, so its layout "
+                                 "can't be analysed."}), 400
+
+    lead = get_owned_lead(int(lead_id))
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    photos = lead.photo_urls or []
+    if not photos:
+        return jsonify({"error": "This lead has no photos."}), 400
+
+    try:
+        analysis = layout.analyse(lead.id, photos, force=bool(data.get("force")))
+    except Exception as exc:  # noqa: BLE001 -- surfaced, not swallowed
+        return jsonify({"error": str(exc)}), 502
+
+    index_of = {url: i for i, url in enumerate(photos)}
+    out = []
+    for clip in (data.get("clips") or []):
+        url = clip.get("photo")
+        index = index_of.get(url)
+        if index is None:
+            out.append({"photo": url, "level": "unknown",
+                        "reason": "This photo isn't part of the lead's listing."})
+            continue
+        check = layout.check_move(analysis, index, (clip.get("move") or "").lower())
+        out.append({
+            "photo": url,
+            "level": check["level"],
+            "reason": check["reason"],
+            # The neighbour comes back as a URL, because that is what a render
+            # needs -- the index is an implementation detail of the analysis.
+            "anchor": photos[check["neighbour"]] if check["neighbour"] is not None else None,
+        })
+
+    return jsonify({"clips": out})
+
+
 @studio_bp.route("/api/video/jobs", methods=["GET"])
 @login_required
 def api_video_jobs():
@@ -2329,6 +2380,7 @@ def api_video_generate():
     # A clip carries its own move, length and resolution -- different rooms
     # want different lengths, and one setting for the whole render was the
     # wrong grain for the same reason one camera move was.
+    lead_id_raw = data.get("lead_id")
     fallback_duration = data.get("duration") or DEFAULT_DURATION
     fallback_resolution = data.get("resolution") or DEFAULT_RESOLUTION
 
@@ -2357,6 +2409,30 @@ def api_video_generate():
                 return jsonify({"error": "Unknown resolution: %s" % res}), 400
 
             specs.append({"move": move, "duration": seconds, "resolution": res})
+
+    # Anchor every clip we can. The browser shows this before you press the
+    # button, but attaching it here means a render is never sent unanchored
+    # just because something skipped the check.
+    if specs and lead_id_raw:
+        try:
+            from services import layout
+
+            anchor_lead = get_owned_lead(int(lead_id_raw))
+            if anchor_lead is not None:
+                lead_photos = anchor_lead.photo_urls or []
+                analysis = layout.analyse(anchor_lead.id, lead_photos)
+                index_of = {url: i for i, url in enumerate(lead_photos)}
+                for spec, photo in zip(specs, photos):
+                    index = index_of.get(photo)
+                    if index is None:
+                        continue
+                    check = layout.check_move(analysis, index, spec["move"])
+                    if check["neighbour"] is not None:
+                        spec["anchor"] = lead_photos[check["neighbour"]]
+        except Exception:  # noqa: BLE001
+            # An anchor is an improvement, not a requirement: a failed
+            # analysis must not stop a render the user asked for.
+            pass
     else:
         photos = [p for p in (data.get("photos") or []) if p]
 

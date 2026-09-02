@@ -102,12 +102,27 @@ def _run(app, job_id):
                     entry["move"] = spec["move"]
                     entry["duration"] = spec["duration"]
                     entry["resolution"] = spec["resolution"]
+
+                    # The anchor: when the layout pass found a photo showing
+                    # what this move heads toward, that photo becomes the final
+                    # frame. The model then interpolates between two real
+                    # photographs instead of inventing the space between them,
+                    # which is the whole reason a pan invented a door.
+                    last_url = None
+                    anchor = spec.get("anchor")
+                    if anchor:
+                        anchor_path = local_path_for(anchor)
+                        if os.path.exists(anchor_path):
+                            last_url = upload_image(anchor_path, cfg)
+                            entry["anchor"] = anchor
+
                     prediction_id = submit_clip(
                         image_url,
                         prompt=job.prompt or prompt_for_clip(move=spec["move"]),
                         cfg=cfg,
                         duration=spec["duration"],
                         resolution=spec["resolution"],
+                        last_image=last_url,
                     )
                     entry["prediction_id"] = prediction_id
                     job.clips = clips

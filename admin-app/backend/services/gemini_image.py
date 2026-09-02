@@ -263,3 +263,42 @@ def ask_about_image(image_bytes, question, cfg=None, timeout=90):
         part.get("text", "")
         for part in (candidates[0].get("content") or {}).get("parts") or []
     ).strip()
+
+
+def ask_about_images(images, question, cfg=None, timeout=180):
+    """Ask one question about SEVERAL images at once.
+
+    Needed for layout analysis, where the point is comparing photographs with
+    each other -- which room adjoins which -- rather than judging one on its
+    own. Sent as contact sheets, so a whole listing is two images.
+    """
+    cfg = cfg or load_config()
+    if not cfg["api_key"]:
+        raise GeminiNotConfigured("Gemini isn't connected.")
+
+    parts = [{"text": question}]
+    for blob in images:
+        parts.append({"inline_data": {"mime_type": "image/jpeg",
+                                      "data": base64.b64encode(blob).decode("ascii")}})
+
+    try:
+        resp = requests.post(
+            f"{BASE_URL}/models/{cfg['model']}:generateContent",
+            headers={"Content-Type": "application/json", "x-goog-api-key": cfg["api_key"]},
+            json={"contents": [{"parts": parts}],
+                  "generationConfig": {"responseModalities": ["TEXT"]}},
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        raise GeminiError(f"could not reach Gemini: {exc}") from exc
+
+    if resp.status_code >= 400:
+        raise GeminiError(_explain(resp))
+
+    candidates = resp.json().get("candidates") or []
+    if not candidates:
+        return ""
+    return " ".join(
+        part.get("text", "")
+        for part in (candidates[0].get("content") or {}).get("parts") or []
+    ).strip()

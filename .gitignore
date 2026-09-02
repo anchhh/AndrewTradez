@@ -50,3 +50,4 @@ admin-app/backend/_sort_queue/
 admin-app/backend/backups/
 
 VIDEO_PROMPTS.txt
+admin-app/backend/studio/_layout/

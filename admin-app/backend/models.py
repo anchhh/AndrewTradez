@@ -250,6 +250,9 @@ class VideoJob(db.Model):
             "move": spec.get("move"),
             "duration": spec.get("duration") or self.duration,
             "resolution": spec.get("resolution") or self.resolution,
+            # The photo this clip should end on, when the layout pass found
+            # one. Absent means a single-image generation.
+            "anchor": spec.get("anchor"),
         }
 
     @property
