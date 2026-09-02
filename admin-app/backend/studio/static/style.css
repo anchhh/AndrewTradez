@@ -3628,21 +3628,24 @@ gmp-map-3d {
 
 /* ---------- Render (Create Video's missing last step) ---------- */
 .rn-photos { margin-bottom: 18px; }
-.rn-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
-.rn-thumb {
-  position: relative;
-  flex: 0 0 auto;
-  width: 116px;
-  height: 82px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
+
+/* The tiles are Scenery's -- .photo-room, .thumb and friends -- so the two
+   pages group and label photos identically. All that is added is the clip
+   number, because here the order is what gets stitched. */
+.rn-thumb-n {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 2;
+  min-width: 19px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
 }
-.rn-thumb { cursor: pointer; transition: border-color 0.15s ease, opacity 0.15s ease; }
-.rn-thumb:hover { border-color: var(--accent); }
-.rn-thumb.is-excluded { opacity: 0.38; }
-.rn-thumb.is-excluded:hover { opacity: 0.7; }
-.rn-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .rn-photos-head {
   display: flex;
@@ -3651,20 +3654,6 @@ gmp-map-3d {
   margin-bottom: 4px;
 }
 .rn-photos-head .photo-count { flex: 1 1 auto; }
-.rn-thumb-n {
-  position: absolute;
-  left: 5px;
-  bottom: 5px;
-  min-width: 17px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 700;
-  text-align: center;
-}
-
 .rn-controls {
   display: flex;
   gap: 16px;

@@ -67,7 +67,74 @@ function markStep(n) {
   });
 }
 
-/* ---------- what we are rendering ---------- */
+/* ---------- what we are rendering ----------
+
+   Grouped and labelled exactly as Scenery groups its rooms, and for a reason
+   beyond consistency: the room labels carry a walkthrough order, and clips are
+   stitched in sequence. Sorting by it means the default tour runs the way
+   somebody would actually walk the house -- approach, living, kitchen,
+   bedrooms -- rather than the order the photos happened to be scraped in. */
+
+function roomOf(url) {
+  return (project.photo_rooms || {})[url] || {};
+}
+
+function groupedPhotos() {
+  const buckets = new Map();
+  state.available.forEach((url) => {
+    const info = roomOf(url);
+    const key = info.room || "unsorted";
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        key,
+        label: info.label || "Unsorted",
+        // Unsorted last: it is the pile nothing could be said about.
+        order: info.order != null ? info.order : 999,
+        photos: [],
+      });
+    }
+    buckets.get(key).photos.push(url);
+  });
+  return [...buckets.values()].sort((a, b) => a.order - b.order);
+}
+
+/* The order clips are rendered and stitched in: walkthrough order, not the
+   order photos arrived. */
+function walkthroughOrder() {
+  return groupedPhotos().flatMap((group) => group.photos);
+}
+
+function selectPhoto(url, on) {
+  const ordered = walkthroughOrder();
+  const chosen = new Set(state.photos);
+  if (on) chosen.add(url);
+  else chosen.delete(url);
+  state.photos = ordered.filter((u) => chosen.has(u));
+  if (on && !state.moves[url]) state.moves[url] = state.defaultMove;
+}
+
+function photoTile(url) {
+  const on = state.photos.includes(url);
+  const at = state.photos.indexOf(url);
+  const div = document.createElement("div");
+  div.className = "thumb is-selectable" + (on ? "" : " is-excluded");
+  div.dataset.url = url;
+  div.innerHTML = `
+    <img src="${escapeHtml(url)}" alt="" loading="lazy">
+    <label class="thumb-use" title="Make a clip from this photo">
+      <input type="checkbox" ${on ? "checked" : ""}>
+    </label>
+    ${on ? `<span class="rn-thumb-n">${at + 1}</span>` : ""}`;
+
+  div.addEventListener("click", (e) => {
+    if (e.target.tagName === "INPUT") e.preventDefault();
+    selectPhoto(url, !state.photos.includes(url));
+    renderPhotos();
+    renderClipMoves();
+    renderCost();
+  });
+  return div;
+}
 
 function renderPhotos() {
   const box = el("rn-photos");
@@ -77,40 +144,47 @@ function renderPhotos() {
     return;
   }
 
-  const chosen = new Set(state.photos);
   box.innerHTML = `
     <div class="rn-photos-head">
       <span class="photo-count">
         <strong>${state.photos.length}</strong> of ${state.available.length} photos
-        — one clip each, in this order
+        — one clip each, in walkthrough order
       </span>
       <button type="button" class="btn-secondary btn-tiny" id="rn-clear">Clear</button>
     </div>
     <p class="hint">Click a photo to include or leave it out.</p>
-    <div class="rn-strip">
-      ${state.available.map((url) => {
-        const at = state.photos.indexOf(url);
-        return `
-        <div class="rn-thumb ${at >= 0 ? "" : "is-excluded"}" data-url="${escapeHtml(url)}">
-          <img src="${escapeHtml(url)}" alt="" loading="lazy">
-          ${at >= 0 ? `<span class="rn-thumb-n">${at + 1}</span>` : ""}
-        </div>`;
-      }).join("")}
-    </div>`;
+    <div id="rn-grid" class="photo-grid is-grouped"></div>`;
 
-  box.querySelectorAll(".rn-thumb").forEach((tile) => {
-    tile.addEventListener("click", () => {
-      const url = tile.dataset.url;
-      const at = state.photos.indexOf(url);
-      if (at >= 0) state.photos.splice(at, 1);
-      // Keep the project's own order rather than click order -- the clips are
-      // stitched in sequence and a jumbled tour is worse than a short one.
-      else state.photos = state.available.filter(
-        (u) => u === url || state.photos.includes(u));
+  const grid = el("rn-grid");
+  groupedPhotos().forEach((group) => {
+    const on = group.photos.filter((u) => state.photos.includes(u)).length;
+    const section = document.createElement("section");
+    section.className = "photo-room" + (group.key === "unsorted" ? " is-secondary" : "");
+    section.dataset.room = group.key;
+    section.innerHTML = `
+      <div class="photo-room-head">
+        <span class="photo-room-label">${escapeHtml(group.label)}</span>
+        <span class="photo-room-count">${on}/${group.photos.length}</span>
+        <button type="button" class="btn-tiny photo-room-toggle">
+          ${on === group.photos.length ? "None" : "All"}
+        </button>
+      </div>`;
+
+    const sub = document.createElement("div");
+    sub.className = "photo-room-grid";
+    group.photos.forEach((url) => sub.appendChild(photoTile(url)));
+    section.appendChild(sub);
+
+    section.querySelector(".photo-room-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const turnOn = on !== group.photos.length;
+      group.photos.forEach((url) => selectPhoto(url, turnOn));
       renderPhotos();
       renderClipMoves();
       renderCost();
     });
+
+    grid.appendChild(section);
   });
 
   const clear = el("rn-clear");
@@ -196,10 +270,9 @@ function renderClipMoves() {
     return;
   }
 
-  const rooms = project.photo_rooms || {};
   box.innerHTML = state.photos.map((url, i) => {
     const active = state.moves[url] || state.defaultMove;
-    const label = (rooms[url] || {}).label;
+    const label = roomOf(url).label;
     return `
       <div class="rn-clip-row" data-url="${escapeHtml(url)}">
         <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
@@ -435,16 +508,15 @@ async function init() {
   // One per room where the photos have been sorted, so the default tour hits
   // living/kitchen/bedroom rather than six angles of the same lounge; a plain
   // cap otherwise. Either way it starts small.
-  const rooms = project.photo_rooms || null;
-  if (rooms) {
-    const seen = new Set();
-    state.photos = state.available.filter((url) => {
-      const room = (rooms[url] || {}).room;
-      if (!room || seen.has(room)) return false;
-      seen.add(room);
-      return true;
-    }).slice(0, DEFAULT_CLIPS);
-  }
+  const seen = new Set();
+  state.photos = walkthroughOrder().filter((url) => {
+    const room = roomOf(url).room;
+    if (!room || seen.has(room)) return false;
+    seen.add(room);
+    return true;
+  }).slice(0, DEFAULT_CLIPS);
+  // No labels at all (a pasted link or a manual upload): fall back to a cap,
+  // still in the order the photos arrived.
   if (!state.photos.length) state.photos = state.available.slice(0, DEFAULT_CLIPS);
 
   el("rn-sub").textContent = project.address || project.name || el("rn-sub").textContent;
