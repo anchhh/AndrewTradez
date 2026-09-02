@@ -530,12 +530,26 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 8px;
-  font-size: 0.74rem;
+  margin: 0 0 10px;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  color: var(--cream);
+}
+/* The same badge as the picker above, so the two lists read as one split. */
+.rn-scope-head > span:first-child,
+.rn-scope-head { position: relative; }
+.rn-scope-head {
+  color: var(--ink);
+  background: none;
+}
+.rn-scope-head::before {
+  content: attr(data-scope);
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--ink);
+  color: var(--cream);
 }
 .rn-scope-count {
   padding: 1px 7px;
@@ -543,6 +557,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   background: var(--line);
   font-size: 0.7rem;
   letter-spacing: 0;
+  color: var(--ink-soft);
+}
+.rn-scope-head::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
 }
 .rn-scope-note {
   margin: 0 0 10px;
@@ -3493,12 +3514,24 @@ gmp-map-3d {
   gap: 8px;
   margin-bottom: 10px;
 }
+/* Loud on purpose. The two halves behave differently -- outside is a drone
+   flight anchored to a rear photograph, inside is a camera in a room -- so
+   which half you are looking at should not be a caption you have to hunt for. */
 .photo-scope-label {
-  font-size: 0.74rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--ink);
+  letter-spacing: 0.08em;
+}
+.photo-scope-head::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
 }
 .photo-scope-count {
   padding: 1px 7px;

@@ -673,13 +673,15 @@ function renderClipMoves() {
   box.innerHTML =
     (outside.length ? `
       <section class="rn-scope">
-        <h3 class="rn-scope-head">Exterior <span class="rn-scope-count">${outside.length}</span></h3>
+        <h3 class="rn-scope-head" data-scope="Exterior"><span
+          class="rn-scope-count">${outside.length}</span></h3>
         ${siteNote}
         ${outside.join("")}
       </section>` : "") +
     (inside.length ? `
       <section class="rn-scope">
-        <h3 class="rn-scope-head">Interior <span class="rn-scope-count">${inside.length}</span></h3>
+        <h3 class="rn-scope-head" data-scope="Interior"><span
+          class="rn-scope-count">${inside.length}</span></h3>
         ${inside.join("")}
       </section>` : "");
 
@@ -1291,6 +1293,10 @@ async function init() {
       if (!state.moves[url]) state.moves[url] = state.defaultMove;
     });
     renderSetAll();
+    // The grid was drawn before this request came back, when the page did not
+    // yet know which room labels are outside -- so every photo landed under
+    // Interior and stayed there. Redraw it now that the answer is in.
+    renderPhotos();
     renderClipMoves();
     renderStyleCards();
   } catch (err) {
