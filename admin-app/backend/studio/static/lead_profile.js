@@ -878,9 +878,11 @@ async function sendToCapCut() {
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "Couldn't write the project.");
     el("lp-capcut-note").innerHTML =
-      `<strong>Done.</strong> "${escapeHtml(body.name)}" is in CapCut — ` +
+      `<strong>Done.</strong> "${escapeHtml(body.name)}" — ` +
       `${body.clips} clip${body.clips === 1 ? "" : "s"}, ${body.duration}s. ` +
-      `Open CapCut and it's in your project list.`;
+      (body.opened
+        ? `CapCut is opening; it's at the top of your project list.`
+        : `Open CapCut and it's at the top of your project list.`);
     btn.textContent = "Sent";
   } catch (err) {
     el("lp-capcut-note").textContent = err.message;

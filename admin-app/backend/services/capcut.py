@@ -235,3 +235,61 @@ def create_draft(name, clips, width=1920, height=1080, fps=30):
         "duration": round(cursor / US, 1),
         "format_from": proto["from"],
     }
+
+
+def executable():
+    """The installed CapCut.exe, newest version if several are present.
+
+    Apps/<version>/CapCut.exe, so the version is globbed rather than pinned --
+    CapCut updates itself and a hard-coded path would break on the next one.
+    """
+    import glob
+
+    override = os.environ.get("CAPCUT_EXE")
+    if override and os.path.exists(override):
+        return override
+
+    # drafts_dir is .../CapCut/User Data/Projects/com.lveditor.draft, and the
+    # executable lives at .../CapCut/Apps/<version>/CapCut.exe.
+    root = os.path.dirname(os.path.dirname(os.path.dirname(drafts_dir())))
+    found = glob.glob(os.path.join(root, "Apps", "*", "CapCut.exe"))
+    if not found:
+        return None
+    # Version folders sort lexically badly (5.6.0.2080 vs 5.10.x), so sort on
+    # the numeric parts.
+    def version_key(path):
+        part = os.path.basename(os.path.dirname(path))
+        return [int(n) if n.isdigit() else 0 for n in part.split(".")]
+    return sorted(found, key=version_key)[-1]
+
+
+def launch():
+    """Open CapCut. Returns True if it was started.
+
+    Only possible because this app runs on the same machine as CapCut. If
+    Studio is ever hosted, this stops working and should stop being offered --
+    a server cannot open an application on somebody else's desktop.
+    """
+    import subprocess
+
+    exe = executable()
+    if not exe:
+        return False
+    try:
+        # Detached: CapCut outlives the request, and Flask must not wait on it.
+        creation = getattr(subprocess, "DETACHED_PROCESS", 0) |             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        subprocess.Popen([exe], close_fds=True, creationflags=creation,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        return True
+    except Exception:  # noqa: BLE001 -- the draft is written either way
+        return False
+
+
+def bundled_ffmpeg():
+    """CapCut ships ffmpeg. Useful later for stitching without a separate install."""
+    exe = executable()
+    if not exe:
+        return None
+    candidate = os.path.join(os.path.dirname(exe), "ffmpeg.exe")
+    return candidate if os.path.exists(candidate) else None

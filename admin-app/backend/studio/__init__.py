@@ -2357,6 +2357,11 @@ def api_video_capcut():
     except capcut.CapCutError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    # Opening CapCut is only possible because Studio runs on the same machine.
+    # If this is ever hosted it stops working and should stop being offered --
+    # a server cannot open an application on somebody else's desktop.
+    if data.get("open", True):
+        result["opened"] = capcut.launch()
     return jsonify(result), 201
 
 
