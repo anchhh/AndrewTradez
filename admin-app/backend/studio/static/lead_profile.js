@@ -6,6 +6,8 @@ let lead = null;
 let currentProject = null;
 // Finished renders for this lead, from the job table.
 let videoRuns = [];
+// Which clip the stage is showing, kept across re-renders.
+let videoPlaying = 0;
 
 const el = (id) => document.getElementById(id);
 
@@ -378,40 +380,94 @@ function renderVideo(project) {
     return;
   }
 
-  const total = runs.reduce((n, r) => n + r.clips.length, 0);
+  const clips = videoClips();
+  if (videoPlaying >= clips.length) videoPlaying = 0;
+
+  // One stage and a strip, rather than a grid of equal players grouped by
+  // render. Which run a clip came from is bookkeeping; what it looks like is
+  // the point, and only one of them can be watched at a time anyway. The
+  // per-run cost that used to head each group now lives in the spend panel.
   box.innerHTML = `
     <div class="lp-scenery-head">
       <p class="lp-scenery-note">
-        ${total} clip${total === 1 ? "" : "s"} across ${runs.length}
+        ${clips.length} clip${clips.length === 1 ? "" : "s"} across ${runs.length}
         render${runs.length === 1 ? "" : "s"}. Rendered with
         ${escapeHtml(runs[0].model_label || "the video model")}.
       </p>
       <button type="button" class="btn-capcut btn-tiny" id="lp-capcut">Open in CapCut</button>
       <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">Open</a>
     </div>
-    ${runs.map((run) => `
-      <div class="lp-video-run">
-        <div class="lp-scenery-run-head">
-          <span class="lp-scenery-when">${escapeHtml(sceneryWhen(run))}</span>
-          <span class="lp-scenery-count">${run.clips.length} clip${
-            run.clips.length === 1 ? "" : "s"}${
-            run.estimated_cost != null ? " · $" + run.estimated_cost.toFixed(2) : ""}</span>
-        </div>
-        <div class="lp-video-clips">
-          ${run.clips.map((clip, i) => `
-            <figure class="rn-clip">
-              <video src="${escapeHtml(clip.video_url)}" controls preload="metadata"></video>
-              <figcaption>
-                Clip ${i + 1}${clip.move ? " · " + escapeHtml(VIDEO_MOVE_NAMES[clip.move] || clip.move) : ""}
-                ${clip.duration ? " · " + clip.duration + "s" : ""}
-                <a href="${escapeHtml(clip.video_url)}" download>Download</a>
-              </figcaption>
-            </figure>`).join("")}
-        </div>
-      </div>`).join("")}`;
+
+    <div class="lp-video-stage">
+      <video id="lp-video-main" controls preload="metadata"
+             src="${escapeHtml(clips[videoPlaying].video_url)}"></video>
+      <figcaption id="lp-video-cap" class="lp-video-cap"></figcaption>
+    </div>
+
+    <div class="lp-video-strip" id="lp-video-strip">
+      ${clips.map((clip, i) => `
+        <button type="button" class="lp-video-thumb ${i === videoPlaying ? "is-on" : ""}"
+                data-i="${i}" title="${escapeHtml(videoClipLabel(clip))}">
+          <video src="${escapeHtml(clip.video_url)}#t=0.5" preload="metadata" muted></video>
+          <span class="lp-video-thumb-n">${i + 1}</span>
+        </button>`).join("")}
+    </div>`;
+
+  renderVideoCaption();
+  el("lp-video-strip").querySelectorAll(".lp-video-thumb").forEach((btn) => {
+    btn.addEventListener("click", () => playClip(Number(btn.dataset.i)));
+  });
 
   const cc = el("lp-capcut");
   if (cc) cc.addEventListener("click", openCapcut);
+}
+
+/* Every clip this lead has, newest render first -- flattened, because the
+   strip is one row of clips and not a row per render. */
+function videoClips() {
+  const out = [];
+  videoRuns.filter((r) => r.clips && r.clips.length).forEach((run) => {
+    run.clips.forEach((clip) => out.push(Object.assign({}, clip, {
+      when: sceneryWhen(run), job_id: run.id,
+    })));
+  });
+  return out;
+}
+
+function videoClipLabel(clip) {
+  const move = clip.move ? VIDEO_MOVE_NAMES[clip.move] || clip.move : "";
+  return [move, clip.duration ? clip.duration + "s" : "", clip.when]
+    .filter(Boolean).join(" · ");
+}
+
+function renderVideoCaption() {
+  const clips = videoClips();
+  const clip = clips[videoPlaying];
+  const cap = el("lp-video-cap");
+  if (!clip || !cap) return;
+  cap.innerHTML =
+    `<span class="lp-video-cap-n">Clip ${videoPlaying + 1} of ${clips.length}</span>` +
+    `<span class="lp-video-cap-meta">${escapeHtml(videoClipLabel(clip))}</span>` +
+    `<a href="${escapeHtml(clip.video_url)}" download>Download</a>`;
+}
+
+/* Swap the stage rather than re-render the section: rebuilding would drop the
+   CapCut handler and restart whatever is playing. */
+function playClip(i) {
+  const clips = videoClips();
+  if (!clips[i]) return;
+  videoPlaying = i;
+
+  const main = el("lp-video-main");
+  main.src = clips[i].video_url;
+  // Clicking a thumbnail is a user gesture, so this is allowed to start. It
+  // can still be refused (a paused-media preference), which is not an error.
+  main.play().catch(() => {});
+
+  el("lp-video-strip").querySelectorAll(".lp-video-thumb").forEach((btn) => {
+    btn.classList.toggle("is-on", Number(btn.dataset.i) === i);
+  });
+  renderVideoCaption();
 }
 
 const VIDEO_MOVE_NAMES = {

@@ -3987,41 +3987,86 @@ gmp-map-3d {
 @media (prefers-reduced-motion: reduce) { .vh-spin { animation-duration: 3s; } }
 
 
-/* ---------- rendered clips on the lead profile ---------- */
-.lp-video-run + .lp-video-run {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
+/* ---------- rendered clips on the lead profile ----------
 
-.lp-video-clips {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
-}
-.lp-video-clips .rn-clip { margin: 0; min-width: 0; }
-.lp-video-clips video {
+   A stage and a strip: one clip large, the rest as a row of frames beneath
+   it. Only one clip can be watched at a time, so a grid of equal players
+   mostly buys thumbnails at the size of a player. */
+
+.lp-video-stage video {
   width: 100%;
   aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #000;
   display: block;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #000;
 }
-.lp-video-clips figcaption {
-  margin-top: 7px;
+
+.lp-video-cap {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
   font-size: 0.76rem;
   color: var(--ink-soft);
-  line-height: 1.45;
 }
-.lp-video-clips figcaption a {
-  margin-left: 6px;
+.lp-video-cap-n { font-weight: 600; color: var(--ink); }
+.lp-video-cap a {
+  margin-left: auto;
   font-weight: 600;
   color: var(--accent);
   text-decoration: none;
 }
-.lp-video-clips figcaption a:hover { text-decoration: underline; }
+.lp-video-cap a:hover { text-decoration: underline; }
+
+.lp-video-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin-top: 12px;
+  padding-bottom: 4px;
+}
+
+.lp-video-thumb {
+  position: relative;
+  flex: 0 0 110px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 0;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.lp-video-thumb video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  /* Frames only: the stage is what plays, and a strip of live controls is
+     both noisy and clickable in ways that fight the button around it. */
+  pointer-events: none;
+}
+.lp-video-thumb:hover { border-color: var(--ink-soft); }
+.lp-video-thumb.is-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(239, 90, 43, 0.25);
+}
+
+.lp-video-thumb-n {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
 
 
 /* ---------- choosing a lead's thumbnail ---------- */
