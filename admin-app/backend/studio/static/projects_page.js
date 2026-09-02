@@ -1,8 +1,12 @@
 /* Projects, arranged like files.
 
-   A project here is a qualified lead -- the same set the dashboard counts --
-   shown as a tile with its own photo rather than a row, and grouped into
-   folders that hold several listings.
+   A project is a lead that is qualified OR filed into a folder -- the same
+   set the dashboard counts -- shown as a tile with its own photo rather than
+   a row, and grouped into folders that hold several listings.
+
+   Filing counts on its own, or a lead dragged into a folder without being
+   qualified would disappear: the folder would say it holds two things and
+   show nothing.
 
    Folders are flat: they hold projects, not other folders. Nesting is the
    part of a file tree that needs move-into-descendant guards and recursive
@@ -26,10 +30,12 @@ function place(lead) {
 async function loadProjects() {
   try {
     const [leadList, folderList] = await Promise.all([
-      fetchJSON("/studio/api/leads?qualified=true"),
+      // Every lead, because the filter is no longer just "qualified".
+      fetchJSON("/studio/api/leads"),
       fetchJSON("/studio/api/folders"),
     ]);
-    projects = (leadList || []).filter((l) => l.status !== "dead");
+    projects = (leadList || []).filter(
+      (l) => (l.qualified || l.folder_id) && l.status !== "dead");
     folders = folderList.folders || [];
   } catch (err) {
     el("pj-empty").textContent = "Couldn't load projects.";
@@ -85,7 +91,8 @@ function render() {
     ? "Nothing in this folder yet — drag a project onto it, or use Move to."
     : (projects.length
       ? "Everything is filed away in a folder."
-      : "No active projects — mark a lead qualified in the Lead Manager.");
+      : "No active projects — mark a lead qualified, or file one into a "
+        + "folder from its row menu.");
 
   wireTiles();
   renderSelection();

@@ -2633,10 +2633,12 @@ def api_folders():
 
     folders = (ProjectFolder.query.filter_by(owner_id=owner)
                .order_by(ProjectFolder.name.asc()).all())
-    # One count query rather than one per folder.
+    # One count query rather than one per folder. Dead leads are left out
+    # because the Projects page does not show them -- counting them would
+    # have a folder claim two projects and display one.
     counts = {}
     for lead in Lead.query.filter_by(owner_id=owner).all():
-        if lead.folder_id:
+        if lead.folder_id and lead.status != "dead":
             counts[lead.folder_id] = counts.get(lead.folder_id, 0) + 1
 
     return jsonify({"folders": [
