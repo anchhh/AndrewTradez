@@ -14,7 +14,13 @@
 
 let folders = [];
 let projects = [];
-let openFolder = null;          // folder id, or null for the top level
+// Which folder is open, or null for the top level. Seeded from the URL so
+// coming Back from a lead profile lands in the folder it was opened from
+// rather than at the top.
+let openFolder = (() => {
+  const want = new URLSearchParams(location.search).get("folder");
+  return want && /^\d+$/.test(want) ? Number(want) : null;
+})();
 const selected = new Set();
 
 const el = (id) => document.getElementById(id);
@@ -51,6 +57,7 @@ function render() {
   // A folder deleted elsewhere should not strand the page inside it.
   if (inFolder && !folder) {
     openFolder = null;
+    rememberFolder();
     return render();
   }
 
@@ -101,10 +108,20 @@ function render() {
   renderSelection();
 }
 
+function rememberFolder() {
+  const url = new URL(location.href);
+  if (openFolder == null) url.searchParams.delete("folder");
+  else url.searchParams.set("folder", String(openFolder));
+  // replaceState, not push: a folder is not a separate page, and Back should
+  // leave Projects rather than walking up through folders one at a time.
+  history.replaceState(null, "", url);
+}
+
 function leaveFolder() {
   if (openFolder == null) return;
   openFolder = null;
   selected.clear();
+  rememberFolder();
   render();
 }
 
@@ -147,6 +164,15 @@ function projectTile(p) {
     </div>`;
 }
 
+/* Where a tile goes. Tells the profile it was opened from here, and from
+   which folder, so its Back arrow returns to this page -- and to this folder
+   -- rather than to the Lead Manager. */
+function projectHref(id) {
+  const params = new URLSearchParams({ from: "projects" });
+  if (openFolder != null) params.set("folder", String(openFolder));
+  return `/studio/leads/${id}?${params}`;
+}
+
 /* ---------- interaction ---------- */
 
 function wireTiles() {
@@ -155,6 +181,7 @@ function wireTiles() {
     tile.addEventListener("click", () => {
       openFolder = id;
       selected.clear();
+      rememberFolder();
       render();
     });
     // Dropping onto a folder is the quickest way to file something, and the
@@ -180,7 +207,7 @@ function wireTiles() {
 
     card.addEventListener("click", (e) => {
       if (e.target.closest(".pj-check")) return;   // selecting, not opening
-      window.location.href = "/studio/leads/" + id;
+      window.location.href = projectHref(id);
     });
     card.querySelector("input").addEventListener("change", (e) => {
       if (e.target.checked) selected.add(id);

@@ -554,6 +554,7 @@ async function load() {
   document.title = `${lead.address || "Lead"} — estly Studio`;
   el("lp-body").classList.remove("hidden");
 
+  setBackLink();
   renderLead();
   wireContactEditing();
   renderCandidates(lead.email_candidates);
@@ -870,6 +871,24 @@ function renderSpend() {
     </p>
     <ul class="lp-spend-rows">${rows}</ul>
     <p class="lp-spend-foot">Staging is free on Gemini, so none of this is Scenery.</p>`;
+}
+
+
+/* Back goes where you came from.
+
+   Read off the link that brought you here rather than document.referrer,
+   which is empty on a hard reload and lies after a redirect -- the arrow
+   would quietly point at the wrong page in exactly the cases someone is
+   most likely to use it. */
+function setBackLink() {
+  const link = el("lp-back");
+  if (!link) return;
+  const params = new URLSearchParams(location.search);
+  if (params.get("from") !== "projects") return;
+
+  const folder = params.get("folder");
+  link.href = "/studio/projects" + (folder ? "?folder=" + encodeURIComponent(folder) : "");
+  link.innerHTML = "&larr; Projects";
 }
 
 

@@ -12,7 +12,10 @@
 <div class="wrap wrap-wide">
 
   <div class="lp-breadcrumb">
-    <a href="/studio/leads">&larr; Lead Manager</a>
+    {# Where this was opened from. Defaults to the Lead Manager, which is
+       where most leads are reached from; the Projects page says so on its
+       links, and carries the folder so Back lands back inside it. #}
+    <a id="lp-back" href="/studio/leads">&larr; Lead Manager</a>
   </div>
 
   <div id="lead-status" class="status"></div>
