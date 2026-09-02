@@ -3994,3 +3994,13 @@ gmp-map-3d {
 /* The button says it too, so you do not have to open the picker to know. */
 #vh-open.is-running { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .vh-spin { animation-duration: 3s; } }
+
+
+/* ---------- rendered clips on the lead profile ---------- */
+.lp-video-run + .lp-video-run { margin-top: 16px; }
+.lp-video-clips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.lp-video-clips video { width: 100%; border-radius: 10px; background: #000; display: block; }

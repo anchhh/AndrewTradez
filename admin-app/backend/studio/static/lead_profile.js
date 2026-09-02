@@ -4,6 +4,8 @@ const LEAD_ID = window.LEAD_ID;
 let lead = null;
 // Kept so the video panel can re-render itself after the link is saved.
 let currentProject = null;
+// Finished renders for this lead, from the job table.
+let videoRuns = [];
 
 const el = (id) => document.getElementById(id);
 
@@ -308,21 +310,73 @@ function wireNotes() {
 
 /* ---------- video panel ---------- */
 
+/* The Video tab.
+ *
+ * It used to read projects.json and say "Project started -- no video yet",
+ * which stayed true forever: a render writes its clips to the VideoJob row and
+ * never touches the project. So a lead with a finished clip showed no video,
+ * which is the one thing this tab exists for.
+ *
+ * It now shows what was actually rendered for this lead -- every clip from
+ * every render, newest run first -- and falls back to the project only to
+ * offer a way to start one.
+ */
 function renderVideo(project) {
   const box = el("lp-video");
-  const video = project && (project.photos || []).find(isVideoUrl);
+  const runs = videoRuns.filter((r) => r.clips && r.clips.length);
 
-  if (video) {
-    box.innerHTML = `<video src="${escapeHtml(video)}" controls></video>`;
-  } else {
+  if (!runs.length) {
+    const running = videoRuns.some((r) => r.running);
     box.innerHTML = `
       <div class="lp-video-empty">
-        <div class="lp-video-empty-label">${project ? "Project started — no video yet" : "No project video yet"}</div>
-        <a class="cta-btn cta-btn-sm" href="/studio/create?lead_id=${LEAD_ID}">${project ? "Open project" : "Create Video"}</a>
+        <div class="lp-video-empty-label">${
+          running ? "Rendering now — clips will appear here"
+                  : (project ? "Project started — no clips yet" : "No clips yet")}</div>
+        <a class="cta-btn cta-btn-sm" href="/studio/create/render?project=${
+          project ? project.id : ""}">${running ? "See progress" : "Make a video"}</a>
       </div>`;
+    return;
   }
 
+  const total = runs.reduce((n, r) => n + r.clips.length, 0);
+  box.innerHTML = `
+    <div class="lp-scenery-head">
+      <p class="lp-scenery-note">
+        ${total} clip${total === 1 ? "" : "s"} across
+        ${runs.length} render${runs.length === 1 ? "" : "s"}.
+      </p>
+      <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">
+        Open in Create Video
+      </a>
+    </div>
+    ${runs.map((run) => `
+      <div class="lp-video-run">
+        <div class="lp-scenery-run-head">
+          <span class="lp-scenery-when">${escapeHtml(sceneryWhen(run))}</span>
+          <span class="lp-scenery-count">
+            ${run.clips.length} clip${run.clips.length === 1 ? "" : "s"}${
+              run.estimated_cost != null ? " · $" + run.estimated_cost.toFixed(2) : ""}
+          </span>
+        </div>
+        <div class="lp-video-clips">
+          ${run.clips.map((clip, i) => `
+            <figure class="rn-clip">
+              <video src="${escapeHtml(clip.video_url)}" controls preload="metadata"></video>
+              <figcaption>
+                Clip ${i + 1}${clip.move ? " · " + escapeHtml(VIDEO_MOVE_NAMES[clip.move] || clip.move) : ""}
+                ${clip.duration ? " · " + clip.duration + "s" : ""}
+                <a href="${escapeHtml(clip.video_url)}" download>Download</a>
+              </figcaption>
+            </figure>`).join("")}
+        </div>
+      </div>`).join("")}`;
 }
+
+const VIDEO_MOVE_NAMES = {
+  push_in: "Push in", pull_out: "Pull out", pan_left: "Pan left",
+  pan_right: "Pan right", orbit_left: "Orbit left", orbit_right: "Orbit right",
+  rise: "Rise", tilt_up: "Tilt up", static: "Hold",
+};
 
 /* ---------- header ---------- */
 
@@ -395,6 +449,14 @@ async function load() {
   renderCandidates(lead.email_candidates);
   renderChecklist();
   wireNotes();
+  // Renders live on the job table, not in projects.json.
+  try {
+    const body = await fetchJSON("/studio/api/video/jobs");
+    videoRuns = (body.renders || []).filter((r) => r.lead_id === lead.id);
+  } catch (err) {
+    videoRuns = [];
+  }
+
   const mine = (projects || []).filter((p) => p.lead_id === lead.id);
   // Scenery runs are projects too and are inserted at the top of the list, so
   // the video panel has to say which kind it wants or it shows a staging run.
@@ -617,6 +679,12 @@ function renderScenery(projects) {
   const rooms = sceneryRooms();
   const images = rooms.reduce((n, r) => n + Object.keys(r.variants).length, 0);
   if (count) count.textContent = images ? String(images) : "";
+
+  const vcount = el("lp-video-count");
+  if (vcount) {
+    const clips = videoRuns.reduce((n, r) => n + (r.clips || []).length, 0);
+    vcount.textContent = clips ? String(clips) : "";
+  }
 
   if (!rooms.length) {
     box.innerHTML = `

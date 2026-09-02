@@ -196,14 +196,40 @@ NEGATIVE_PROMPT = (
     "changed layout, changed architecture, different room, morphing, warping, "
     "melting, stretching, distorted geometry, bent walls, wobbling lines, "
     "flickering, colour shift, exposure shift, scene change, cut, "
-    "people, person, pets, text, caption, subtitles, watermark, logo"
+    "people, person, pets, text, caption, subtitles, watermark, logo, "
+    # Quality failures, named as directly as the structural ones. A negative
+    # prompt is the one place "do not look cheap" can be said plainly.
+    "blurry, soft focus, out of focus, motion blur, smeared detail, "
+    "low resolution, upscaled, pixelated, compression artifacts, blocky, "
+    "banding, noise, grain, oversharpened, halo, chromatic aberration, "
+    "lens distortion, fisheye, vignette, lens flare, glare, bloom, "
+    "washed out, overexposed, underexposed, colour cast, heavy grading, "
+    "shallow depth of field, bokeh, tilt-shift, "
+    "judder, stutter, jitter, camera shake, wobble, rolling shutter"
 )
 
+# How it should be SHOT -- and deliberately not how it should be graded.
+#
+# There is a real tension here. "Cinematic" usually means shallow depth of
+# field, warm grading, lifted blacks, a flare. Every one of those changes how
+# the property LOOKS, which is the thing that must not change: a kitchen that
+# arrives warmer and moodier than the photograph is a prettier clip and a less
+# honest one. So this asks only for what a good camera gives you without
+# altering the subject -- sharpness, clean steady motion, no artefacts -- and
+# the grading is left exactly as the photograph was taken.
+#
+# Kept tight on purpose. It shares a 2,500-character budget with the
+# constraint, and an earlier, wordier version pushed the prompt over the limit
+# and got itself dropped entirely by the fallback -- quality instructions that
+# were never sent.
 LOOK = (
-    "Photorealistic real-estate listing footage, shot on a stabilised "
-    "cinema camera. Slow, smooth, even motion at a constant speed. "
-    "No people, no pets, no vehicles, no text, no captions, no watermark, "
-    "no logos, no reflections of a camera or crew."
+    "Shot on a full-frame cinema camera with a sharp prime lens on a motorised "
+    "slider. Crisp, high-detail footage: fine texture in flooring, fabric and "
+    "stone resolved cleanly, edges sharp without haloing, architectural lines "
+    "straight, everything in focus front to back. Motion slow, even and "
+    "perfectly steady. Keep the photograph's own exposure, white balance and "
+    "colour exactly as they are: do not grade it, and add no glow, flare, "
+    "vignette or film effect. Clean and noise-free."
 )
 
 WHEN_UNSURE = (
@@ -335,7 +361,7 @@ def prompt_for_clip(move=None, style=None, cfg=None):
     # constraint still opens and closes.
     short = " ".join([
         ONLY_THE_CAMERA, NEVER_CHANGE_SHORT, NO_INVENTION, MOVE_PROMPTS[key],
-        TEMPORAL, LOOK, ONLY_THE_CAMERA, NEVER_CHANGE_SHORT, WHEN_UNSURE,
+        TEMPORAL, LOOK, NEVER_CHANGE_SHORT, WHEN_UNSURE,
     ])
     if len(short) <= limit:
         return short
@@ -343,7 +369,7 @@ def prompt_for_clip(move=None, style=None, cfg=None):
     # Still over: drop the look, never the constraint.
     return " ".join([
         ONLY_THE_CAMERA, NEVER_CHANGE_SHORT, NO_INVENTION, MOVE_PROMPTS[key],
-        TEMPORAL, ONLY_THE_CAMERA, WHEN_UNSURE,
+        LOOK, NEVER_CHANGE_SHORT,
     ])[:limit]
 
 
