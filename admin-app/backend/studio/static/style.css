@@ -1236,6 +1236,41 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---------- the calendar page ---------- */
 
+.cal-invite {
+  margin: 4px 0 22px;
+  padding: 16px 18px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.cal-invite-head h2 { margin: 0; font-size: 1rem; }
+.cal-invite-head .hint { margin: 3px 0 12px; }
+
+.cal-links { display: grid; gap: 8px; }
+.cal-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 11px 13px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.cal-link-main { flex: 1 1 260px; min-width: 0; }
+.cal-link-name { display: block; font-size: 0.86rem; font-weight: 700; color: var(--ink); }
+.cal-link-meta {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.73rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-link-actions { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; }
+.cal-link-actions .btn-tiny { text-decoration: none; }
+
 .cal-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;

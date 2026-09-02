@@ -16,9 +16,19 @@
         booking, moving and cancelling stay in Calendly, where your invitee
         gets told about it.</p>
     </div>
-    <a id="cal-book-link" class="btn-secondary btn-tiny" href="#" target="_blank"
-       rel="noopener" hidden>Your booking page</a>
+    <a id="cal-book-link" class="btn-secondary btn-tiny"
+       href="https://calendly.com/app/meetings/user/me?period=upcoming&amp;upcoming_preset=0"
+       target="_blank" rel="noopener">Manage in Calendly</a>
   </header>
+
+  <section class="cal-invite" id="cal-invite" hidden>
+    <div class="cal-invite-head">
+      <h2>Invite someone to book</h2>
+      <p class="hint">Send one of these and they pick a slot themselves. New
+        bookings appear on this calendar.</p>
+    </div>
+    <div id="cal-links" class="cal-links"></div>
+  </section>
 
   <div id="cal-notice" class="empty-note hidden"></div>
 

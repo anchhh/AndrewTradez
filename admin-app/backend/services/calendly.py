@@ -168,6 +168,41 @@ def upcoming(limit=5, days=30, with_invitees=True):
                           limit=limit, with_invitees=with_invitees)
 
 
+def event_types(active_only=True):
+    """The bookable links on this account.
+
+    Each is a separate meeting type with its own URL -- a 30-minute intro and
+    a 15-minute follow-up are two links, not one -- so the page offers them
+    all rather than guessing which to share. Read from the API instead of
+    being hard-coded, so renaming or adding one in Calendly shows up here.
+    """
+    cfg = load_config()
+    if not cfg["token"]:
+        raise CalendlyError("No Calendly token is configured.")
+
+    uri = me(cfg["token"]).get("uri")
+    if not uri:
+        raise CalendlyError("Calendly didn't say who the token belongs to.")
+
+    payload = _get("/event_types", cfg["token"], user=uri, count=50)
+    out = []
+    for raw in payload.get("collection") or []:
+        if active_only and not raw.get("active"):
+            continue
+        # A "secret" event type is deliberately unlisted; sharing it from a
+        # list of links is not what the person who hid it meant.
+        if raw.get("secret"):
+            continue
+        out.append({
+            "name": raw.get("name") or "Meeting",
+            "url": raw.get("scheduling_url"),
+            "duration": raw.get("duration"),
+            "kind": raw.get("kind"),
+            "description": (raw.get("description_plain") or "").strip() or None,
+        })
+    return [e for e in out if e["url"]]
+
+
 def _location_of(raw):
     """A human phrase for where the call happens, across Calendly's shapes."""
     loc = raw.get("location") or {}

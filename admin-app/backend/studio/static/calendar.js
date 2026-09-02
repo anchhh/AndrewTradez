@@ -80,21 +80,77 @@ async function loadMonth() {
 
   renderMonth();
   renderSide();
-  showBookingLink();
+  showInviteLinks();
 }
 
-async function showBookingLink() {
-  const link = document.getElementById("cal-book-link");
+/* ---------- links to share ----------
+
+   Each bookable meeting type on the account, with the link that lets someone
+   pick their own slot. Read from Calendly rather than written down here, so
+   renaming one or adding a second shows up without an edit. */
+async function showInviteLinks() {
+  const panel = document.getElementById("cal-invite");
+  const box = document.getElementById("cal-links");
+  if (!panel || !box) return;
+
+  let data;
   try {
-    const res = await fetch("/studio/api/calendly/status");
-    const who = await res.json();
-    if (who.scheduling_url) {
-      link.href = who.scheduling_url;
-      link.hidden = false;
-    }
+    const res = await fetch("/studio/api/calendly/links");
+    data = await res.json();
   } catch (err) {
-    /* The link is a convenience; its absence is not worth a message. */
+    return;   // The calendar itself already says when Calendly is unreachable.
   }
+  if (!data.configured || !(data.links || []).length) return;
+
+  panel.hidden = false;
+  box.innerHTML = data.links.map((link, i) => `
+    <div class="cal-link" data-i="${i}">
+      <div class="cal-link-main">
+        <span class="cal-link-name">${escapeHtml(link.name)}</span>
+        <span class="cal-link-meta">${link.duration ? link.duration + " min · " : ""}${
+          escapeHtml(link.url)}</span>
+      </div>
+      <div class="cal-link-actions">
+        <button type="button" class="btn-secondary btn-tiny cal-copy">Copy link</button>
+        <a class="btn-secondary btn-tiny" href="${escapeHtml(mailtoFor(link))}">Email it</a>
+        <a class="btn-secondary btn-tiny" href="${escapeHtml(link.url)}"
+           target="_blank" rel="noopener">Preview</a>
+      </div>
+    </div>`).join("");
+
+  box.querySelectorAll(".cal-link").forEach((row) => {
+    const link = data.links[Number(row.dataset.i)];
+    row.querySelector(".cal-copy").addEventListener("click", (e) =>
+      copyLink(e.currentTarget, link.url));
+  });
+}
+
+/* A mail draft rather than a send: the wording is usually worth a look, and
+   nothing should leave without the person deciding it. */
+function mailtoFor(link) {
+  const subject = "Book a time with estly Studio";
+  const body = "Hi,\n\nPick a time that suits you here:\n" + link.url
+    + "\n\nThanks,\nAndrew";
+  return "mailto:?subject=" + encodeURIComponent(subject)
+    + "&body=" + encodeURIComponent(body);
+}
+
+async function copyLink(button, url) {
+  const said = button.textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (err) {
+    // Clipboard access can be refused; falling back to a selection means the
+    // link is still one keystroke away rather than unreachable.
+    const box = document.createElement("textarea");
+    box.value = url;
+    document.body.appendChild(box);
+    box.select();
+    try { document.execCommand("copy"); } catch (e) { /* nothing left to try */ }
+    box.remove();
+  }
+  button.textContent = "Copied";
+  setTimeout(() => { button.textContent = said; }, 1400);
 }
 
 function renderMonth() {

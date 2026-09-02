@@ -2554,6 +2554,20 @@ def api_calendly_events():
         return jsonify({"configured": True, "events": [], "error": str(exc)})
 
 
+@studio_bp.route("/api/calendly/links", methods=["GET"])
+@login_required
+def api_calendly_links():
+    """The bookable links to share with people."""
+    from services import calendly
+
+    if not calendly.is_configured():
+        return jsonify({"configured": False, "links": []})
+    try:
+        return jsonify({"configured": True, "links": calendly.event_types()})
+    except calendly.CalendlyError as exc:
+        return jsonify({"configured": True, "links": [], "error": str(exc)})
+
+
 @studio_bp.route("/api/calendly/status", methods=["GET"])
 @login_required
 def api_calendly_status():
