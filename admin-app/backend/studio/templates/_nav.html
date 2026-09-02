@@ -1,67 +1,154 @@
-<nav class="topnav">
-  <a href="/studio/" class="topnav-brand">
-    <span class="logo-text logo-sm">estly<span class="logo-accent logo-accent-sm"></span></span>
-  </a>
-  <div class="topnav-links">
-    <a href="/studio/dashboard" class="topnav-link {{ 'active' if request.path == '/studio/dashboard' else '' }}">Dashboard</a>
-    <a href="/studio/leads" class="topnav-link {{ 'active' if request.path == '/studio/leads' else '' }}">Lead Manager</a>
-    <a href="/studio/create" class="topnav-link {{ 'active' if request.path == '/studio/create' else '' }}">Create Video</a>
-    <a href="/studio/scenery" class="topnav-link {{ 'active' if request.path == '/studio/scenery' else '' }}">Scenery</a>
-    <a href="/studio/outreach" class="topnav-link {{ 'active' if request.path == '/studio/outreach' else '' }}">Outreach</a>
-    <a href="/studio/calendar" class="topnav-link {{ 'active' if request.path == '/studio/calendar' else '' }}">Calendar</a>
+{# The app's directory, down the left side.
 
-    {% if user %}
-      {# The four links above are the app's spine and stay visible. The account
-         is what was crowding them out -- a long address and a Log out button
-         taking as much room as two pages -- so it collapses to an initial. #}
-      <div class="topnav-account">
-        <button type="button" id="account-btn" class="topnav-avatar"
-                aria-haspopup="menu" aria-expanded="false"
-                title="{{ user.email }}">{{ (display_name or user.email)[:1] | upper }}</button>
-        <div id="account-menu" class="topnav-menu" role="menu" hidden>
-          {# Just the address. The derived display name ("Andrewmc" from
-             andrewmc42@) adds nothing above the exact thing it was derived
-             from, and the menu's job is only "which account is this". #}
-          <div class="topnav-menu-who">
-            <span class="topnav-menu-label">Signed in as</span>
-            <span class="topnav-menu-email">{{ user.email }}</span>
-          </div>
-          <form action="/studio/logout" method="post">
-            <button type="submit" class="topnav-menu-item" role="menuitem">Log out</button>
-          </form>
-        </div>
-      </div>
-    {% endif %}
+   Collapses to icons and, on a narrow screen, slides away entirely. The
+   state is remembered per browser: someone who collapses it wants it
+   collapsed tomorrow too.
+
+   Included by every signed-in page, so this file is the whole navigation.
+   The body class is set from here rather than in each template -- there are
+   ten of them and they would drift. #}
+
+<aside class="sidenav" id="sidenav">
+  <div class="sidenav-top">
+    <a href="/studio/" class="sidenav-brand" title="estly Studio">
+      <span class="logo-text logo-sm">estly<span class="logo-accent logo-accent-sm"></span></span>
+    </a>
+    <button type="button" id="sidenav-toggle" class="sidenav-toggle"
+            aria-label="Collapse menu" aria-expanded="true">
+      <svg viewBox="0 0 16 16" aria-hidden="true" width="16" height="16">
+        <path d="M10 3 5 8l5 5" fill="none" stroke="currentColor"
+              stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
-</nav>
 
-{% if user %}
+  {% if user %}
+  <a href="/studio/create"
+     class="sidenav-cta {{ 'active' if request.path.startswith('/studio/create') else '' }}">
+    <svg viewBox="0 0 16 16" aria-hidden="true" width="15" height="15">
+      <path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor"
+            stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span class="sidenav-text">Create</span>
+  </a>
+
+  <nav class="sidenav-links">
+    {% set items = [
+      ('/studio/dashboard', 'Dashboard',
+       'M2.5 7 8 2.8 13.5 7v6a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8z'),
+      ('/studio/projects', 'Projects',
+       'M2.5 5.2a.8.8 0 0 1 .8-.8h2.6l1.2 1.4h4.6a.8.8 0 0 1 .8.8v5.2a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8z'),
+      ('/studio/calendar', 'Calendar',
+       'M3 4.6h10v8H3zM3 7h10M5.6 2.8v2.2M10.4 2.8v2.2'),
+      ('/studio/leads', 'Lead management',
+       'M6 7.6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM2.6 13c0-2 1.6-3.2 3.4-3.2S9.4 11 9.4 13M11 6.2a1.6 1.6 0 1 0 0-3.2M11.6 9.4c1.2.3 2 1.3 2 2.6'),
+    ] %}
+    {% for href, label, icon in items %}
+      <a href="{{ href }}" title="{{ label }}"
+         class="sidenav-link {{ 'active' if request.path == href
+                                 or (href == '/studio/leads' and request.path.startswith('/studio/leads'))
+                                 else '' }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" width="16" height="16">
+          <path d="{{ icon }}" fill="none" stroke="currentColor"
+                stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="sidenav-text">{{ label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <div class="sidenav-account">
+    <button type="button" id="account-btn" class="sidenav-who"
+            aria-haspopup="menu" aria-expanded="false" title="{{ user.email }}">
+      <span class="topnav-avatar">{{ (display_name or user.email)[:1] | upper }}</span>
+      <span class="sidenav-text sidenav-email">{{ user.email }}</span>
+    </button>
+    <div id="account-menu" class="topnav-menu sidenav-menu" role="menu" hidden>
+      <div class="topnav-menu-who">
+        <span class="topnav-menu-label">Signed in as</span>
+        <span class="topnav-menu-email">{{ user.email }}</span>
+      </div>
+      <form action="/studio/logout" method="post">
+        <button type="submit" class="topnav-menu-item" role="menuitem">Log out</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</aside>
+
+{# Only on a narrow screen, where the sidebar is off-canvas and there would
+   otherwise be no way to open it. #}
+<button type="button" id="sidenav-open" class="sidenav-hamburger" aria-label="Open menu">
+  <svg viewBox="0 0 16 16" aria-hidden="true" width="18" height="18">
+    <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" fill="none" stroke="currentColor"
+          stroke-width="1.6" stroke-linecap="round"/>
+  </svg>
+</button>
+<div id="sidenav-scrim" class="sidenav-scrim" hidden></div>
+
 <script>
-  /* Small enough to travel with the markup it wires, and every page includes
-     this nav while only some load the shared scripts. */
+  /* Runs where it sits, at the top of the body, so the collapsed layout is
+     in place before the page paints rather than jumping a frame later. */
   (function () {
-    var btn = document.getElementById("account-btn");
-    var menu = document.getElementById("account-menu");
-    if (!btn || !menu) return;
+    var body = document.body;
+    var KEY = "estly-sidenav";
 
-    function close() {
-      menu.hidden = true;
-      btn.setAttribute("aria-expanded", "false");
+    body.classList.add("has-sidenav");
+    try {
+      if (localStorage.getItem(KEY) === "collapsed") {
+        body.classList.add("sidenav-collapsed");
+      }
+    } catch (e) {
+      /* Private windows can throw on localStorage. The default width is a
+         perfectly good answer; nothing here is worth failing the nav for. */
     }
 
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      var open = menu.hidden;
-      menu.hidden = !open;
-      btn.setAttribute("aria-expanded", String(open));
+    /* One frame later, so the offset above lands without animating. */
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { body.classList.add("sidenav-anim"); });
     });
 
-    document.addEventListener("click", function (e) {
-      if (!menu.hidden && !menu.contains(e.target)) close();
-    });
+    var toggle = document.getElementById("sidenav-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function () {
+        var collapsed = body.classList.toggle("sidenav-collapsed");
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+        toggle.setAttribute("aria-label", collapsed ? "Expand menu" : "Collapse menu");
+        try { localStorage.setItem(KEY, collapsed ? "collapsed" : "open"); } catch (e) {}
+      });
+    }
+
+    /* Narrow screens: the sidebar is off-canvas and slides over the page. */
+    var scrim = document.getElementById("sidenav-scrim");
+    var open = document.getElementById("sidenav-open");
+    function setOpen(on) {
+      body.classList.toggle("sidenav-open", on);
+      if (scrim) scrim.hidden = !on;
+    }
+    if (open) open.addEventListener("click", function () { setOpen(true); });
+    if (scrim) scrim.addEventListener("click", function () { setOpen(false); });
+
+    var menuBtn = document.getElementById("account-btn");
+    var menu = document.getElementById("account-menu");
+    if (menuBtn && menu) {
+      menuBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var willOpen = menu.hidden;
+        menu.hidden = !willOpen;
+        menuBtn.setAttribute("aria-expanded", String(willOpen));
+      });
+      document.addEventListener("click", function (e) {
+        if (!menu.hidden && !menu.contains(e.target)) {
+          menu.hidden = true;
+          menuBtn.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
+
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") close();
+      if (e.key !== "Escape") return;
+      if (menu) menu.hidden = true;
+      setOpen(false);
     });
   })();
 </script>
-{% endif %}

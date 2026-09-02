@@ -417,44 +417,178 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---------- Top nav (Create Video / Dashboard pages) ---------- */
 
-.topnav {
+/* ---------- the sidebar ----------
+
+   Fixed to the left on every signed-in page. Three states: full width,
+   collapsed to icons, and (narrow screens) off-canvas over the page.
+
+   The page is offset with padding on <body> rather than by wrapping the
+   content, because the nav is a Jinja include -- it can open a wrapper but
+   has no way to close one after the page it was included into. */
+
+:root {
+  --sidenav-w: 208px;
+  --sidenav-w-collapsed: 58px;
+}
+
+.has-sidenav { padding-left: var(--sidenav-w); }
+.has-sidenav.sidenav-collapsed { padding-left: var(--sidenav-w-collapsed); }
+
+/* Animation is switched on one frame AFTER load, never during it. The class
+   that sets the offset is added by script, so a transition on it animates
+   the very first paint too -- the page visibly slid out from under the
+   sidebar on every navigation. */
+.sidenav-anim { transition: padding-left 0.16s ease; }
+.sidenav-anim .sidenav { transition: width 0.16s ease; }
+
+.sidenav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  width: var(--sidenav-w);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 10px;
+  background: var(--cream-soft);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.sidenav-collapsed .sidenav { width: var(--sidenav-w-collapsed); }
+
+.sidenav-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--cream-soft);
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 0 4px;
 }
+.sidenav-brand { text-decoration: none; display: flex; align-items: center; }
+.sidenav-collapsed .sidenav-brand { display: none; }
 
-.topnav-brand {
-  text-decoration: none;
+.sidenav-toggle {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.sidenav-toggle:hover { color: var(--ink); border-color: var(--ink-soft); }
+/* The chevron points the way it will move the panel. */
+.sidenav-collapsed .sidenav-toggle svg { transform: rotate(180deg); }
+.sidenav-collapsed .sidenav-top { justify-content: center; }
+
+.sidenav-cta,
+.sidenav-link {
   display: flex;
   align-items: center;
-}
-
-.topnav-links {
-  display: flex;
-  gap: 6px;
-}
-
-.topnav-link {
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
   text-decoration: none;
-  color: var(--ink-soft);
+  font-size: 0.85rem;
   font-weight: 600;
-  font-size: 0.9rem;
-  padding: 8px 14px;
-  border-radius: 8px;
+  white-space: nowrap;
 }
 
-.topnav-link:hover {
-  background: #fff6f1;
-  color: var(--ink);
-}
-
-.topnav-link.active {
+.sidenav-cta {
+  margin-bottom: 10px;
   background: var(--ink);
   color: var(--cream);
 }
+.sidenav-cta:hover { background: var(--accent); }
+
+.sidenav-links { display: grid; gap: 2px; }
+
+.sidenav-link { color: var(--ink-soft); }
+.sidenav-link:hover { background: #fff; color: var(--ink); }
+.sidenav-link.active { background: #fff; color: var(--ink); box-shadow: inset 2px 0 0 var(--accent); }
+.sidenav-link svg, .sidenav-cta svg { flex: 0 0 auto; }
+
+/* Collapsed: icons only, centred, with the label left to the title tooltip. */
+.sidenav-collapsed .sidenav-text { display: none; }
+.sidenav-collapsed .sidenav-cta,
+.sidenav-collapsed .sidenav-link { justify-content: center; padding: 9px 0; }
+
+.sidenav-account { margin-top: auto; padding-top: 12px; position: relative; }
+.sidenav-who {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.sidenav-who:hover { background: #fff; }
+.sidenav-email {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidenav-collapsed .sidenav-who { justify-content: center; }
+.sidenav-menu { bottom: 100%; top: auto; left: 6px; right: auto; margin-bottom: 6px; }
+
+/* The hamburger and scrim exist only in the off-canvas state. */
+.sidenav-hamburger,
+.sidenav-scrim { display: none; }
+
+@media (max-width: 860px) {
+  /* No room to reserve a column, so the sidebar leaves the flow entirely
+     and slides over the page when asked for. */
+  .has-sidenav, .has-sidenav.sidenav-collapsed { padding-left: 0; padding-top: 52px; }
+  .sidenav {
+    width: var(--sidenav-w);
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+  }
+  .sidenav-collapsed .sidenav { width: var(--sidenav-w); }
+  .sidenav-collapsed .sidenav-text { display: inline; }
+  .sidenav-collapsed .sidenav-cta,
+  .sidenav-collapsed .sidenav-link { justify-content: flex-start; padding: 9px 11px; }
+  .sidenav-open .sidenav { transform: none; }
+  .sidenav-toggle { display: none; }
+
+  .sidenav-hamburger {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 45;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--cream-soft);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .sidenav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(23, 19, 15, 0.35);
+  }
+  .sidenav-scrim[hidden] { display: none; }
+}
+
 
 
 
