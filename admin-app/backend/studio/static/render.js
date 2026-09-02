@@ -36,6 +36,7 @@ const state = {
   defaultDuration: 5,
   defaultResolution: "1080p",
   ratePerSecond: null,
+  rates: {},         // {resolution: $/second} -- a 4x swing, not a detail
   configured: false,
   job: null,
   startedAt: null,
@@ -425,10 +426,20 @@ function renderClipMoves() {
 
 /* ---------- cost, stated before it is spent ---------- */
 
+function rateFor(resolution) {
+  const rate = state.rates[resolution];
+  return typeof rate === "number" ? rate : (state.ratePerSecond || 0);
+}
+
 function renderCost() {
   const n = state.photos.length;
   const totalSeconds = state.photos.reduce(
     (sum, url) => sum + (state.seconds[url] || state.defaultDuration), 0);
+  // Per clip at that clip's own resolution: 1080p is about four times 480p,
+  // so one blended rate across a mixed selection would be wrong every time.
+  const totalCost = state.photos.reduce((sum, url) =>
+    sum + (state.seconds[url] || state.defaultDuration)
+        * rateFor(state.quality[url] || state.defaultResolution), 0);
   const go = el("rn-go");
   const note = el("rn-note");
 
@@ -452,13 +463,23 @@ function renderCost() {
     el("rn-cost").textContent = "";
     return;
   }
-  const total = totalSeconds * state.ratePerSecond;
   // Video is metered, unlike Scenery. The number goes next to the button, not
-  // further down the page, because this click is the one that spends. Clips
-  // can differ in length, so it is total seconds rather than count x length.
+  // further down the page, because this click is the one that spends.
+  const used = [...new Set(state.photos.map(
+    (url) => state.quality[url] || state.defaultResolution))];
+  const rateNote = used.length === 1
+    ? `at $${rateFor(used[0]).toFixed(2)}/second at ${used[0]}`
+    : `across ${used.join(", ")}`;
   el("rn-cost").innerHTML =
     `${n} clip${n === 1 ? "" : "s"}, ${totalSeconds}s of footage ` +
-    `at $${state.ratePerSecond.toFixed(3)}/second — about <strong>$${total.toFixed(2)}</strong>.`;
+    `${rateNote} — about <strong>$${totalCost.toFixed(2)}</strong>.` +
+    // The saving is large enough to be worth naming rather than leaving to be
+    // discovered on an invoice.
+    (used.includes("1080p")
+      ? ` <span class="rn-cost-tip">720p would be about $${
+          state.photos.reduce((sum, url) => sum + (state.seconds[url] || state.defaultDuration)
+            * rateFor("720p"), 0).toFixed(2)}.</span>`
+      : "");
 }
 
 /* ---------- the run ---------- */
@@ -703,6 +724,7 @@ async function init() {
     const status = await (await fetch("/studio/api/video/status")).json();
     state.configured = !!status.configured;
     state.ratePerSecond = status.rate_per_second ?? null;
+    state.rates = status.rates || {};
     if (!state.configured) {
       banner(status.config_error ||
         "The video generator isn't connected. Add an Atlas Cloud key to studio/atlascloud.json.");

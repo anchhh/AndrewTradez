@@ -198,7 +198,8 @@ def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
         duration=duration,
         resolution=resolution,
         estimated_cost=round(
-            sum(estimate_cost((s or {}).get("duration") or duration, cfg)
+            sum(estimate_cost((s or {}).get("duration") or duration, cfg,
+                              (s or {}).get("resolution") or resolution)
                 for s in (specs or [{}] * len(photos))),
             2,
         ),

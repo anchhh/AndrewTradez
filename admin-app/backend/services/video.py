@@ -29,10 +29,25 @@ CONFIG_PATH = os.path.join(
 
 DEFAULT_MODEL = "bytedance/seedance-2.5/image-to-video"
 
-# Per second of output, used only to warn before spending. Atlas Cloud quoted
-# ~$0.134/s for Seedance 2.5 in August 2026; check the live figure before
-# trusting an estimate for anything larger than a test.
-DEFAULT_RATE_PER_SECOND = 0.134
+# Per second of output, BY RESOLUTION. This is not a detail: Atlas Cloud's
+# headline price for Seedance 2.5 is "$0.134/second", and that is what was
+# used here at first -- so a 5-second 1080p clip was estimated at $0.67 and
+# actually cost $2.98. The headline is the cheapest tier; the real rates are
+# per resolution and 1080p is about 4.4x the number on the tin.
+#
+# Measured, not quoted: $2.98438331 for 5 seconds at 1080p is $0.596877/s,
+# which matches the ~$0.59 figure the pricing write-ups give. Re-check these
+# against a real invoice before trusting them for anything large -- the whole
+# reason this comment exists is that a quoted figure was wrong.
+RATE_PER_SECOND = {
+    "480p": 0.14,
+    "720p": 0.30,
+    "1080p": 0.597,
+}
+
+# The fallback when a resolution is unknown: the dearest, because guessing low
+# is how an estimate becomes a surprise.
+DEFAULT_RATE_PER_SECOND = 0.597
 
 # The constraint half of every clip prompt.
 #
@@ -264,6 +279,7 @@ def load_config():
         "api_key": key,
         "model": os.environ.get("ATLASCLOUD_MODEL") or cfg.get("model") or DEFAULT_MODEL,
         "rate_per_second": cfg.get("rate_per_second", DEFAULT_RATE_PER_SECOND),
+        "rates": cfg.get("rates") or RATE_PER_SECOND,
         "config_error": config_error,
     }
 
@@ -317,10 +333,22 @@ DEFAULT_DURATION = 5
 DEFAULT_RESOLUTION = "1080p"
 
 
-def estimate_cost(seconds, cfg=None):
-    """Rough dollar cost of a clip, for warning before spending."""
+def rate_for(resolution, cfg=None):
+    """Dollars per second of output at this resolution."""
     cfg = cfg or load_config()
-    return round(seconds * float(cfg["rate_per_second"]), 3)
+    rates = cfg.get("rates") or RATE_PER_SECOND
+    return float(rates.get(resolution, cfg["rate_per_second"]))
+
+
+def estimate_cost(seconds, cfg=None, resolution=None):
+    """Dollar cost of a clip, for warning before spending.
+
+    Resolution is not optional in practice -- it is a 4x swing between 480p
+    and 1080p -- but it defaults to the dearest tier rather than the cheapest
+    so an omission overstates rather than understates.
+    """
+    cfg = cfg or load_config()
+    return round(seconds * rate_for(resolution or "1080p", cfg), 3)
 
 
 def upload_image(path, cfg=None):
@@ -513,5 +541,6 @@ def verify_connection():
         "ok": True,
         "model": cfg["model"],
         "rate_per_second": cfg["rate_per_second"],
-        "cost_5s": estimate_cost(5, cfg),
+        "cost_5s_1080p": estimate_cost(5, cfg, "1080p"),
+        "cost_5s_480p": estimate_cost(5, cfg, "480p"),
     }

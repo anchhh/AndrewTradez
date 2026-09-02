@@ -2185,7 +2185,9 @@ def api_video_status():
         "config_error": cfg.get("config_error"),
         "model": cfg["model"],
         "rate_per_second": cfg["rate_per_second"],
-        "cost_per_second": estimate_cost(1, cfg),
+        "cost_per_second": estimate_cost(1, cfg, DEFAULT_RESOLUTION),
+        # Per resolution, because it is a 4x swing and a single number lied.
+        "rates": cfg.get("rates") or {},
         "min_duration": MIN_DURATION,
         "max_duration": MAX_DURATION,
         "default_prompt": REAL_ESTATE_PROMPT,
@@ -2479,8 +2481,8 @@ def api_video_generate():
     return jsonify({
         "job": job.to_dict(),
         "estimated_cost": round(
-            sum(estimate_cost(s["duration"], cfg) for s in specs)
-            if specs else estimate_cost(duration, cfg) * len(photos),
+            sum(estimate_cost(s["duration"], cfg, s["resolution"]) for s in specs)
+            if specs else estimate_cost(duration, cfg, resolution) * len(photos),
             2,
         ),
     }), 201
