@@ -627,6 +627,39 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .lm-head .page-title { margin-bottom: 0; }
 
+/* A stat card that goes somewhere. Anchors, so middle-click and "open in
+   new tab" work; the reset undoes the link colour and underline the card
+   would otherwise inherit. */
+.lm-stat-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.lm-stat-link:hover {
+  border-color: var(--ink-soft);
+  transform: translateY(-1px);
+}
+.lm-stat-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Banner on a focused outreach view, with the way back out. */
+.or-focus-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 14px 0 4px;
+  padding: 10px 14px;
+  background: var(--cream-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.or-focus-label { font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+
 /* Period switch. A segmented control rather than a
    select: three options that are compared against each other read better
    side by side than folded behind a menu. */

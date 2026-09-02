@@ -197,8 +197,13 @@ class Lead(db.Model):
                         if self.sold_at else None),
             "photo_rooms": self.photo_rooms,
             "ghl_contact_id": self.ghl_contact_id,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            # Marked as UTC. These are stored naive, and a naive ISO string
+            # is parsed by browsers as LOCAL time -- so a lead captured at
+            # 01:12 UTC arrived in the page as 01:12 local, four hours out.
+            # Invisible until something filters on a date boundary, at which
+            # point leads land in the wrong day.
+            "created_at": self.created_at.replace(tzinfo=timezone.utc).isoformat(),
+            "updated_at": self.updated_at.replace(tzinfo=timezone.utc).isoformat(),
         }
 
 

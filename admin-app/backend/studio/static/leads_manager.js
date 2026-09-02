@@ -9,6 +9,7 @@ let shownLeads = [];
 let bulkRefresh = null;
 
 const filters = {
+  added: "all",
   qualified: "all",
   status: "all",
   source: "all",
@@ -66,8 +67,29 @@ function matchesSearch(lead) {
     .includes(filters.search);
 }
 
+/* Local calendar boundaries, matching services/stats.py exactly -- the
+   dashboard's "leads added" count links here, and a count that does not
+   match the list it opens is worse than no link at all. Both run on this
+   machine, so "local" means the same thing on each side. */
+function addedSince(range) {
+  if (range === "all") return null;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (range === "week") d.setDate(d.getDate() - ((d.getDay() + 6) % 7));  // Monday
+  if (range === "month") d.setDate(1);
+  return d;
+}
+
+function matchesAdded(lead) {
+  const since = addedSince(filters.added || "all");
+  if (!since) return true;
+  // created_at carries an explicit UTC offset, so this parses correctly.
+  return lead.created_at && new Date(lead.created_at) >= since;
+}
+
 function visibleLeads() {
   return sortLeads(allLeads.filter((lead) => {
+    if (!matchesAdded(lead)) return false;
     if (filters.qualified !== "all" && String(!!lead.qualified) !== filters.qualified) return false;
     if (filters.status !== "all" && lead.status !== filters.status) return false;
     if (filters.source !== "all" && lead.source !== filters.source) return false;
@@ -83,6 +105,7 @@ function sortLeads(list) {
 }
 
 const anyFilterActive = () =>
+  (filters.added && filters.added !== "all") ||
   filters.qualified !== "all" ||
   filters.status !== "all" ||
   filters.source !== "all" ||
@@ -149,6 +172,7 @@ function wireFilters() {
     if (el.type === "search") el.addEventListener("input", handler);
   };
 
+  bind("filter-added", "added");
   bind("filter-qualified", "qualified");
   bind("filter-status", "status");
   bind("filter-source", "source");
@@ -157,13 +181,27 @@ function wireFilters() {
   bind("filter-sort", "sort");
 
   document.getElementById("filter-reset").addEventListener("click", () => {
-    ["filter-qualified", "filter-status", "filter-source", "filter-outreach"].forEach((id) => {
+    ["filter-added", "filter-qualified", "filter-status", "filter-source",
+     "filter-outreach"].forEach((id) => {
       document.getElementById(id).value = "all";
     });
     document.getElementById("filter-search").value = "";
-    Object.assign(filters, { qualified: "all", status: "all", source: "all", outreach: "all", search: "" });
+    Object.assign(filters, { added: "all", qualified: "all", status: "all",
+                             source: "all", outreach: "all", search: "" });
     render();
   });
+}
+
+/* The dashboard's "leads added" card links here with the period it was
+   showing, so the list opens on exactly the leads that were counted. */
+function applyUrlFilters() {
+  const wanted = new URLSearchParams(location.search).get("added");
+  const select = document.getElementById("filter-added");
+  if (!wanted || !select) return;
+  if ([...select.options].some((o) => o.value === wanted)) {
+    select.value = wanted;
+    filters.added = wanted;
+  }
 }
 
 async function loadLeads() {
@@ -177,6 +215,7 @@ async function loadLeads() {
 }
 
 wireFilters();
+applyUrlFilters();
 
 bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
   getVisibleLeads: () => shownLeads,

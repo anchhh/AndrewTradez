@@ -1200,6 +1200,22 @@ def leads_manager():
     return render_template("leads_manager.html")
 
 
+@studio_bp.route("/closed")
+@login_required
+def closed_clients():
+    """Every listing a client paid for. What "deals closed" on the dashboard
+    is actually made of."""
+    return render_template("closed.html")
+
+
+@studio_bp.route("/projects")
+@login_required
+def active_projects():
+    """The qualified leads being worked on, as their own page rather than a
+    number on a tile."""
+    return render_template("projects.html")
+
+
 @studio_bp.route("/api/extract", methods=["POST"])
 @login_required
 def api_extract():
@@ -2784,11 +2800,17 @@ def api_outreach_queue():
         else:
             waiting.append(item)
 
+    # The sent list is trimmed for the ordinary queue view, where it is
+    # history. The follow-up views are working lists, not history, so they
+    # ask for all of it -- a lead falling off the end at twenty would be a
+    # lead silently dropped from the chase.
+    full = request.args.get("sent") == "all"
+
     return jsonify({
         "connected": is_configured(),
         "ready": ready,
         "waiting": waiting,
-        "sent": sent[:20],
+        "sent": sent if full else sent[:20],
         "skipped_count": sum(1 for l in leads if l.outreach_skipped and not l.outreach_email_sent_at),
     })
 

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Closed clients</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide lm-wrap">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Closed clients</h1>
+      <p class="sub">Every listing a client has paid for. Open one to see what it earned and what it cost to make.</p>
+    </div>
+  </header>
+
+  <p id="list-summary" class="lm-count"></p>
+  <div id="lmg-list" class="lm-rows"></div>
+  <p id="lmg-empty" class="empty-note hidden"></p>
+</div>
+<script>window.LIST_MODE = "closed";</script>
+<script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
+<script src="{{ url_for('studio.static', filename='lead_list.js') }}"></script>
+</body>
+</html>

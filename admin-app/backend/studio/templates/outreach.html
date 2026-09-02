@@ -23,6 +23,14 @@
 
   <div id="or-stats" class="or-stats"></div>
 
+  <!-- Shown only when the page was opened focused on a follow-up group from
+       the dashboard. The link back matters: a filtered page with no way out
+       looks like a page that lost your data. -->
+  <div id="or-focus-bar" class="or-focus-bar" hidden>
+    <span id="or-focus-label" class="or-focus-label"></span>
+    <a class="btn-secondary btn-tiny" href="/studio/outreach">Show the whole queue</a>
+  </div>
+
   <section class="outreach-section">
     <h2 class="outreach-heading">Ready to send <span id="count-ready" class="outreach-count">0</span></h2>
     <p class="hint">These have an agent email and a finished video. Check the address looks right, then send.</p>
@@ -37,8 +45,10 @@
     <p id="empty-waiting" class="empty-note">No leads waiting.</p>
   </section>
 
-  <section class="outreach-section">
-    <h2 class="outreach-heading">Sent <span id="count-sent" class="outreach-count">0</span></h2>
+  <section class="outreach-section" id="section-sent">
+    <h2 class="outreach-heading"><span id="heading-sent">Sent</span>
+      <span id="count-sent" class="outreach-count">0</span></h2>
+    <p class="hint" id="hint-sent" hidden></p>
     <div id="list-sent" class="lm-rows"></div>
     <p id="empty-sent" class="empty-note">Nothing sent yet.</p>
   </section>

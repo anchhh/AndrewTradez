@@ -167,21 +167,72 @@ function findItem(id) {
     .find((i) => String(i.lead.id) === String(id));
 }
 
+/* ---------- follow-up focus ----------
+
+   The dashboard links here for two groups that are both subsets of "sent":
+   leads that were contacted and have not answered, and leads that answered
+   and are waiting on a second touch. Neither is a different queue -- they
+   are the sent list, filtered -- so the page narrows rather than growing
+   two more sections that would sit empty most of the time. */
+
+const FOCUS = {
+  awaiting: {
+    heading: "Awaiting a reply",
+    label: "Contacted, no answer yet",
+    hint: "You have emailed these and heard nothing back. A second touch is "
+        + "the usual next step.",
+    empty: "Nobody is waiting on a reply.",
+    keep: (item) => !["responded", "converted", "dead"].includes(item.lead.status),
+  },
+  hot: {
+    heading: "Replied to you",
+    label: "Interested — needs a follow-up",
+    hint: "These answered. They are the warmest leads you have; a second "
+        + "email or a call is what moves them.",
+    empty: "Nobody has replied yet.",
+    keep: (item) => item.lead.status === "responded",
+  },
+};
+
+function currentFocus() {
+  const key = new URLSearchParams(location.search).get("focus");
+  return FOCUS[key] ? key : null;
+}
+
 async function load() {
-  const data = await api("/studio/api/outreach/queue");
+  const focusKey = currentFocus();
+  const focus = focusKey ? FOCUS[focusKey] : null;
+
+  const data = await api("/studio/api/outreach/queue" + (focus ? "?sent=all" : ""));
   lastQueue = data;
+
+  // Focused, the sent list IS the page: the other two sections are about
+  // getting a first email out, which is a different job from chasing one.
+  const sent = focus ? data.sent.filter(focus.keep) : data.sent;
+  if (focus) {
+    data.sent = sent;  // so findItem() resolves against what is on screen
+    el("or-focus-bar").hidden = false;
+    el("or-focus-label").textContent = focus.label;
+    el("heading-sent").textContent = focus.heading;
+    el("hint-sent").textContent = focus.hint;
+    el("hint-sent").hidden = false;
+    el("empty-sent").textContent = focus.empty;
+    document.querySelectorAll(".outreach-section").forEach((node) => {
+      if (node.id !== "section-sent") node.hidden = true;
+    });
+  }
 
   el("list-ready").innerHTML = data.ready.map(readyCard).join("");
   el("list-waiting").innerHTML = data.waiting.map(waitingRow).join("");
-  el("list-sent").innerHTML = data.sent.map(sentRow).join("");
+  el("list-sent").innerHTML = sent.map(sentRow).join("");
 
   el("count-ready").textContent = data.ready.length;
   el("count-waiting").textContent = data.waiting.length;
-  el("count-sent").textContent = data.sent.length;
+  el("count-sent").textContent = sent.length;
 
   el("empty-ready").hidden = data.ready.length > 0;
   el("empty-waiting").hidden = data.waiting.length > 0;
-  el("empty-sent").hidden = data.sent.length > 0;
+  el("empty-sent").hidden = sent.length > 0;
 
   el("skipped-note").textContent = data.skipped_count
     ? `${data.skipped_count} lead${data.skipped_count > 1 ? "s" : ""} skipped and hidden from this queue.`

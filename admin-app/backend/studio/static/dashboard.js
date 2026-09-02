@@ -182,6 +182,10 @@ async function renderStats() {
 
   set("stat-leads-added", a.leads_added);
   set("stat-leads-sub", s.label.toLowerCase());
+  // The link carries the period, so the Lead Manager opens on exactly the
+  // leads this number counted rather than on all of them.
+  const leadsLink = document.getElementById("link-stat-leads-added");
+  if (leadsLink) leadsLink.href = "/studio/leads?added=" + encodeURIComponent(s.range);
 
   const touches = a.emails_sent + a.calls_made + a.videos_sent;
   set("stat-outreach", touches);
@@ -197,9 +201,13 @@ async function renderStats() {
   set("stat-projects-todo-sub", p.projects_todo
     ? `${p.projects_todo} with no media yet`
     : "All have media made");
-  set("stat-to-contact", p.to_contact);
-  set("stat-follow-up-sub", p.to_follow_up
-    ? `${p.to_follow_up} awaiting a reply`
-    : "None awaiting a reply");
+  // Counts leads awaiting a reply, because that is what its link opens --
+  // a card whose number and destination disagree is worse than no link.
+  // The never-contacted count rides along in the sub-line so it stays
+  // visible; it is the other half of "who needs an email".
+  set("stat-awaiting", p.to_follow_up);
+  set("stat-to-contact-sub", p.to_contact
+    ? `${p.to_contact} not contacted yet`
+    : "Everyone has been contacted");
   set("stat-hot-leads", p.hot_leads);
 }
