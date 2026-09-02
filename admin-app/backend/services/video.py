@@ -27,7 +27,65 @@ CONFIG_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "studio", "atlascloud.json"
 )
 
-DEFAULT_MODEL = "bytedance/seedance-2.5/image-to-video"
+# What each model costs, offers and calls things.
+#
+# This exists because switching models is not just a string. Seedance takes a
+# final frame as `last_image`; Kling calls it `end_image`. Seedance bills per
+# resolution behind a flat-looking headline; Kling's tiers really are flat,
+# because its cheapest tier already is the resolution you want. Kling accepts
+# a negative prompt; Seedance does not. Getting any of those wrong is a silent
+# failure or a surprise invoice.
+#
+#   rates       $/second, by resolution. A single value under "*" means flat.
+#   resolutions what the UI may offer, best last.
+#   last_frame  the field name for an end frame, or None if unsupported.
+#   negative    whether a negative prompt is accepted.
+MODELS = {
+    "kwaivgi/kling-v3.0-pro/image-to-video": {
+        "label": "Kling 3.0 Pro",
+        "rates": {"*": 0.095},
+        "resolutions": ["1080p"],
+        "durations": [3, 4, 5, 6, 7, 8, 9, 10, 12, 15],
+        "last_frame": "end_image",
+        "negative": True,
+    },
+    "kwaivgi/kling-v3.0-std/image-to-video": {
+        "label": "Kling 3.0 Standard",
+        "rates": {"*": 0.071},
+        "resolutions": ["720p", "1080p"],
+        "durations": [3, 4, 5, 6, 7, 8, 9, 10, 12, 15],
+        "last_frame": "end_image",
+        "negative": True,
+    },
+    "bytedance/seedance-2.5/image-to-video": {
+        "label": "Seedance 2.5",
+        # Measured, not quoted: $2.98438331 for 5s at 1080p. The headline
+        # "$0.134/s" is the cheapest tier, not a flat rate.
+        "rates": {"480p": 0.14, "720p": 0.30, "1080p": 0.597},
+        "resolutions": ["480p", "720p", "1080p"],
+        "durations": [4, 5, 6, 8, 10, 12, 15, 20, 30],
+        "last_frame": "last_image",
+        "negative": False,
+    },
+}
+
+# Kling 3.0 Pro: native 1080p at a flat $0.095/s, against Seedance 2.5's
+# $0.597/s at the same resolution -- about six times cheaper for the output
+# that actually goes in front of a buyer.
+DEFAULT_MODEL = "kwaivgi/kling-v3.0-pro/image-to-video"
+
+
+def model_info(cfg=None):
+    """What the configured model costs and supports."""
+    cfg = cfg or load_config()
+    return MODELS.get(cfg["model"], {
+        "label": cfg["model"],
+        "rates": {"*": cfg.get("rate_per_second", DEFAULT_RATE_PER_SECOND)},
+        "resolutions": ["720p", "1080p"],
+        "durations": [4, 5, 6, 8, 10],
+        "last_frame": "last_image",
+        "negative": False,
+    })
 
 # Per second of output, BY RESOLUTION. This is not a detail: Atlas Cloud's
 # headline price for Seedance 2.5 is "$0.134/second", and that is what was
@@ -102,6 +160,18 @@ TEMPORAL = (
     "must stay straight. Keep the lighting, shadows, white balance, colour "
     "and exposure identical throughout. One single continuous shot: no cuts, "
     "no transitions, no change of scene, no speed ramp."
+)
+
+# Kling accepts a negative prompt, which is the bluntest instrument available
+# for the compliance problem: the failures named directly, rather than a rule
+# to be inferred from a paragraph.
+NEGATIVE_PROMPT = (
+    "new door, new doorway, new window, new wall, new room, extra door, "
+    "extra window, added furniture, removed furniture, moved furniture, "
+    "changed layout, changed architecture, different room, morphing, warping, "
+    "melting, stretching, distorted geometry, bent walls, wobbling lines, "
+    "flickering, colour shift, exposure shift, scene change, cut, "
+    "people, person, pets, text, caption, subtitles, watermark, logo"
 )
 
 LOOK = (
@@ -279,7 +349,9 @@ def load_config():
         "api_key": key,
         "model": os.environ.get("ATLASCLOUD_MODEL") or cfg.get("model") or DEFAULT_MODEL,
         "rate_per_second": cfg.get("rate_per_second", DEFAULT_RATE_PER_SECOND),
-        "rates": cfg.get("rates") or RATE_PER_SECOND,
+        # An explicit table in the config still wins, for a model this
+        # registry does not know about.
+        "rates": cfg.get("rates") or {},
         "config_error": config_error,
     }
 
@@ -334,10 +406,13 @@ DEFAULT_RESOLUTION = "1080p"
 
 
 def rate_for(resolution, cfg=None):
-    """Dollars per second of output at this resolution."""
+    """Dollars per second of output at this resolution, for this model."""
     cfg = cfg or load_config()
-    rates = cfg.get("rates") or RATE_PER_SECOND
-    return float(rates.get(resolution, cfg["rate_per_second"]))
+    rates = (cfg.get("rates") or {}) or model_info(cfg)["rates"]
+    if "*" in rates:
+        return float(rates["*"])
+    return float(rates.get(resolution, max(rates.values()) if rates
+                           else cfg["rate_per_second"]))
 
 
 def estimate_cost(seconds, cfg=None, resolution=None):
@@ -389,7 +464,11 @@ def upload_image(path, cfg=None):
     return url
 
 
-def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="720p",
+# A warning for anyone probing this API by hand: POSTing {"model": ...} with
+# nothing else does NOT return a validation error. It CREATES a prediction,
+# which then fails for having no content. Probe with an empty body instead --
+# that is rejected on the missing model field before anything is made.
+def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p",
                 last_image=None, generate_audio=False, **extra):
     """Start a generation. Returns the prediction id to poll.
 
@@ -415,8 +494,13 @@ def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="720p",
         "resolution": resolution,
         "generate_audio": generate_audio,
     }
-    if last_image:
-        payload["last_image"] = last_image
+    info = model_info(cfg)
+    if last_image and info["last_frame"]:
+        # Seedance says last_image, Kling says end_image. Sending the wrong one
+        # is silently ignored -- the clip generates unanchored and invents.
+        payload[info["last_frame"]] = last_image
+    if info["negative"]:
+        payload["negative_prompt"] = NEGATIVE_PROMPT
     payload.update({k: v for k, v in extra.items() if v is not None})
 
     try:

@@ -2179,7 +2179,10 @@ def api_video_status():
     )
     from services.video_jobs import is_busy
 
+    from services.video import model_info
+
     cfg = load_config()
+    info = model_info(cfg)
     return jsonify({
         "configured": bool(cfg["api_key"]),
         "config_error": cfg.get("config_error"),
@@ -2196,10 +2199,14 @@ def api_video_status():
         "moves": [{"key": k, "name": n, "desc": d} for k, n, d, _ in MOVES],
         "style_default_move": STYLE_DEFAULT_MOVE,
         # What the per-clip dropdowns offer, and what they start on.
-        "durations": DURATION_CHOICES,
-        "resolutions": RESOLUTION_CHOICES,
+        # From the model, not a global list: Kling 3.0 Pro is native 1080p
+        # only, and offering 480p would be a dropdown that silently does
+        # nothing or errors.
+        "durations": info["durations"],
+        "resolutions": info["resolutions"],
         "default_duration": DEFAULT_DURATION,
-        "default_resolution": DEFAULT_RESOLUTION,
+        "default_resolution": info["resolutions"][-1],
+        "model_label": info["label"],
         "busy": is_busy(),
     })
 
@@ -2362,7 +2369,6 @@ def api_video_generate():
         MAX_DURATION,
         MIN_DURATION,
         MOVE_PROMPTS,
-        RESOLUTION_CHOICES,
         estimate_cost,
         load_config,
     )
@@ -2382,6 +2388,11 @@ def api_video_generate():
     # A clip carries its own move, length and resolution -- different rooms
     # want different lengths, and one setting for the whole render was the
     # wrong grain for the same reason one camera move was.
+    from services.video import model_info
+
+    info = model_info(cfg)
+    allowed_res = info["resolutions"]
+
     lead_id_raw = data.get("lead_id")
     fallback_duration = data.get("duration") or DEFAULT_DURATION
     fallback_resolution = data.get("resolution") or DEFAULT_RESOLUTION
@@ -2407,8 +2418,9 @@ def api_video_generate():
                                 % (MIN_DURATION, MAX_DURATION)}), 400
 
             res = (clip.get("resolution") or fallback_resolution).strip()
-            if res not in RESOLUTION_CHOICES:
-                return jsonify({"error": "Unknown resolution: %s" % res}), 400
+            if res not in allowed_res:
+                return jsonify({"error": "%s doesn't offer %s. It does: %s."
+                                % (info["label"], res, ", ".join(allowed_res))}), 400
 
             specs.append({"move": move, "duration": seconds, "resolution": res})
 
@@ -2450,8 +2462,8 @@ def api_video_generate():
                         % (MIN_DURATION, MAX_DURATION)}), 400
 
     resolution = str(fallback_resolution).strip()
-    if resolution not in RESOLUTION_CHOICES:
-        return jsonify({"error": "Unknown resolution: %s" % resolution}), 400
+    if resolution not in allowed_res:
+        resolution = allowed_res[-1]
 
     lead_id = data.get("lead_id")
     if lead_id:
