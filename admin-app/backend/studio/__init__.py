@@ -1091,6 +1091,39 @@ def create_style():
     return render_template("style.html", project=project)
 
 
+@studio_bp.route("/create/render")
+@login_required
+def create_render():
+    """The step after choosing a style: actually make the clips.
+
+    Same owner-scoped project lookup as the style page. Everything about what
+    to render comes from the project, so arriving here without one is a
+    redirect rather than an empty form.
+    """
+    project_id = request.args.get("project")
+    project = (
+        next(
+            (p for p in load_projects()
+             if p["id"] == project_id and p.get("owner") == session["user_id"]),
+            None,
+        )
+        if project_id
+        else None
+    )
+    if not project:
+        return redirect(url_for("studio.create"))
+
+    # Room labels, when this project came from a lead: they let the default
+    # selection be one clip per room rather than six angles of one lounge.
+    project = dict(project)
+    if project.get("lead_id"):
+        lead = get_owned_lead(int(project["lead_id"]))
+        if lead is not None:
+            project["photo_rooms"] = lead.photo_rooms or {}
+
+    return render_template("render.html", project=project)
+
+
 @studio_bp.route("/dashboard")
 @login_required
 def dashboard():
@@ -2142,63 +2175,94 @@ def api_video_job(lead_id):
     return jsonify({"job": job.to_dict() if job else None})
 
 
-@studio_bp.route("/api/leads/<int:lead_id>/video/generate", methods=["POST"])
+@studio_bp.route("/api/video/jobs/<int:job_id>", methods=["GET"])
 @login_required
-def api_video_generate(lead_id):
+def api_video_job_by_id(job_id):
+    """One render, for polling. Scoped to its owner like everything else."""
+    from extensions import db
+    from models import VideoJob
+
+    job = db.session.get(VideoJob, job_id)
+    if job is None or job.owner_id != session["user_id"]:
+        return jsonify({"error": "Job not found."}), 404
+    return jsonify({"job": job.to_dict()})
+
+
+@studio_bp.route("/api/video/generate", methods=["POST"])
+@login_required
+def api_video_generate():
     """Start generating clips for the chosen photos.
 
-    This spends money, so it only ever runs from an explicit click, and the
-    photos have to be named -- there is deliberately no "generate from all
-    photos" default that could turn one stray click into thirty-nine clips.
+    This spends money -- unlike Scenery, there is no free provider for video --
+    so it only ever runs from an explicit click, and the photos have to be
+    named. There is deliberately no "generate from all photos" default that
+    could turn one stray click into thirty-nine clips.
+
+    `lead_id` is optional: photos can arrive from a pasted link or an upload
+    with no lead behind them, and those are just as renderable.
     """
-    from services.video import load_config
-    from services.video_jobs import VideoJobBusy, start_job  # noqa: F401
+    from flask import current_app
 
-    lead = get_owned_lead(lead_id)
-    if lead is None:
-        return jsonify({"error": "Lead not found."}), 404
+    from services.video import (
+        MAX_DURATION,
+        MIN_DURATION,
+        estimate_cost,
+        load_config,
+        prompt_for,
+    )
+    from services.video_jobs import VideoJobBusy, start_job
 
-    if not load_config()["api_key"]:
-        return jsonify({"error": "The video generator isn't connected. Add an Atlas "
-                                 "Cloud key to studio/atlascloud.json."}), 400
+    cfg = load_config()
+    if not cfg["api_key"]:
+        return jsonify({"error": cfg.get("config_error") or
+                        "The video generator isn't connected. Add an Atlas "
+                        "Cloud key to studio/atlascloud.json."}), 400
 
     data = request.get_json(force=True, silent=True) or {}
-    photos = data.get("photos") or []
+    photos = [p for p in (data.get("photos") or []) if p]
     if not photos:
         return jsonify({"error": "Pick at least one photo."}), 400
-
-    known = set(lead.photo_urls or [])
-    unknown = [p for p in photos if p not in known]
-    if unknown:
-        return jsonify({"error": "Those photos don't belong to this lead."}), 400
 
     try:
         duration = int(data.get("duration") or 5)
     except (TypeError, ValueError):
         return jsonify({"error": "Duration must be a number."}), 400
+    if not MIN_DURATION <= duration <= MAX_DURATION:
+        return jsonify({"error": "Duration must be between %s and %s seconds."
+                        % (MIN_DURATION, MAX_DURATION)}), 400
 
-    from services.video import MAX_DURATION, MIN_DURATION
+    resolution = (data.get("resolution") or "720p").strip()
+    if resolution not in ("480p", "720p", "1080p"):
+        return jsonify({"error": "Unknown resolution: %s" % resolution}), 400
 
-    if not (MIN_DURATION <= duration <= MAX_DURATION):
-        return jsonify({"error": f"Duration must be {MIN_DURATION}-{MAX_DURATION} seconds."}), 400
-
-    resolution = data.get("resolution") or "720p"
-    if resolution not in ("720p", "1080p"):
-        return jsonify({"error": "Resolution must be 720p or 1080p."}), 400
+    lead_id = data.get("lead_id")
+    if lead_id:
+        lead = get_owned_lead(int(lead_id))
+        if lead is None:
+            return jsonify({"error": "Lead not found."}), 404
+        lead_id = lead.id
 
     try:
         job = start_job(
             current_app._get_current_object(),
-            lead,
+            session["user_id"],
             photos,
-            prompt=(data.get("prompt") or "").strip() or None,
+            lead_id=lead_id,
+            # The style card the project chose decides the movement. A typed
+            # prompt overrides it, but there is deliberately no way to end up
+            # with no prompt at all -- an unguided clip is where the room
+            # starts rearranging itself.
+            prompt=(data.get("prompt") or "").strip() or prompt_for(data.get("style")),
             duration=duration,
             resolution=resolution,
         )
     except VideoJobBusy as exc:
         return jsonify({"error": str(exc)}), 409
 
-    return jsonify({"job": job.to_dict()}), 201
+    return jsonify({
+        "job": job.to_dict(),
+        "estimated_cost": round(estimate_cost(duration, cfg) * len(photos), 2),
+    }), 201
 
 
 @studio_bp.route("/api/video/jobs/<int:job_id>/cancel", methods=["POST"])

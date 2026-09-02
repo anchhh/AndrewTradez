@@ -3570,3 +3570,84 @@ gmp-map-3d {
   min-height: 1.1em;
 }
 .scn-modal-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+
+/* ---------- Render (Create Video's missing last step) ---------- */
+.rn-photos { margin-bottom: 18px; }
+.rn-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+.rn-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 116px;
+  height: 82px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rn-thumb { cursor: pointer; transition: border-color 0.15s ease, opacity 0.15s ease; }
+.rn-thumb:hover { border-color: var(--accent); }
+.rn-thumb.is-excluded { opacity: 0.38; }
+.rn-thumb.is-excluded:hover { opacity: 0.7; }
+.rn-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.rn-photos-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.rn-photos-head .photo-count { flex: 1 1 auto; }
+.rn-thumb-n {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  min-width: 17px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.rn-controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+.rn-controls .lp-field { flex: 1 1 200px; }
+
+/* The price sits with the control that sets it. Video is metered and this is
+   the click that spends, so it is a sentence rather than a footnote. */
+.rn-cost {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--cream-soft);
+  border-left: 3px solid var(--accent);
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+.rn-cost:empty { display: none; }
+.rn-cost strong { color: var(--ink); }
+
+.rn-clips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.rn-clip { margin: 0; }
+.rn-clip video {
+  width: 100%;
+  border-radius: 10px;
+  background: #000;
+  display: block;
+}
+.rn-clip figcaption {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}

@@ -34,16 +34,65 @@ DEFAULT_MODEL = "bytedance/seedance-2.5/image-to-video"
 # trusting an estimate for anything larger than a test.
 DEFAULT_RATE_PER_SECOND = 0.134
 
-# What a listing clip should ask for. The important half is the second half:
-# an agent cannot send a client a video where the kitchen rearranges itself,
-# so the prompt leans hard on leaving the room alone. Whether the model
-# actually obeys is the thing worth testing before building on it.
-REAL_ESTATE_PROMPT = (
-    "Slow, smooth, steady cinematic camera move through the space. "
-    "Real estate listing footage, photorealistic, natural daylight. "
-    "Keep the architecture, furniture, fixtures and layout exactly as they are. "
-    "Do not add, remove, or rearrange anything in the room. No people, no text."
+# What a listing clip should ask for.
+#
+# The important half is the constraint, and staging taught why: an agent cannot
+# send a client a video where the kitchen rearranges itself, and a model given
+# only a style instruction will happily invent a doorway on its way past. So
+# the same shape is used here as in services/staging.py -- the rule is stated
+# before AND after the movement, and it names what must not change rather than
+# implying it.
+#
+# The difference from staging is that here the constraint covers time as well
+# as content: the room must be the same room in frame 1 and frame 120.
+HOLD_THE_ROOM = (
+    "Do not add, remove, move or restyle anything in the scene: no furniture, "
+    "walls, doors, doorways, windows, cabinetry, counters, sinks, appliances, "
+    "fixtures or fittings may change, appear or disappear at any point in the "
+    "clip. Do not change the wall colours, the flooring, or the view through "
+    "any window. Nothing may morph, warp or drift between frames -- the room "
+    "must be recognisably the same room from the first frame to the last. "
+    "No people, no pets, no text, no captions, no watermark, no logos."
 )
+
+LOOK = (
+    "Photorealistic real-estate listing footage. Natural light, steady "
+    "exposure, no flicker, no vignette pulsing, no lens distortion."
+)
+
+# One per style card on the style page, so choosing "Drone" actually changes
+# the footage rather than only the label stored on the project.
+STYLE_PROMPTS = {
+    "drone": (
+        HOLD_THE_ROOM + " "
+        "Smooth aerial drone move over and around the property: a slow, "
+        "steady rise or orbit that reveals the house and its lot. Cinematic, "
+        "level horizon, no sudden acceleration. " + LOOK + " " + HOLD_THE_ROOM
+    ),
+    "walkthrough": (
+        HOLD_THE_ROOM + " "
+        "Slow, smooth dolly move forward through the space, as though walking "
+        "it at an even pace with a stabilised camera. Steady height, level "
+        "framing, no hand-held shake and no rotation of the room around the "
+        "camera. " + LOOK + " " + HOLD_THE_ROOM
+    ),
+    "basic": (
+        HOLD_THE_ROOM + " "
+        "A gentle, almost imperceptible camera move on the still: a slow push "
+        "in or a slow lateral pan, of the kind used to give a listing photo "
+        "life without drawing attention to itself. " + LOOK + " "
+        + HOLD_THE_ROOM
+    ),
+}
+
+# The fallback, and what a project with no style chosen gets.
+REAL_ESTATE_PROMPT = STYLE_PROMPTS["walkthrough"]
+
+
+def prompt_for(style):
+    """The prompt for a style card, falling back to the walkthrough."""
+    return STYLE_PROMPTS.get((style or "").strip().lower(), REAL_ESTATE_PROMPT)
+
 
 # Atlas Cloud reports success as either word depending on the model.
 DONE_STATUSES = ("completed", "succeeded")
@@ -112,11 +161,19 @@ def _require(cfg):
 def _explain(resp):
     if resp is None:
         return "no response from Atlas Cloud"
+    # Worth naming plainly: it is not a bug, and the fix is a page on their
+    # site rather than anything in this code. Same wording as staging uses.
+    if resp.status_code == 402:
+        return (
+            "Atlas Cloud reports an insufficient balance -- the account has no "
+            "credit. Video is metered (there is no free tier for it), so top "
+            "up at atlascloud.ai before rendering."
+        )
     try:
         body = resp.json()
     except ValueError:
         return f"HTTP {resp.status_code}: {(resp.text or '')[:200]}"
-    message = body.get("message") or body.get("error") or body
+    message = body.get("msg") or body.get("message") or body.get("error") or body
     return f"HTTP {resp.status_code}: {message}"
 
 

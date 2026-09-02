@@ -27,7 +27,7 @@ document.querySelectorAll(".style-card").forEach((card) => {
     });
     setStatus(
       el("style-status"),
-      `Style set to "${card.querySelector(".style-name").textContent}". Video generation isn't wired up yet.`
+      `Style set to "${card.querySelector(".style-name").textContent}".`
     );
   });
 });
@@ -36,10 +36,13 @@ function goBackToCreate() {
   window.location.href = `/studio/create?project=${project.id}`;
 }
 
+function goToRender() {
+  window.location.href = `/studio/create/render?project=${project.id}`;
+}
+
 // Unified "leaving" modal -- same Save / Save as Draft / Don't Save choice as
-// the Create Video page, opened by the top Save button, the Next button
-// (terminal for now, since there's no page after style selection yet), and a
-// trapped browser-back press.
+// the Create Video page, opened by the top Save button and a trapped
+// browser-back press. Next is no longer terminal: it goes on to Render.
 function openLeaveModal() {
   el("modal-name-input").value = currentName;
   setStatus(el("modal-status"), "");
@@ -82,7 +85,7 @@ function trapBrowserBack() {
 }
 
 el("back-btn").addEventListener("click", goBackToCreate);
-el("next-btn").addEventListener("click", openLeaveModal);
+el("next-btn").addEventListener("click", goToRender);
 el("save-top-btn").addEventListener("click", openLeaveModal);
 el("modal-close-btn").addEventListener("click", closeLeaveModal);
 el("modal-discard-btn").addEventListener("click", discardAndLeave);

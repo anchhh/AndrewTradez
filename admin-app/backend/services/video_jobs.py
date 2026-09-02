@@ -156,7 +156,8 @@ def _run(app, job_id):
         _lock.release()
 
 
-def start_job(app, lead, photos, prompt=None, duration=5, resolution="720p"):
+def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
+              resolution="720p"):
     """Create a job for these photos and run it in the background."""
     from extensions import db
     from models import VideoJob
@@ -166,8 +167,8 @@ def start_job(app, lead, photos, prompt=None, duration=5, resolution="720p"):
 
     cfg = load_config()
     job = VideoJob(
-        lead_id=lead.id,
-        owner_id=lead.owner_id,
+        lead_id=lead_id,
+        owner_id=owner_id,
         status="queued",
         model=cfg["model"],
         prompt=prompt or None,

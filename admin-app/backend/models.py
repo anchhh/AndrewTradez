@@ -191,7 +191,10 @@ class VideoJob(db.Model):
     __tablename__ = "video_jobs"
 
     id = db.Column(db.Integer, primary_key=True)
-    lead_id = db.Column(db.Integer, index=True, nullable=False)
+    # Nullable for the same reason StagingJob's is: photos can arrive from a
+    # pasted link or an upload with no lead behind them, and refusing those
+    # would make two of the three ways into Create Video dead ends.
+    lead_id = db.Column(db.Integer, index=True, nullable=True)
     owner_id = db.Column(db.String(64), index=True, nullable=True)
 
     # queued -> running -> completed | failed | cancelled
@@ -225,6 +228,26 @@ class VideoJob(db.Model):
     @photos.setter
     def photos(self, value):
         self.photos_json = json.dumps(value or [])
+
+    def to_dict(self):
+        clips = self.clips
+        done = [c for c in clips if c.get("video_url")]
+        return {
+            "id": self.id,
+            "lead_id": self.lead_id,
+            "status": self.status,
+            "error": self.error,
+            "model": self.model,
+            "duration": self.duration,
+            "resolution": self.resolution,
+            "clips": clips,
+            "output_url": self.output_url,
+            "estimated_cost": self.estimated_cost,
+            "done": len(done),
+            # The photo list, not the partially-built clip list: counting the
+            # latter reported "1 of 2" on a three-photo job.
+            "total": max(len(clips), len(self.photos)),
+        }
 
     @property
     def clips(self):
