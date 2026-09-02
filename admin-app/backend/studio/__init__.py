@@ -2777,6 +2777,8 @@ def api_video_trash():
                 continue
             out.append({
                 "job_id": job.id,
+                # So a page about one listing can show only its own trash.
+                "lead_id": job.lead_id,
                 "index": index,
                 "address": addresses.get(job.lead_id) or "Untitled render",
                 "video_url": clip.get("video_url"),

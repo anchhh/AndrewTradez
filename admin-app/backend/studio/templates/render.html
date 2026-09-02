@@ -107,8 +107,25 @@
   <!-- results -->
   <section class="card hidden" id="rn-results">
     <h2>Your clips</h2>
-    <div id="rn-done" class="scn-done"></div>
-    <div id="rn-clips" class="rn-clips"></div>
+
+    <div class="rn-tabs" role="tablist">
+      <button type="button" class="rn-tab active" data-view="clips" role="tab">Clips</button>
+      <button type="button" class="rn-tab" data-view="trash" role="tab">
+        Trash <span id="rn-trash-count" class="rn-tab-count"></span>
+      </button>
+    </div>
+
+    <div id="rn-view-clips">
+      <div id="rn-done" class="scn-done"></div>
+      <div id="rn-clips" class="rn-clips"></div>
+    </div>
+
+    <div id="rn-view-trash" hidden>
+      <p class="hint">Deleted clips for this listing. Nothing here has been
+        removed from disk — restoring one puts it straight back.</p>
+      <div id="rn-trash" class="rn-clips"></div>
+      <p id="rn-trash-empty" class="empty-note hidden">Nothing in the trash.</p>
+    </div>
 
     <div class="step-nav">
       <button type="button" class="btn-secondary" id="rn-again">Render again</button>

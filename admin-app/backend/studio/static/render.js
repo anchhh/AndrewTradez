@@ -856,8 +856,8 @@ async function trashClip(jobId, index) {
   }
   // Redraw from the server rather than removing the node, so the counts and
   // totals around it stay honest.
-  if (window.__LEAD_RENDERS__) await openLeadRenders(window.__LEAD_RENDERS__);
-  else if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
+  await refreshResults();
+  await loadTrashView();
 }
 
 document.addEventListener("click", (e) => {
@@ -866,6 +866,87 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
   trashClip(x.dataset.job, x.dataset.index);
+});
+
+/* ---------- the trash tab ----------
+
+   Scoped to whatever this page is about: one listing when it was opened for
+   a lead, one render otherwise. A page about 8732 15th Street Rd listing
+   another listing's deleted clips would be a filing cabinet, not this page. */
+let trashList = [];
+
+function trashScopeMatches(clip) {
+  if (window.__LEAD_RENDERS__) {
+    return String(clip.lead_id) === String(window.__LEAD_RENDERS__);
+  }
+  if (window.__JOB_ID__) return String(clip.job_id) === String(window.__JOB_ID__);
+  return false;
+}
+
+/* Redraw whichever results view this page is showing. */
+async function refreshResults() {
+  if (window.__LEAD_RENDERS__) await openLeadRenders(window.__LEAD_RENDERS__);
+  else if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
+}
+
+async function loadTrashView() {
+  try {
+    const res = await fetch("/studio/api/video/trash");
+    const body = await res.json();
+    trashList = (body.clips || []).filter(trashScopeMatches);
+  } catch (err) {
+    trashList = [];
+  }
+
+  const count = el("rn-trash-count");
+  if (count) count.textContent = trashList.length ? String(trashList.length) : "";
+
+  const box = el("rn-trash");
+  if (!box) return;
+  el("rn-trash-empty").classList.toggle("hidden", trashList.length > 0);
+
+  box.innerHTML = trashList.map((c) => `
+    <figure class="rn-clip is-trashed">
+      <video src="${escapeHtml(c.video_url)}" controls preload="metadata"></video>
+      <figcaption>
+        ${escapeHtml(moveName(c.move) || "Clip")}${c.duration ? " · " + c.duration + "s" : ""}
+        <button type="button" class="rn-restore"
+                data-job="${c.job_id}" data-index="${c.index}">Restore</button>
+      </figcaption>
+    </figure>`).join("");
+
+  box.querySelectorAll(".rn-restore").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      await fetch("/studio/api/video/clip/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: Number(btn.dataset.job),
+                               index: Number(btn.dataset.index) }),
+      });
+      await refreshResults();
+      await loadTrashView();
+    });
+  });
+}
+
+function showResultsView(name) {
+  const trash = name === "trash";
+  const clipsView = el("rn-view-clips");
+  const trashView = el("rn-view-trash");
+  if (!clipsView || !trashView) return;
+  clipsView.hidden = trash;
+  trashView.hidden = !trash;
+  document.querySelectorAll(".rn-tab").forEach((tab) => {
+    const on = (tab.dataset.view === "trash") === trash;
+    tab.classList.toggle("active", on);
+    tab.setAttribute("aria-selected", String(on));
+  });
+  if (trash) loadTrashView();
+}
+
+document.querySelectorAll(".rn-tab").forEach((tab) => {
+  tab.addEventListener("click", () => showResultsView(tab.dataset.view));
 });
 
 function banner(message) {
@@ -1010,8 +1091,12 @@ async function init() {
 
   fetchAdvice();
 
-  if (window.__LEAD_RENDERS__) await openLeadRenders(window.__LEAD_RENDERS__);
-  else if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
+  if (window.__LEAD_RENDERS__ || window.__JOB_ID__) {
+    await refreshResults();
+    // Loaded up front so the tab can say how many are in there without
+    // having to be opened first.
+    loadTrashView();
+  }
 }
 
 el("rn-recommend").addEventListener("click", useRecommended);

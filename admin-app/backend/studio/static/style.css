@@ -424,6 +424,55 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---------- Top nav (Create Video / Dashboard pages) ---------- */
 
+/* Clips / Trash on the results card. */
+.rn-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.rn-tab {
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.rn-tab:hover { color: var(--ink); }
+.rn-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.rn-tab-count:not(:empty) {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 20px;
+  background: var(--line);
+  font-size: 0.7rem;
+}
+.rn-tab.active .rn-tab-count:not(:empty) { background: var(--accent); color: #fff; }
+
+/* A trashed clip is shown greyed, so the tab does not read as a second
+   gallery of things that are fine. */
+.rn-clip.is-trashed video { filter: grayscale(0.6); opacity: 0.75; }
+.rn-restore {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.rn-restore:hover { border-color: var(--accent); color: var(--accent); }
+.rn-restore:disabled { opacity: 0.5; cursor: default; }
+
 /* ---------- Projects, arranged like files ---------- */
 
 .pj-section {
