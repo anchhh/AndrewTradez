@@ -4157,6 +4157,40 @@ gmp-map-3d {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 14px;
 }
+
+/* Several runs on one page: the outer container stops being the clip grid
+   and each run gets its own, so the headings sit between them. */
+.rn-clips-grouped { display: block; }
+.rn-run-block + .rn-run-block {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.rn-run-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+}
+.rn-run-title .rn-run-n {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.rn-run-meta { font-weight: 400; font-size: 0.76rem; color: var(--ink-soft); }
+.rn-run-title .btn-tiny { margin-left: auto; }
+.rn-clip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
 .rn-clip { margin: 0; }
 .rn-clip video {
   width: 100%;
@@ -4342,12 +4376,24 @@ gmp-map-3d {
 .vh-group:hover { border-color: var(--accent); }
 .vh-group.is-open { background: #fff; }
 
+/* The row opens everything; the chevron beside it opens the list of runs.
+   Two targets, so both are reachable -- and separate buttons, because a
+   button inside a button is not valid markup. */
+.vh-headrow { display: flex; align-items: stretch; }
+.vh-headrow .vh-head { flex: 1 1 auto; min-width: 0; }
 .vh-chev {
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: none;
   color: var(--ink-soft);
-  display: flex;
-  transition: transform 0.18s ease;
+  cursor: pointer;
+  transition: transform 0.18s ease, color 0.15s ease;
 }
+.vh-chev:hover { color: var(--ink); }
 .vh-group.is-open .vh-chev { transform: rotate(180deg); }
 
 .vh-runs {

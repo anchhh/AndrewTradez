@@ -739,6 +739,83 @@ function finish(job) {
     : "";
 }
 
+/* ---------- every render for one listing, on one page ----------
+
+   The renders picker groups by home, and opening a home that has several
+   runs lands here rather than making you visit each one in turn. Each run
+   keeps its own heading -- they were separate attempts with their own cost
+   and settings, and flattening them would lose which clip came from where --
+   but they are all on one page. */
+async function openLeadRenders(leadId) {
+  state.reopened = true;
+  show("rn-setup", false);
+  show("rn-running", false);
+  show("rn-results", true);
+  markStep(3);
+
+  let runs = [];
+  try {
+    const res = await fetch("/studio/api/video/jobs");
+    const body = await res.json();
+    runs = (body.renders || []).filter((r) => String(r.lead_id) === String(leadId));
+  } catch (err) {
+    el("rn-done").innerHTML =
+      `<div class="scn-run scn-run-error"><strong>Couldn't load.</strong> ` +
+      `${escapeHtml(err.message)}</div>`;
+    return;
+  }
+
+  const done = runs.filter((r) => (r.clips || []).length);
+  if (!done.length) {
+    el("rn-done").innerHTML =
+      `<div class="scn-run scn-run-error">Nothing has finished rendering for ` +
+      `this listing yet.</div>`;
+    el("rn-clips").innerHTML = "";
+    return;
+  }
+
+  const clips = done.reduce((n, r) => n + r.clips.length, 0);
+  const spend = done.reduce(
+    (n, r) => n + (r.cost != null ? r.cost : (r.estimated_cost || 0)), 0);
+
+  el("rn-done").innerHTML =
+    `<div class="scn-run scn-run-done"><strong>Saved renders.</strong> ` +
+    `${clips} clip${clips === 1 ? "" : "s"} across ${done.length} ` +
+    `render${done.length === 1 ? "" : "s"} · $${spend.toFixed(2)} total.</div>`;
+
+  // Oldest first, so the numbering matches the order they were made and
+  // reading down the page follows the work.
+  const ordered = [...done].sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+
+  el("rn-clips").classList.add("rn-clips-grouped");
+  el("rn-clips").innerHTML = ordered.map((run, n) => {
+    const cost = run.cost != null ? run.cost : run.estimated_cost;
+    return `
+      <section class="rn-run-block">
+        <h3 class="rn-run-title">
+          <span class="rn-run-n">${n + 1}</span>
+          <span>${run.clips.length} clip${run.clips.length === 1 ? "" : "s"}</span>
+          <span class="rn-run-meta">${escapeHtml(run.model_label || "")}${
+            cost != null ? " · $" + cost.toFixed(2) : ""}</span>
+          <a class="btn-secondary btn-tiny"
+             href="/studio/create/render?job=${run.id}">Open on its own</a>
+        </h3>
+        <div class="rn-clip-grid">
+          ${run.clips.map((clip, i) => `
+            <figure class="rn-clip">
+              <video src="${escapeHtml(clip.video_url)}" controls preload="metadata"></video>
+              <figcaption>Clip ${i + 1}${
+                clip.move ? " · " + escapeHtml(moveName(clip.move)) : ""}${
+                clip.duration ? " · " + clip.duration + "s" : ""}</figcaption>
+            </figure>`).join("")}
+        </div>
+      </section>`;
+  }).join("");
+
+  el("rn-results-note").textContent =
+    "Separate clips from separate runs — stitching them into one video isn't built yet.";
+}
+
 function banner(message) {
   const box = el("rn-connection");
   box.hidden = false;
@@ -881,7 +958,8 @@ async function init() {
 
   fetchAdvice();
 
-  if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
+  if (window.__LEAD_RENDERS__) await openLeadRenders(window.__LEAD_RENDERS__);
+  else if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
 }
 
 el("rn-recommend").addEventListener("click", useRecommended);

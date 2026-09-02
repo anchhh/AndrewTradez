@@ -120,6 +120,7 @@
 <script>
   window.__PROJECT__ = {{ project | tojson }};
   window.__JOB_ID__ = {{ job_id | tojson if job_id else 'null' }};
+  window.__LEAD_RENDERS__ = {{ lead_renders | tojson if lead_renders else 'null' }};
 </script>
 <script src="{{ url_for('studio.static', filename='leads_shared.js') }}"></script>
 <script src="{{ url_for('studio.static', filename='render.js') }}"></script>

@@ -63,7 +63,7 @@
     list.forEach((r) => {
       const key = r.lead_id != null ? "lead:" + r.lead_id : "addr:" + (r.address || "?");
       if (!groups.has(key)) {
-        groups.set(key, { key, address: r.address, runs: [] });
+        groups.set(key, { key, address: r.address, lead_id: r.lead_id, runs: [] });
       }
       groups.get(key).runs.push(r);
     });
@@ -130,27 +130,40 @@
         : `${g.runs.length} renders · ${g.clips} clip${g.clips === 1 ? "" : "s"}`
           + ` · $${g.cost.toFixed(2)} · latest ${esc(when(g.newest.created_at))}`;
 
+      // What the row itself opens. A home with several renders and a lead
+      // behind it opens ALL of them on one page -- visiting three pages to
+      // see three clips of one house was the thing worth fixing. Without a
+      // lead there is nothing to group by on the render page, so those open
+      // their newest run.
+      const opens = single || g.lead_id == null
+        ? `data-id="${single ? g.runs[0].id : g.newest.id}"`
+        : `data-lead="${g.lead_id}"`;
+
       return `
         <div class="vh-group${open ? " is-open" : ""}" data-key="${esc(g.key)}">
-          <button type="button"
-                  class="vh-render vh-head${g.running ? " is-running" : ""}"
-                  data-key="${esc(g.key)}"
-                  ${single ? `data-id="${g.runs[0].id}"` : 'data-toggle="1"'}>
-            ${g.running
-              ? '<span class="vh-spin" aria-hidden="true"></span>'
-              : `<span class="vh-thumbs">${thumbsFor(g.runs)}</span>`}
-            <span class="vh-meta">
-              <span class="vh-name">${esc(g.address)}</span>
-              <span class="vh-sub">${sub}</span>
-            </span>
+          <div class="vh-headrow">
+            <button type="button"
+                    class="vh-render vh-head${g.running ? " is-running" : ""}"
+                    ${opens}>
+              ${g.running
+                ? '<span class="vh-spin" aria-hidden="true"></span>'
+                : `<span class="vh-thumbs">${thumbsFor(g.runs)}</span>`}
+              <span class="vh-meta">
+                <span class="vh-name">${esc(g.address)}</span>
+                <span class="vh-sub">${sub}</span>
+              </span>
+            </button>
             ${single ? "" : `
-              <span class="vh-chev" aria-hidden="true">
-                <svg viewBox="0 0 16 16" width="14" height="14">
+              <button type="button" class="vh-chev" data-toggle="1"
+                      data-key="${esc(g.key)}"
+                      aria-expanded="${open}"
+                      aria-label="${open ? "Hide" : "Show"} the individual renders">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                   <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor"
                         stroke-width="1.6" stroke-linecap="round"
                         stroke-linejoin="round"/></svg>
-              </span>`}
-          </button>
+              </button>`}
+          </div>
 
           ${single ? "" : `
             <div class="vh-runs" ${open ? "" : "hidden"}>
@@ -169,23 +182,26 @@
     // Straight to the results view on the render page, the way Scenery opens a
     // saved run on its own last step. Carrying the project when there is one
     // keeps "Render again" able to start a fresh run.
-    function openRender(id) {
+    function go(params) {
       const project = (window.__PROJECT__ || {}).id;
-      const params = new URLSearchParams({ job: id });
       if (project) params.set("project", project);
       window.location.href = "/studio/create/render?" + params.toString();
     }
+    const openRender = (id) => go(new URLSearchParams({ job: id }));
+    const openLead = (id) => go(new URLSearchParams({ lead: id }));
 
     list.querySelectorAll(".vh-head").forEach((head) => {
       head.addEventListener("click", () => {
-        if (head.dataset.toggle) {
-          const key = head.dataset.key;
-          if (expanded.has(key)) expanded.delete(key);
-          else expanded.add(key);
-          renderList();
-          return;
-        }
-        openRender(head.dataset.id);
+        if (head.dataset.lead) openLead(head.dataset.lead);
+        else openRender(head.dataset.id);
+      });
+    });
+    list.querySelectorAll(".vh-chev").forEach((chev) => {
+      chev.addEventListener("click", () => {
+        const key = chev.dataset.key;
+        if (expanded.has(key)) expanded.delete(key);
+        else expanded.add(key);
+        renderList();
       });
     });
     list.querySelectorAll(".vh-run").forEach((run) => {

@@ -1117,7 +1117,12 @@ def create_render():
     # the clips are on the job -- so arriving from the renders picker works
     # whether or not the project that made them is still to hand.
     job_id = request.args.get("job")
-    if not project and not job_id:
+    # ?lead= opens every render made for one listing on a single results page,
+    # which is what the renders picker offers for a home with more than one.
+    lead_renders = request.args.get("lead")
+    if lead_renders and not str(lead_renders).isdigit():
+        lead_renders = None
+    if not project and not job_id and not lead_renders:
         return redirect(url_for("studio.create"))
 
     project = dict(project or {})
@@ -1126,6 +1131,20 @@ def create_render():
     # job's lead. Without this, going back to the shots step from a saved
     # render lands on an empty picker -- the clips are on the job, but the
     # photos they were made from are on the listing.
+    # Same rebuild as below, but the lead is named outright rather than being
+    # reached through a job.
+    if not project and lead_renders:
+        lead = get_owned_lead(int(lead_renders))
+        if lead is None:
+            return redirect(url_for("studio.create"))
+        project = {
+            "id": None,
+            "lead_id": lead.id,
+            "address": lead.address,
+            "name": lead.address,
+            "photos": lead.photo_urls or [],
+        }
+
     if not project and job_id:
         from models import VideoJob
 
@@ -1148,7 +1167,8 @@ def create_render():
         if lead is not None:
             project["photo_rooms"] = lead.photo_rooms or {}
 
-    return render_template("render.html", project=project, job_id=job_id)
+    return render_template("render.html", project=project, job_id=job_id,
+                           lead_renders=lead_renders)
 
 
 @studio_bp.route("/dashboard")
