@@ -39,6 +39,8 @@ async function loadDashboard() {
   document.getElementById("stat-projects-todo").textContent =
     (leads || []).filter((l) => !projectByLeadId.has(l.id)).length;
 
+  renderMoney();
+
   container.innerHTML = "";
 
   if (!leads.length) {
@@ -123,3 +125,40 @@ bulkRefresh = initBulkBar(document.getElementById("bulk-bar-host"), {
 
 loadDashboard();
 loadDailyChecklist();
+
+
+/* ---------- revenue ----------
+
+   Fetched rather than summed from the leads already on the page: spend is
+   priced per delivered clip at the current rates, and a second copy of that
+   arithmetic in the browser would drift from the lead profile's. The server
+   computes both figures in one place, /api/money. */
+
+async function renderMoney() {
+  const value = document.getElementById("stat-revenue");
+  const sub = document.getElementById("stat-profit");
+  if (!value) return;
+  try {
+    const res = await fetch("/studio/api/money");
+    if (!res.ok) throw new Error("unavailable");
+    const money = await res.json();
+
+    // Whole dollars in the headline -- cents in a figure this size are
+    // noise -- but exact to the cent underneath, where they are the point.
+    const cents = (n) => "$" + n.toLocaleString("en-US", {
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    });
+
+    value.textContent = "$" + money.revenue.toLocaleString("en-US", {
+      maximumFractionDigits: 0,
+    });
+    // Spend is shown next to profit because profit alone cannot say whether
+    // a thin margin came from charging little or from rendering a lot.
+    sub.textContent = money.sold_count
+      ? `${cents(money.profit)} profit after ${cents(money.spend)} rendering`
+      : `Nothing sold yet · ${cents(money.spend)} spent rendering`;
+  } catch (err) {
+    value.textContent = "—";
+    sub.textContent = "";
+  }
+}

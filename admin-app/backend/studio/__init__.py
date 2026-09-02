@@ -1552,7 +1552,8 @@ def api_update_lead_status(lead_id):
     EDITABLE_TEXT = ("thumbnail_url",
                      "notes", "agent_email", "agent_name", "agent_phone", "brokerage",
                      "video_url")
-    if "status" not in data and not any(f in data for f in EDITABLE_TEXT):
+    if ("status" not in data and "sold_amount" not in data
+            and not any(f in data for f in EDITABLE_TEXT)):
         return jsonify({"error": "Nothing to update."}), 400
 
     if "status" in data:
@@ -1574,6 +1575,32 @@ def api_update_lead_status(lead_id):
         if chosen and chosen not in (lead.photo_urls or []):
             return jsonify({"error": "That photo doesn't belong to this lead."}), 400
         lead.thumbnail_url = chosen or None
+
+    # What the client paid for this listing's marketing. Empty clears it back
+    # to unsold, which has to stay possible -- a figure typed into the wrong
+    # lead is otherwise permanent.
+    if "sold_amount" in data:
+        raw = data["sold_amount"]
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            lead.sold_amount = None
+            lead.sold_at = None
+        else:
+            try:
+                # Typed by hand, so tolerate what a person types: "$1,200".
+                amount = float(str(raw).replace("$", "").replace(",", "").strip())
+            except ValueError:
+                return jsonify({"error": "That isn't an amount."}), 400
+            if amount < 0:
+                return jsonify({"error": "An amount can't be negative."}), 400
+            # A cap, because this figure drives the revenue headline and a
+            # slipped keystroke should not silently report a fortune.
+            if amount > 10_000_000:
+                return jsonify({"error": "That amount looks like a typo."}), 400
+            # Stamped when the amount first lands, and left alone afterwards
+            # so correcting a figure doesn't move the sale to today.
+            if lead.sold_at is None:
+                lead.sold_at = datetime.now(timezone.utc)
+            lead.sold_amount = round(amount, 2)
 
     # The finished video for this listing. Nothing in this app renders one
     # yet, so it is pasted in from wherever it was produced -- and it is
@@ -2382,6 +2409,39 @@ def api_video_capcut():
     return jsonify(result), 201
 
 
+@studio_bp.route("/api/money", methods=["GET"])
+@login_required
+def api_money():
+    """Revenue, spend and profit across every lead this user owns.
+
+    Computed here rather than in the dashboard so the cost rules live in one
+    place: priced per delivered clip at today's rates, exactly as the lead
+    profile's spend panel does it. Two implementations of that would drift,
+    and the pair that disagreed would both be showing dollars.
+    """
+    from models import Lead, VideoJob
+
+    leads = Lead.query.filter_by(owner_id=session["user_id"]).all()
+    sold = [l for l in leads if l.sold_amount]
+    revenue = sum(l.sold_amount for l in sold)
+
+    # Every render this user has paid for, whether or not its lead sold --
+    # money spent on a listing that never closed is still money spent.
+    spend = 0.0
+    for job in VideoJob.query.filter_by(owner_id=session["user_id"]).all():
+        for clip in job.clips or []:
+            if clip.get("video_url"):
+                spend += clip_cost(job, clip)
+
+    return jsonify({
+        "revenue": round(revenue, 2),
+        "spend": round(spend, 2),
+        "profit": round(revenue - spend, 2),
+        "sold_count": len(sold),
+        "lead_count": len(leads),
+    })
+
+
 def clip_cost(job, clip):
     """What one delivered clip cost, at the current rate for its model.
 
@@ -2393,11 +2453,17 @@ def clip_cost(job, clip):
     cfg = MODELS.get(job.model)
     if not cfg:
         return 0.0
-    return estimate_cost(
+    # Rounded to cents HERE, at the clip, because the clip is the unit that
+    # gets billed. Rounding later instead lets the same money add up to two
+    # different totals -- summing raw and rounding once gave the dashboard
+    # $3.94 while the lead panel, rounding per render first, showed $3.92.
+    # Two figures in dollars that disagree are worse than either being a cent
+    # off, so everything downstream sums numbers that are already exact.
+    return round(estimate_cost(
         clip.get("duration") or job.duration,
         cfg,
         clip.get("resolution") or job.resolution,
-    )
+    ), 2)
 
 
 @studio_bp.route("/api/video/jobs", methods=["GET"])

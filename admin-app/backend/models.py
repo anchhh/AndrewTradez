@@ -68,6 +68,16 @@ class Lead(db.Model):
     status = db.Column(db.String(20), nullable=False, default="new")
     notes = db.Column(db.Text, nullable=True)
 
+    # What the client paid for this listing's marketing, and when they paid.
+    #
+    # NOT the sale price of the house. The house's price is the listing's
+    # business and already lives in `price`; this is the fee earned for the
+    # media, which is the only figure that belongs in revenue. Keeping them
+    # in separate columns is what stops a $525,000 listing from being
+    # reported as half a million dollars of income.
+    sold_amount = db.Column(db.Float, nullable=True)
+    sold_at = db.Column(db.DateTime, nullable=True)
+
     # Every lead captured (e.g. via the Chrome extension) lands on the
     # Lead Manager page first for sorting; only leads explicitly marked
     # qualified here surface on the polished Dashboard view.
@@ -177,6 +187,9 @@ class Lead(db.Model):
             "outreach_video_sent": self.outreach_video_sent_at is not None,
             "outreach_skipped": bool(self.outreach_skipped),
             "video_url": self.video_url,
+            "sold_amount": self.sold_amount,
+            "sold_at": (self.sold_at.replace(tzinfo=timezone.utc).isoformat()
+                        if self.sold_at else None),
             "photo_rooms": self.photo_rooms,
             "ghl_contact_id": self.ghl_contact_id,
             "created_at": self.created_at.isoformat(),

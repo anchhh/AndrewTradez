@@ -1,3 +1,4 @@
+import logging
 import os
 
 from flask import Flask, send_from_directory
@@ -9,6 +10,50 @@ from extensions import db
 from studio import init_studio
 
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+
+log = logging.getLogger(__name__)
+
+
+def _add_missing_columns(db):
+    """Add columns the models declare but an existing table lacks.
+
+    db.create_all() creates missing TABLES and never missing COLUMNS, so a
+    new field on an existing model leaves the live database one column short
+    and every query against it failing with "no such column". There is no
+    migration tool in this project, and a column added to a model is by far
+    the most common schema change here, so this reconciles the two at boot.
+
+    Deliberately additive only: it never drops, renames or retypes anything.
+    A column that exists is left exactly as it is, whatever its type, and a
+    column the models no longer declare is left in place. Losing data to a
+    startup routine that thought it knew better is not a trade worth making.
+    """
+    import sqlalchemy as sa
+
+    inspector = sa.inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+
+    for table in db.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # create_all just made it, with every column.
+        have = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in have:
+                continue
+            # SQLite can only add a column that is nullable or has a
+            # non-dynamic default; anything else would need the table
+            # rebuilt, which is past what a boot-time fixup should attempt.
+            if not column.nullable and column.server_default is None:
+                log.warning(
+                    "%s.%s is missing and NOT NULL -- add it by hand",
+                    table.name, column.name)
+                continue
+            ddl = "ALTER TABLE %s ADD COLUMN %s %s" % (
+                table.name, column.name,
+                column.type.compile(dialect=db.engine.dialect))
+            with db.engine.begin() as conn:
+                conn.execute(sa.text(ddl))
+            log.info("added column %s.%s", table.name, column.name)
 
 
 def create_app():
@@ -46,6 +91,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        _add_missing_columns(db)
         # Snapshot on every boot, so there is always a recent copy of the
         # lead database to fall back on. See services/backup.py.
         from services.backup import snapshot

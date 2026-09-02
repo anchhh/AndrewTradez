@@ -617,6 +617,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .lm-stat-placeholder { color: var(--ink-soft); }
 
+.lm-stat-sub {
+  margin-top: 3px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
 .lm-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -3986,6 +3993,91 @@ gmp-map-3d {
 #vh-open.is-running { background: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .vh-spin { animation-duration: 3s; } }
 
+
+/* ---------- what this listing earned ---------- */
+
+.lp-sold-total {
+  margin: 8px 0 0;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.lp-sold-sub { margin: 2px 0 0; font-size: 0.78rem; color: var(--ink-soft); }
+
+/* Two columns per ROW, not the spend panel's three: these rows are a label
+   and an amount. The template belongs on the li -- putting it on the ul made
+   the list itself two columns, and stood Spent and Profit side by side. */
+.lp-sold-rows li { grid-template-columns: 1fr auto; }
+.lp-sold-rows .lp-sold-profit {
+  margin-top: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+.lp-sold-profit .lp-spend-model,
+.lp-sold-profit .lp-spend-amt { font-weight: 700; color: var(--ink); }
+
+.lp-sold-editbtn,
+.lp-sold-clear {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.lp-sold-editbtn:hover, .lp-sold-clear:hover { color: var(--ink); }
+.lp-sold-clear { margin-top: 0; margin-left: auto; }
+
+.lp-sold-label {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+}
+
+.lp-sold-edit {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.lp-sold-edit:focus-within { border-color: var(--accent); }
+.lp-sold-currency { font-size: 1.3rem; font-weight: 700; color: var(--ink-soft); }
+.lp-sold-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.lp-sold-input:focus { outline: none; }
+
+.lp-sold-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.lp-sold-note {
+  margin: 8px 0 0;
+  font-size: 0.74rem;
+  color: #b3402a;
+  min-height: 1em;
+}
 
 /* ---------- rendered clips on the lead profile ----------
 

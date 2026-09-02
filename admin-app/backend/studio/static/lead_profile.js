@@ -573,6 +573,7 @@ async function load() {
   currentProject = mine.find((p) => p.kind !== "scenery") || null;
   renderVideo(currentProject);
   renderSpend();
+  renderSold();
   renderScenery(mine.filter((p) => p.kind === "scenery"));
   initMediaTabs();
   renderPhotos(lead.photo_urls);
@@ -869,6 +870,112 @@ function renderSpend() {
     </p>
     <ul class="lp-spend-rows">${rows}</ul>
     <p class="lp-spend-foot">Staging is free on Gemini, so none of this is Scenery.</p>`;
+}
+
+
+/* ---------- what this listing earned ----------
+
+   The amount is what the CLIENT PAID for the marketing, not what the house
+   sold for. The house's price is already on the lead and is not income;
+   confusing the two would report a $525,000 listing as half a million
+   dollars of revenue. The label says "Paid by client" for that reason. */
+
+let soldEditing = false;
+
+function leadVideoSpend() {
+  return videoRuns.reduce((n, r) => n + (r.cost || 0), 0);
+}
+
+function renderSold() {
+  const box = el("lp-sold");
+  if (!box) return;
+
+  const spend = leadVideoSpend();
+  const amount = lead.sold_amount;
+
+  if (soldEditing || amount == null) {
+    box.innerHTML = `
+      <label class="lp-sold-label" for="lp-sold-input">Paid by client</label>
+      <div class="lp-sold-edit">
+        <span class="lp-sold-currency">$</span>
+        <input type="text" inputmode="decimal" id="lp-sold-input"
+               class="lp-sold-input" placeholder="0.00"
+               value="${amount == null ? "" : amount}">
+      </div>
+      <div class="lp-sold-actions">
+        <button type="button" class="btn-send btn-tiny" id="lp-sold-save">Save</button>
+        ${amount != null ? `
+          <button type="button" class="btn-secondary btn-tiny" id="lp-sold-cancel">Cancel</button>
+          <button type="button" class="lp-sold-clear" id="lp-sold-clear">Not sold</button>` : ""}
+      </div>
+      <p id="lp-sold-note" class="lp-sold-note"></p>`;
+
+    const input = el("lp-sold-input");
+    input.focus();
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") saveSold(input.value);
+      if (e.key === "Escape" && amount != null) { soldEditing = false; renderSold(); }
+    });
+    el("lp-sold-save").addEventListener("click", () => saveSold(input.value));
+    if (amount != null) {
+      el("lp-sold-cancel").addEventListener("click", () => {
+        soldEditing = false;
+        renderSold();
+      });
+      el("lp-sold-clear").addEventListener("click", () => saveSold(""));
+    }
+    return;
+  }
+
+  const profit = amount - spend;
+  box.innerHTML = `
+    <p class="lp-sold-total">${money(amount)}</p>
+    <p class="lp-sold-sub">Paid by client${
+      lead.sold_at ? " · " + sceneryWhen({ created_at: Date.parse(lead.sold_at) / 1000 })
+                   : ""}</p>
+    <ul class="lp-spend-rows lp-sold-rows">
+      <li><span class="lp-spend-model">Spent on video</span>
+          <span class="lp-spend-amt">−${money(spend)}</span></li>
+      <li class="lp-sold-profit"><span class="lp-spend-model">Profit</span>
+          <span class="lp-spend-amt">${money(profit)}</span></li>
+    </ul>
+    <button type="button" class="lp-sold-editbtn" id="lp-sold-edit">Edit</button>`;
+  el("lp-sold-edit").addEventListener("click", () => {
+    soldEditing = true;
+    renderSold();
+  });
+}
+
+/* Thousands separators, and a leading minus outside the dollar sign rather
+   than inside it -- "-$4.00", not "$-4.00" -- since profit can go negative
+   on a listing that was rendered and never sold. */
+function money(n) {
+  const sign = n < 0 ? "−" : "";
+  return sign + "$" + Math.abs(n).toLocaleString("en-US", {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+}
+
+async function saveSold(raw) {
+  const note = el("lp-sold-note");
+  const btn = el("lp-sold-save");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    const res = await fetch(`/studio/api/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sold_amount: raw }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "Couldn't save that.");
+    lead.sold_amount = body.sold_amount;
+    lead.sold_at = body.sold_at;
+    soldEditing = false;
+    renderSold();
+  } catch (err) {
+    if (note) note.textContent = err.message;
+    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+  }
 }
 
 
