@@ -38,6 +38,8 @@ const state = {
   ratePerSecond: null,
   rates: {},         // {resolution: $/second} -- a 4x swing, not a detail
   modelLabel: "",    // which model is actually behind this
+  advice: {},        // {url: {recommended, moves:{move:{level,reason}}}}
+  advising: false,
   configured: false,
   job: null,
   startedAt: null,
@@ -171,6 +173,7 @@ function photoTile(url) {
     renderPhotos();
     renderClipMoves();
     renderCost();
+    fetchAdvice();
   });
   return div;
 }
@@ -302,6 +305,64 @@ document.querySelectorAll(".style-card").forEach((card) => {
   card.addEventListener("click", () => applyStyle(card.dataset.style));
 });
 
+/* ---------- what the layout says ----------
+
+   The analysis knows, for every photo, which moves reach a room another
+   photograph shows and which would invent one. Rendering enforces it either
+   way -- an anchor is attached server-side -- but a page that lets you pick a
+   move it knows will invent, and says nothing, is the reason a door appeared
+   in the first clip. */
+
+const LEVEL_MARK = { anchored: "✓", safe: "•", risky: "!" };
+const LEVEL_WORD = { anchored: "anchored", safe: "safe", risky: "would invent" };
+
+async function fetchAdvice() {
+  if (state.advising || !project.lead_id || !state.photos.length) return;
+  state.advising = true;
+  try {
+    const res = await fetch("/studio/api/video/layout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: project.lead_id,
+        clips: state.photos.map((url) => ({
+          photo: url, move: state.moves[url] || state.defaultMove,
+        })),
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "layout unavailable");
+    (body.clips || []).forEach((clip) => { state.advice[clip.photo] = clip; });
+    renderClipMoves();
+  } catch (err) {
+    // Advice is a help, not a gate: the render still enforces anchoring.
+    const note = el("rn-advice-note");
+    if (note) note.textContent = "Couldn't check the layout: " + err.message;
+  } finally {
+    state.advising = false;
+  }
+}
+
+/* Every clip set to the move the layout recommends. Never a risky one. */
+function useRecommended() {
+  let changed = 0;
+  state.photos.forEach((url) => {
+    const rec = (state.advice[url] || {}).recommended;
+    if (rec && rec.move && state.moves[url] !== rec.move) {
+      state.moves[url] = rec.move;
+      changed += 1;
+    }
+  });
+  renderClipMoves();
+  renderCost();
+  const note = el("rn-advice-note");
+  if (note) {
+    note.textContent = changed
+      ? `${changed} clip${changed === 1 ? "" : "s"} set to the recommended move.`
+      : "Every clip is already on its recommended move.";
+  }
+}
+
 /* ---------- camera moves ----------
 
    The video answer to Scenery's per-room styles, and the same reasoning: one
@@ -375,15 +436,36 @@ function renderClipMoves() {
 
   box.innerHTML = state.photos.map((url, i) => {
     const label = roomOf(url).label;
+    const advice = state.advice[url];
+    const move = state.moves[url] || state.defaultMove;
+    const verdict = advice && advice.moves ? advice.moves[move] : null;
+    const rec = advice ? advice.recommended : null;
+
+    // The options carry their own verdict, so the risky ones are visible
+    // while choosing rather than after rendering.
+    const moveOpts = moveOptions().map((o) => {
+      const v = advice && advice.moves ? advice.moves[o.value] : null;
+      const mark = v ? LEVEL_MARK[v.level] || "" : "";
+      const rq = rec && rec.move === o.value ? " — recommended" : "";
+      return { value: o.value, label: (mark ? mark + " " : "") + o.label + rq };
+    });
+
     return `
-      <div class="rn-clip-row" data-url="${escapeHtml(url)}">
+      <div class="rn-clip-row ${verdict ? "is-" + verdict.level : ""}" data-url="${escapeHtml(url)}">
         <img class="rn-clip-shot" src="${escapeHtml(url)}" alt="" loading="lazy">
         <div class="rn-clip-body">
           <span class="rn-clip-name">Clip ${i + 1}${label ? " · " + escapeHtml(label) : ""}</span>
+          ${verdict ? `
+            <span class="rn-verdict rn-verdict-${verdict.level}">
+              ${LEVEL_WORD[verdict.level] || verdict.level}${
+                verdict.level === "risky" && rec
+                  ? ` — try ${escapeHtml(moveName(rec.move))}` : ""}
+            </span>
+            <span class="rn-verdict-why">${escapeHtml(verdict.reason)}</span>` : ""}
         </div>
         <div class="rn-clip-controls">
           <select class="rn-select" data-field="move" aria-label="Camera move">
-            ${pick(moveOptions(), state.moves[url] || state.defaultMove)}
+            ${pick(moveOpts, move)}
           </select>
           <select class="rn-select rn-select-sm" data-field="duration" aria-label="Clip length">
             ${pick(durationOptions(), state.seconds[url] || state.defaultDuration)}
@@ -417,9 +499,11 @@ function renderClipMoves() {
         if (select.dataset.field === "move") state.moves[url] = value;
         if (select.dataset.field === "duration") state.seconds[url] = Number(value);
         if (select.dataset.field === "resolution") state.quality[url] = value;
-        // No re-render: the select already shows the new value, and rebuilding
-        // would close the dropdown the user is still looking at.
+        // No re-render here: the select already shows the new value, and
+        // rebuilding would close the dropdown still under the cursor. The
+        // verdict is refreshed instead, which re-renders when it lands.
         renderCost();
+        if (select.dataset.field === "move") fetchAdvice();
       });
     });
   });
@@ -763,9 +847,12 @@ async function init() {
 
   renderCost();
 
+  fetchAdvice();
+
   if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
 }
 
+el("rn-recommend").addEventListener("click", useRecommended);
 el("rn-go").addEventListener("click", startRender);
 el("rn-back").addEventListener("click", () => {
   window.location.href = `/studio/create?project=${project.id}`;

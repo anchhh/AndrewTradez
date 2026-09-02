@@ -216,3 +216,55 @@ def check_move(layout, photo_index, move):
     return {"ok": False, "level": "risky", "neighbour": None,
             "reason": "Moves toward %s, but no photo shows it — the model "
                       "would invent it." % what}
+
+
+# Which moves are worth having, best first, when several are equally safe.
+#
+# An anchored move beats a hold every time -- it is real motion between two
+# real photographs, which is the whole point of a listing video. Among
+# anchored moves this is the order a tour would actually use: push through a
+# space, pull back to reveal it, then the sideways ones, then the vertical
+# ones, which are mostly exterior shots.
+PREFERENCE = [
+    "push_in", "pull_out", "pan_left", "pan_right",
+    "orbit_left", "orbit_right", "rise", "tilt_up",
+]
+
+ALL_MOVES = PREFERENCE + ["static"]
+
+
+def verdicts(layout, photo_index):
+    """Every move judged for one photo, best first.
+
+    The ordering is the recommendation: anchored moves first in preference
+    order, then the hold, then anything that would invent.
+    """
+    rows = []
+    for move in ALL_MOVES:
+        check = check_move(layout, photo_index, move)
+        rows.append({
+            "move": move,
+            "level": check["level"],
+            "reason": check["reason"],
+            "neighbour": check["neighbour"],
+        })
+
+    rank = {"anchored": 0, "safe": 1, "risky": 2}
+    order = {move: i for i, move in enumerate(ALL_MOVES)}
+    rows.sort(key=lambda r: (rank.get(r["level"], 3), order.get(r["move"], 99)))
+    return rows
+
+
+def recommend(layout, photo_index):
+    """The move to use on this photo, and why.
+
+    Never returns a risky move. If nothing is anchored the answer is the hold,
+    because a still that barely moves is always publishable and a pan into
+    invented architecture is not.
+    """
+    rows = verdicts(layout, photo_index)
+    best = next((r for r in rows if r["level"] in ("anchored", "safe")), None)
+    if best is None:
+        return {"move": "static", "level": "safe",
+                "reason": "Nothing else can be done safely on this photo."}
+    return {"move": best["move"], "level": best["level"], "reason": best["reason"]}

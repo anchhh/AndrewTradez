@@ -2280,6 +2280,7 @@ def api_video_layout():
                         "reason": "This photo isn't part of the lead's listing."})
             continue
         check = layout.check_move(analysis, index, (clip.get("move") or "").lower())
+        rec = layout.recommend(analysis, index)
         out.append({
             "photo": url,
             "level": check["level"],
@@ -2287,6 +2288,11 @@ def api_video_layout():
             # The neighbour comes back as a URL, because that is what a render
             # needs -- the index is an implementation detail of the analysis.
             "anchor": photos[check["neighbour"]] if check["neighbour"] is not None else None,
+            # Every move judged, so the dropdown can mark them, plus the one
+            # worth using. A recommendation is never a risky move.
+            "recommended": rec,
+            "moves": {v["move"]: {"level": v["level"], "reason": v["reason"]}
+                      for v in layout.verdicts(analysis, index)},
         })
 
     return jsonify({"clips": out})

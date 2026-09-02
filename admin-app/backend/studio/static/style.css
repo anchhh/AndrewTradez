@@ -3953,3 +3953,28 @@ gmp-map-3d {
 @media (prefers-reduced-motion: reduce) { .vh-chevron { transition: none; } }
 
 .rn-cost-tip { color: var(--ink-soft); }
+
+
+/* ---------- what the layout says about a clip ---------- */
+.rn-verdict {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.rn-verdict-anchored { background: #dff0e4; color: #1f6b39; }
+.rn-verdict-safe     { background: #e7e2d8; color: var(--ink-soft); }
+.rn-verdict-risky    { background: #fbe3df; color: #a3271a; }
+.rn-verdict-why {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+/* A clip that would invent something is worth seeing from across the page. */
+.rn-clip-row.is-risky { border-color: #e6bcb4; background: #fdf4f2; }
+.rn-clip-row.is-anchored { border-color: #cfe4d6; }
+.rn-advice-note { font-size: 0.76rem; color: var(--ink-soft); }
