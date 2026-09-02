@@ -701,7 +701,11 @@ function finish(job) {
   show("rn-results", true);
   markStep(3);
 
-  const clips = (job.clips || []).filter((c) => c.video_url);
+  // Keep each clip's position in the job, because that index is what the
+  // trash endpoint addresses.
+  const clips = (job.clips || [])
+    .map((c, index) => ({ ...c, index }))
+    .filter((c) => c.video_url && !c.deleted_at);
   const failed = (job.clips_total || 0) - clips.length;
   const took = state.startedAt
     ? fmtDuration((Date.now() - state.startedAt) / 1000) : null;
@@ -726,8 +730,10 @@ function finish(job) {
     `${job.estimated_cost != null ? ` · about $${job.estimated_cost.toFixed(2)}` : ""}.` +
     `${failed ? ` <span class="scn-run-warn">${failed} failed.</span>` : ""}</div>`;
 
+  el("rn-clips").classList.remove("rn-clips-grouped");
   el("rn-clips").innerHTML = clips.map((clip, i) => `
     <figure class="rn-clip">
+      ${clipX(job.id, clip.index)}
       <video src="${escapeHtml(clip.video_url)}" controls preload="metadata"></video>
       <figcaption>Clip ${i + 1}${clip.move ? " · " + escapeHtml(moveName(clip.move)) : ""}</figcaption>
     </figure>`).join("");
@@ -775,13 +781,18 @@ async function openLeadRenders(leadId) {
   }
 
   const clips = done.reduce((n, r) => n + r.clips.length, 0);
-  const spend = done.reduce(
+  // Spend over EVERY render for this listing, including ones whose clips are
+  // all in the trash. Deleting a clip does not refund it, and a total that
+  // fell when you tidied up would disagree with the dashboard.
+  const spend = runs.reduce(
     (n, r) => n + (r.cost != null ? r.cost : (r.estimated_cost || 0)), 0);
+  const trashed = runs.reduce((n, r) => n + (r.trashed || 0), 0);
 
   el("rn-done").innerHTML =
     `<div class="scn-run scn-run-done"><strong>Saved renders.</strong> ` +
     `${clips} clip${clips === 1 ? "" : "s"} across ${done.length} ` +
-    `render${done.length === 1 ? "" : "s"} · $${spend.toFixed(2)} total.</div>`;
+    `render${done.length === 1 ? "" : "s"} · $${spend.toFixed(2)} total` +
+    `${trashed ? ` · ${trashed} in trash` : ""}.</div>`;
 
   // Oldest first, so the numbering matches the order they were made and
   // reading down the page follows the work.
@@ -803,6 +814,7 @@ async function openLeadRenders(leadId) {
         <div class="rn-clip-grid">
           ${run.clips.map((clip, i) => `
             <figure class="rn-clip">
+              ${clipX(run.id, clip.index)}
               <video src="${escapeHtml(clip.video_url)}" controls preload="metadata"></video>
               <figcaption>Clip ${i + 1}${
                 clip.move ? " · " + escapeHtml(moveName(clip.move)) : ""}${
@@ -815,6 +827,46 @@ async function openLeadRenders(leadId) {
   el("rn-results-note").textContent =
     "Separate clips from separate runs — stitching them into one video isn't built yet.";
 }
+
+/* ---------- trashing a clip ----------
+
+   Soft only. The mp4 is left on disk and the clip is marked, so this is
+   always recoverable from the trash -- a single X next to work that cost
+   real money should not be able to destroy it. */
+function clipX(jobId, index) {
+  // Deliberately NOT .rn-clip-x -- that class already belongs to the shots
+  // step's "drop this clip from the selection" button, and a shared name
+  // meant this handler fired on those too, swallowing their click and
+  // POSTing an undefined clip.
+  return `<button type="button" class="rn-clip-trash" data-job="${jobId}" data-index="${index}"
+                  title="Move to trash" aria-label="Move this clip to trash">&times;</button>`;
+}
+
+async function trashClip(jobId, index) {
+  try {
+    const res = await fetch("/studio/api/video/clip/trash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: Number(jobId), index: Number(index) }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Couldn't delete that.");
+  } catch (err) {
+    banner(err.message);
+    return;
+  }
+  // Redraw from the server rather than removing the node, so the counts and
+  // totals around it stay honest.
+  if (window.__LEAD_RENDERS__) await openLeadRenders(window.__LEAD_RENDERS__);
+  else if (window.__JOB_ID__) await openSavedJob(window.__JOB_ID__);
+}
+
+document.addEventListener("click", (e) => {
+  const x = e.target.closest(".rn-clip-trash");
+  if (!x) return;
+  e.preventDefault();
+  e.stopPropagation();
+  trashClip(x.dataset.job, x.dataset.index);
+});
 
 function banner(message) {
   const box = el("rn-connection");

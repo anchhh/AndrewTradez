@@ -69,14 +69,19 @@
     });
 
     return [...groups.values()].map((g) => {
-      g.runs.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-      g.newest = g.runs[0];
+      const all = g.runs.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+
+      // Cost over EVERY render for this home, including ones whose clips are
+      // all in the trash. Deleting a clip does not refund it.
+      g.cost = all.reduce(
+        (n, r) => n + (r.cost != null ? r.cost : (r.estimated_cost || 0)), 0);
+      g.trashed = all.reduce((n, r) => n + (r.trashed || 0), 0);
+
+      // What can actually be opened is what has something left to show.
+      g.runs = all.filter((r) => r.running || (r.clips || []).length);
+      g.newest = g.runs[0] || all[0];
       g.running = g.runs.filter((r) => r.running).length;
       g.clips = g.runs.reduce((n, r) => n + (r.clips || []).length, 0);
-      // The recomputed per-render cost, falling back to the stored estimate
-      // for a row written before that field existed.
-      g.cost = g.runs.reduce(
-        (n, r) => n + (r.cost != null ? r.cost : (r.estimated_cost || 0)), 0);
       return g;
     }).sort((a, b) => (b.newest.created_at || 0) - (a.newest.created_at || 0));
   }
@@ -113,8 +118,11 @@
     if (!list) return;
 
     const query = (byId("vh-search").value || "").trim();
+    // Everything matching is grouped, trashed renders included: a home's
+    // total spend must not fall because a clip was tidied away. What is
+    // OPENABLE is filtered inside the group instead.
     const shown = renders.filter((r) => matches(r, query));
-    const groups = groupRenders(shown);
+    const groups = groupRenders(shown).filter((g) => g.runs.length);
 
     total.textContent = query
       ? `${groups.length} home${groups.length === 1 ? "" : "s"}, ${shown.length} render${shown.length === 1 ? "" : "s"}`
@@ -128,7 +136,8 @@
       const sub = single
         ? runSummary(g.runs[0])
         : `${g.runs.length} renders · ${g.clips} clip${g.clips === 1 ? "" : "s"}`
-          + ` · $${g.cost.toFixed(2)} · latest ${esc(when(g.newest.created_at))}`;
+          + ` · $${g.cost.toFixed(2)} · latest ${esc(when(g.newest.created_at))}`
+          + (g.trashed ? ` · ${g.trashed} in trash` : "");
 
       // What the row itself opens. A home with several renders and a lead
       // behind it opens ALL of them on one page -- visiting three pages to
@@ -209,6 +218,80 @@
     });
   }
 
+  /* ---------- trash ----------
+
+     Deleting a clip only marks it, so this is where it comes back from. The
+     count is loaded whenever the picker opens, because "is there anything in
+     the bin" is the question the button has to answer before it is clicked. */
+  let showingTrash = false;
+  let trashed = [];
+
+  function syncTrashUi() {
+    const toggle = byId("vh-trash-toggle");
+    if (toggle) {
+      // Rebuilt in one go. Setting textContent first removed the badge, so
+      // looking it up afterwards found nothing and the count never showed.
+      toggle.innerHTML = showingTrash
+        ? "&larr; Back to renders"
+        : `Trash <span id="vh-trash-count">${trashed.length || ""}</span>`;
+    }
+    const search = byId("vh-search");
+    if (search) search.closest(".search-field").hidden = showingTrash;
+  }
+
+  function loadTrash() {
+    return fetch("/studio/api/video/trash")
+      .then((r) => r.json())
+      .then((data) => {
+        trashed = data.clips || [];
+        if (showingTrash) renderTrash();
+        syncTrashUi();
+      })
+      .catch(() => {});
+  }
+
+  function renderTrash() {
+    const list = byId("vh-list");
+    byId("vh-total").textContent = trashed.length
+      ? `${trashed.length} clip${trashed.length === 1 ? "" : "s"} in the trash`
+      : "";
+    byId("vh-empty").classList.toggle("hidden", trashed.length > 0);
+    byId("vh-empty").textContent = "Nothing in the trash.";
+
+    list.innerHTML = trashed.map((c) => `
+      <div class="vh-group">
+        <div class="vh-headrow">
+          <span class="vh-render vh-head is-trash">
+            <span class="vh-thumbs">
+              <video src="${esc(c.video_url)}#t=0.5" preload="metadata" muted></video>
+            </span>
+            <span class="vh-meta">
+              <span class="vh-name">${esc(c.address)}</span>
+              <span class="vh-sub">
+                ${esc(MOVE_NAMES[c.move] || c.move || "clip")} · ${c.duration}s
+                · ${esc(c.resolution || "")} · deleted ${esc(when(Date.parse(c.deleted_at) / 1000))}
+              </span>
+            </span>
+          </span>
+          <button type="button" class="vh-restore"
+                  data-job="${c.job_id}" data-index="${c.index}">Restore</button>
+        </div>
+      </div>`).join("");
+
+    list.querySelectorAll(".vh-restore").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        btn.disabled = true;
+        fetch("/studio/api/video/clip/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ job_id: Number(btn.dataset.job),
+                                 index: Number(btn.dataset.index) }),
+        }).then(() => Promise.all([loadTrash(), load()]))
+          .catch(() => { btn.disabled = false; });
+      });
+    });
+  }
+
   let poll = null;
 
   function watchRunning() {
@@ -228,7 +311,10 @@
     box.classList.remove("hidden");
     box.setAttribute("aria-hidden", "false");
     byId("vh-search").value = "";
+    showingTrash = false;
     renderList();
+    syncTrashUi();
+    loadTrash();
     byId("vh-search").focus();
   }
 
@@ -266,11 +352,21 @@
         <p id="vh-total" class="lead-modal-count"></p>
         <div id="vh-list" class="vh-list"></div>
         <p id="vh-empty" class="empty-note hidden">No renders match that search.</p>
+        <div class="vh-foot">
+          <button type="button" id="vh-trash-toggle" class="vh-trash-toggle">
+            Trash <span id="vh-trash-count"></span>
+          </button>
+        </div>
       </div>`;
     document.body.appendChild(box);
 
     box.querySelectorAll("[data-close]").forEach((n) =>
       n.addEventListener("click", closeModal));
+    byId("vh-trash-toggle").addEventListener("click", () => {
+      showingTrash = !showingTrash;
+      if (showingTrash) loadTrash(); else renderList();
+      syncTrashUi();
+    });
     byId("vh-search").addEventListener("input", renderList);
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !box.classList.contains("hidden")) closeModal();

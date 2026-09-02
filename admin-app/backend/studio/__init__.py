@@ -2600,6 +2600,102 @@ def api_stats():
 from services.video import clip_cost  # noqa: E402
 
 
+def _clip_owner_job(job_id):
+    """A video job this user owns, or None. Trash routes all need this."""
+    from extensions import db
+    from models import VideoJob
+
+    job = db.session.get(VideoJob, job_id)
+    if job is None or job.owner_id != session["user_id"]:
+        return None
+    return job
+
+
+@studio_bp.route("/api/video/clip/trash", methods=["POST"])
+@login_required
+def api_clip_trash():
+    """Move a clip to the trash.
+
+    Marks the clip and nothing else. The mp4 stays exactly where it is on
+    disk -- this is reversible by design, and a delete that removes the file
+    is not something a single stray click should be able to do to work that
+    cost real money.
+    """
+    from extensions import db
+
+    data = request.get_json(force=True, silent=True) or {}
+    job = _clip_owner_job(int(data.get("job_id") or 0))
+    if job is None:
+        return jsonify({"error": "Render not found."}), 404
+
+    clips = job.clips or []
+    index = int(data.get("index", -1))
+    if not 0 <= index < len(clips):
+        return jsonify({"error": "No such clip."}), 404
+
+    clips[index]["deleted_at"] = datetime.now(timezone.utc).isoformat()
+    # Reassigned rather than mutated in place: clips is a JSON column behind a
+    # property, and SQLAlchemy does not see a list edited through it.
+    job.clips = clips
+    db.session.commit()
+    return jsonify({"trashed": True})
+
+
+@studio_bp.route("/api/video/clip/restore", methods=["POST"])
+@login_required
+def api_clip_restore():
+    """Take a clip back out of the trash."""
+    from extensions import db
+
+    data = request.get_json(force=True, silent=True) or {}
+    job = _clip_owner_job(int(data.get("job_id") or 0))
+    if job is None:
+        return jsonify({"error": "Render not found."}), 404
+
+    clips = job.clips or []
+    index = int(data.get("index", -1))
+    if not 0 <= index < len(clips):
+        return jsonify({"error": "No such clip."}), 404
+
+    clips[index].pop("deleted_at", None)
+    job.clips = clips
+    db.session.commit()
+    return jsonify({"restored": True})
+
+
+@studio_bp.route("/api/video/trash", methods=["GET"])
+@login_required
+def api_video_trash():
+    """Every clip in the trash, newest deletion first."""
+    from models import Lead, VideoJob
+
+    jobs = VideoJob.query.filter_by(owner_id=session["user_id"]).all()
+    addresses = {}
+    lead_ids = {j.lead_id for j in jobs if j.lead_id}
+    if lead_ids:
+        for lead in Lead.query.filter(Lead.id.in_(lead_ids)).all():
+            addresses[lead.id] = lead.address or lead.agent_name
+
+    out = []
+    for job in jobs:
+        for index, clip in enumerate(job.clips or []):
+            if not clip.get("deleted_at") or not clip.get("video_url"):
+                continue
+            out.append({
+                "job_id": job.id,
+                "index": index,
+                "address": addresses.get(job.lead_id) or "Untitled render",
+                "video_url": clip.get("video_url"),
+                "move": clip.get("move"),
+                "duration": clip.get("duration") or job.duration,
+                "resolution": clip.get("resolution") or job.resolution,
+                "deleted_at": clip["deleted_at"],
+            })
+
+    out.sort(key=lambda c: c["deleted_at"], reverse=True)
+    return jsonify({"clips": out})
+
+
 @studio_bp.route("/api/video/jobs", methods=["GET"])
 @login_required
 def api_video_jobs():
@@ -2631,12 +2727,22 @@ def api_video_jobs():
 
     out = []
     for job in jobs:
-        clips = [c for c in job.clips if c.get("video_url")]
+        # Everything that landed, and separately what is still on show. The
+        # two differ once something is trashed, and they are used for
+        # different things: money spent is not undone by a deletion.
+        delivered = [(i, c) for i, c in enumerate(job.clips or []) if c.get("video_url")]
+        clips = [(i, c) for i, c in delivered if not c.get("deleted_at")]
         running = job.status in ("queued", "running")
-        # A finished render, or one still going. Only a failed run with nothing
-        # to show is left out -- and a render in progress is exactly what
-        # somebody who navigated away is looking for.
-        if not clips and not running:
+        # A render that produced something, or one still going. Only a failed
+        # run with nothing to show is left out -- and a render in progress is
+        # exactly what somebody who navigated away is looking for.
+        #
+        # Kept on `delivered`, not on what is visible: a render whose clips
+        # are all trashed still costs what it cost, and dropping it here made
+        # the lead profile's spend fall by the price of the clip you just
+        # tidied away while the dashboard, which counts differently, did not
+        # move. Callers skip the ones with nothing to show.
+        if not delivered and not running:
             continue
         out.append({
             "id": job.id,
@@ -2644,7 +2750,8 @@ def api_video_jobs():
             "status": job.status,
             "running": running,
             "clips_total": max(len(job.specs), len(job.photos), len(job.clips)),
-            "clips_done": len(clips),
+            "clips_done": len(delivered),
+            "trashed": len(delivered) - len(clips),
             "address": addresses.get(job.lead_id) or "Untitled render",
             # created_at is naive UTC. .timestamp() would read it as local
             # time and put the render hours in the future -- which showed up
@@ -2667,10 +2774,13 @@ def api_video_jobs():
             # built from those would understate spending by 4x.
             #
             # Priced per DELIVERED clip too, so a run that failed before
-            # producing a file is not counted as money spent.
-            "cost": round(sum(clip_cost(job, c) for c in clips), 2),
+            # producing a file is not counted as money spent. Trashed clips
+            # still count: deleting one does not get the money back, and a
+            # total that fell when you tidied up would be a lie.
+            "cost": round(sum(clip_cost(job, c) for _, c in delivered), 2),
             "clips": [
                 {
+                    "index": i,
                     "video_url": c.get("video_url"),
                     # The photo this clip was made from, so the page can name
                     # the room without a second lookup -- the room labels are
@@ -2681,7 +2791,7 @@ def api_video_jobs():
                     "resolution": c.get("resolution") or job.resolution,
                     "cost": clip_cost(job, c),
                 }
-                for c in clips
+                for i, c in clips
             ],
         })
     return jsonify({"renders": out})

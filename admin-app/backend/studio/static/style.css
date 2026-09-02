@@ -4191,7 +4191,34 @@ gmp-map-3d {
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 14px;
 }
-.rn-clip { margin: 0; }
+.rn-clip { margin: 0; position: relative; }
+
+/* Small, and in the corner of the frame rather than beside the caption --
+   near enough to mean "this clip", far enough from the video's own controls
+   not to be hit by accident. */
+.rn-clip-trash {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(23, 19, 15, 0.6);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.rn-clip:hover .rn-clip-trash,
+.rn-clip-trash:focus-visible { opacity: 1; }
+.rn-clip-trash:hover { background: #b3402a; }
 .rn-clip video {
   width: 100%;
   border-radius: 10px;
@@ -4375,6 +4402,52 @@ gmp-map-3d {
 }
 .vh-group:hover { border-color: var(--accent); }
 .vh-group.is-open { background: #fff; }
+
+.vh-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.vh-trash-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vh-trash-toggle:hover { color: var(--ink); }
+#vh-trash-count:not(:empty) {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 20px;
+  background: var(--line);
+  font-size: 0.7rem;
+}
+
+/* In the trash a row is not a way in to anything -- there is nothing to open
+   until it is restored -- so it does not behave like a button. */
+.vh-head.is-trash { cursor: default; display: flex; align-items: center; gap: 11px;
+                    padding: 11px 13px; flex: 1 1 auto; min-width: 0; }
+.vh-restore {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.vh-restore:hover { border-color: var(--accent); color: var(--accent); }
+.vh-restore:disabled { opacity: 0.5; cursor: default; }
 
 /* The row opens everything; the chevron beside it opens the list of runs.
    Two targets, so both are reachable -- and separate buttons, because a
