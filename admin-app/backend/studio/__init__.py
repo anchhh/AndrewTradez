@@ -2179,7 +2179,7 @@ def api_video_status():
     )
     from services.video_jobs import is_busy
 
-    from services.video import model_info
+    from services.video import model_info, resolved_rates
 
     cfg = load_config()
     info = model_info(cfg)
@@ -2188,9 +2188,12 @@ def api_video_status():
         "config_error": cfg.get("config_error"),
         "model": cfg["model"],
         "rate_per_second": cfg["rate_per_second"],
-        "cost_per_second": estimate_cost(1, cfg, DEFAULT_RESOLUTION),
-        # Per resolution, because it is a 4x swing and a single number lied.
-        "rates": cfg.get("rates") or {},
+        "cost_per_second": estimate_cost(1, cfg, info["resolutions"][-1]),
+        # From the MODEL, not the config file. Reading it from the config was
+        # why the page kept quoting Seedance's $0.597 after the switch to
+        # Kling: the config no longer carries a rate table, so it fell back to
+        # a stale default.
+        "rates": resolved_rates(cfg),
         "min_duration": MIN_DURATION,
         "max_duration": MAX_DURATION,
         "default_prompt": REAL_ESTATE_PROMPT,

@@ -37,6 +37,7 @@ const state = {
   defaultResolution: "1080p",
   ratePerSecond: null,
   rates: {},         // {resolution: $/second} -- a 4x swing, not a detail
+  modelLabel: "",    // which model is actually behind this
   configured: false,
   job: null,
   startedAt: null,
@@ -468,17 +469,26 @@ function renderCost() {
   const used = [...new Set(state.photos.map(
     (url) => state.quality[url] || state.defaultResolution))];
   const rateNote = used.length === 1
-    ? `at $${rateFor(used[0]).toFixed(2)}/second at ${used[0]}`
+    ? `$${rateFor(used[0]).toFixed(3)}/second at ${used[0]}`
     : `across ${used.join(", ")}`;
+
+  // Only offer a cheaper tier the model actually has, and only when it IS
+  // cheaper. On a flat-rate model this said "720p would be about $2.98" next
+  // to a $2.98 total, which is worse than saying nothing.
+  const cheapest = Object.keys(state.rates)
+    .filter((res) => rateFor(res) < rateFor(used[0] || state.defaultResolution))
+    .sort((a, b) => rateFor(a) - rateFor(b))[0];
+  const saving = cheapest
+    ? state.photos.reduce((sum, url) =>
+        sum + (state.seconds[url] || state.defaultDuration) * rateFor(cheapest), 0)
+    : null;
+
   el("rn-cost").innerHTML =
-    `${n} clip${n === 1 ? "" : "s"}, ${totalSeconds}s of footage ` +
-    `${rateNote} — about <strong>$${totalCost.toFixed(2)}</strong>.` +
-    // The saving is large enough to be worth naming rather than leaving to be
-    // discovered on an invoice.
-    (used.includes("1080p")
-      ? ` <span class="rn-cost-tip">720p would be about $${
-          state.photos.reduce((sum, url) => sum + (state.seconds[url] || state.defaultDuration)
-            * rateFor("720p"), 0).toFixed(2)}.</span>`
+    `<strong>${escapeHtml(state.modelLabel)}</strong> · ` +
+    `${n} clip${n === 1 ? "" : "s"}, ${totalSeconds}s of footage at ${rateNote} ` +
+    `— about <strong>$${totalCost.toFixed(2)}</strong>.` +
+    (saving != null && saving < totalCost - 0.005
+      ? ` <span class="rn-cost-tip">${cheapest} would be about $${saving.toFixed(2)}.</span>`
       : "");
 }
 
@@ -725,6 +735,7 @@ async function init() {
     state.configured = !!status.configured;
     state.ratePerSecond = status.rate_per_second ?? null;
     state.rates = status.rates || {};
+    state.modelLabel = status.model_label || status.model || "";
     if (!state.configured) {
       banner(status.config_error ||
         "The video generator isn't connected. Add an Atlas Cloud key to studio/atlascloud.json.");

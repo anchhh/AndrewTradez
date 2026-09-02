@@ -75,6 +75,21 @@ MODELS = {
 DEFAULT_MODEL = "kwaivgi/kling-v3.0-pro/image-to-video"
 
 
+def resolved_rates(cfg=None):
+    """{resolution: $/second} for the configured model, expanded.
+
+    A model with a flat rate stores it under "*"; the browser wants a rate per
+    resolution it can look up, so it is expanded here rather than every caller
+    remembering the wildcard.
+    """
+    cfg = cfg or load_config()
+    info = model_info(cfg)
+    rates = cfg.get("rates") or info["rates"]
+    if "*" in rates:
+        return {res: float(rates["*"]) for res in info["resolutions"]}
+    return {res: float(rates.get(res, max(rates.values()))) for res in info["resolutions"]}
+
+
 def model_info(cfg=None):
     """What the configured model costs and supports."""
     cfg = cfg or load_config()
