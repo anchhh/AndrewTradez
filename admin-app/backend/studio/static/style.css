@@ -1368,29 +1368,20 @@ gmp-map-3d {
   color: var(--ink-soft);
 }
 
-.lp-video {
-  border-radius: 10px;
-  overflow: hidden;
-  background: #b9b3ab;
-  aspect-ratio: 16 / 9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lp-video video {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #000;
-  display: block;
-}
+/* The tab body is a plain block. The grey 16:9 slab belongs to the EMPTY
+   state -- it was styling the container, so once real clips arrived they were
+   squeezed into a centred flexbox and looked like a mistake. */
+.lp-video { min-width: 0; }
 
 .lp-video-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 12px;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  background: #b9b3ab;
 }
 
 .lp-video-empty-label {
@@ -3997,13 +3988,40 @@ gmp-map-3d {
 
 
 /* ---------- rendered clips on the lead profile ---------- */
-.lp-video-run + .lp-video-run { margin-top: 16px; }
+.lp-video-run + .lp-video-run {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .lp-video-clips {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
 }
-.lp-video-clips video { width: 100%; border-radius: 10px; background: #000; display: block; }
+.lp-video-clips .rn-clip { margin: 0; min-width: 0; }
+.lp-video-clips video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #000;
+  display: block;
+}
+.lp-video-clips figcaption {
+  margin-top: 7px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+.lp-video-clips figcaption a {
+  margin-left: 6px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.lp-video-clips figcaption a:hover { text-decoration: underline; }
 
 
 /* ---------- choosing a lead's thumbnail ---------- */

@@ -2312,6 +2312,7 @@ def api_video_jobs():
     to browse back to.
     """
     from models import Lead, VideoJob
+    from services.video import MODELS
 
     jobs = (
         VideoJob.query.filter_by(owner_id=session["user_id"])
@@ -2352,6 +2353,9 @@ def api_video_jobs():
                 if job.created_at else None
             ),
             "model": job.model,
+            # The friendly name, so a clip can say what made it without the
+            # page carrying its own copy of the registry.
+            "model_label": (MODELS.get(job.model) or {}).get("label") or job.model,
             "estimated_cost": job.estimated_cost,
             "clips": [
                 {

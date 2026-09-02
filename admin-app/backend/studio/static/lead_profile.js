@@ -382,21 +382,19 @@ function renderVideo(project) {
   box.innerHTML = `
     <div class="lp-scenery-head">
       <p class="lp-scenery-note">
-        ${total} clip${total === 1 ? "" : "s"} across
-        ${runs.length} render${runs.length === 1 ? "" : "s"}.
+        ${total} clip${total === 1 ? "" : "s"} across ${runs.length}
+        render${runs.length === 1 ? "" : "s"}. Rendered with
+        ${escapeHtml(runs[0].model_label || "the video model")}.
       </p>
-      <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">
-        Open in Create Video
-      </a>
+      <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">Open</a>
     </div>
     ${runs.map((run) => `
       <div class="lp-video-run">
         <div class="lp-scenery-run-head">
           <span class="lp-scenery-when">${escapeHtml(sceneryWhen(run))}</span>
-          <span class="lp-scenery-count">
-            ${run.clips.length} clip${run.clips.length === 1 ? "" : "s"}${
-              run.estimated_cost != null ? " · $" + run.estimated_cost.toFixed(2) : ""}
-          </span>
+          <span class="lp-scenery-count">${run.clips.length} clip${
+            run.clips.length === 1 ? "" : "s"}${
+            run.estimated_cost != null ? " · $" + run.estimated_cost.toFixed(2) : ""}</span>
         </div>
         <div class="lp-video-clips">
           ${run.clips.map((clip, i) => `
