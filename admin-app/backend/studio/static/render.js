@@ -388,9 +388,9 @@ function blockedReason(move) {
   if (!site) return "";
 
   if (move === "flyover_front_to_back") {
-    // Watched it fail: in one leg the roof crossing has no photograph near
-    // it and smears. With an aerial there is a better path.
-    if (site.aerial_close) return "use the two legs instead";
+    // Only the honest impossibility is blocked here. Flying it in one leg
+    // when an aerial exists is a quality judgement, and the row's verdict
+    // warns about it instead.
     if (!site.rear) return "needs a rear photo";
   }
   if (move === "rise_over_roof" && !site.aerial_close) return "needs an aerial";

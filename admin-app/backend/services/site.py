@@ -294,13 +294,17 @@ def check_move(move, photo, site):
         # the model a real picture at the point it was previously guessing, so
         # when one exists the one-leg version is not offered.
         if aerial:
+            # Allowed, but flagged. It was blocked for a while on the strength
+            # of one bad render; that is a reason to warn, not to refuse. The
+            # user can see the same footage and decide, and refusing a shot
+            # somebody wants on our judgement of quality is not this module's
+            # job -- refusing what cannot be rendered HONESTLY is.
             return {
-                "level": "blocked",
-                "reason": "This listing has an aerial of the house, so fly it in "
-                          "two legs -- front to aerial, then aerial to rear. In "
-                          "one leg the roof crossing has no photograph to work "
-                          "from and smears.",
-                "anchor": None,
+                "level": "risky",
+                "reason": "One leg means the roof crossing has no photograph "
+                          "near it; last time it smeared there. The two legs "
+                          "through the aerial avoid that.",
+                "anchor": rear,
             }
         if not rear:
             return {
