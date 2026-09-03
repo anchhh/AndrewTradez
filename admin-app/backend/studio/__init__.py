@@ -3090,7 +3090,8 @@ def api_lead_drone_path(lead_id):
     # picture's coordinates means nothing over a different picture.
     action = (data.get("action") or "").strip()
     image = (data.get("image") or "").strip()
-    if not points and image and action in ("", "add", "primary", "remove", "slot"):
+    if not points and image and action in ("", "add", "primary", "remove",
+                                          "slot", "unslot"):
         try:
             if action == "primary":
                 path = dronepath.set_primary(lead, image)
@@ -3098,6 +3099,8 @@ def api_lead_drone_path(lead_id):
                 path = dronepath.remove_image(lead, image)
             elif action == "slot":
                 path = dronepath.set_slot(lead, image, (data.get("slot") or "").strip())
+            elif action == "unslot":
+                path = dronepath.unset_slot(lead, image, (data.get("slot") or "").strip())
             else:
                 path = dronepath.add_image(lead, image)
         except dronepath.PathError as exc:

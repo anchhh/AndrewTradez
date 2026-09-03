@@ -102,11 +102,12 @@ def replace_image(lead, old_url, new_url, geometry_changed=True):
     originals[new_url] = originals.pop(old_url, old_url)
     path["originals"] = originals
 
-    # A cropped front overhead is still the front overhead.
+    # A cropped front overhead is still the front overhead, in every box it
+    # was in.
     slots = slots_of(path)
-    if old_url in slots:
-        slots[new_url] = slots.pop(old_url)
-        path["slots"] = slots
+    for slot, urls in slots.items():
+        slots[slot] = [new_url if u == old_url else u for u in urls]
+    path["slots"] = slots
 
     if path.get("image") == old_url:
         path["image"] = new_url
@@ -142,9 +143,11 @@ def remove_image(lead, url):
     originals = dict(path.get("originals") or {})
     originals.pop(url, None)
     path["originals"] = originals
-    slots = slots_of(path)
-    slots.pop(url, None)
-    path["slots"] = slots
+
+    # Gone from the gallery means gone from every box it was in.
+    slots = {slot: [u for u in urls if u != url]
+             for slot, urls in slots_of(path).items()}
+    path["slots"] = {slot: urls for slot, urls in slots.items() if urls}
     if path.get("image") == url:
         path["image"] = images[0] if images else None
         path.pop("points", None)
@@ -256,41 +259,85 @@ def placed(lead):
     than whatever the room labels happened to pick out.
     """
     slots = slots_of(lead.drone_path or {})
-    return [url for key in CAPTURE_SLOTS
-            for url, slot in slots.items() if slot == key]
+    ordered = []
+    for key in CAPTURE_SLOTS:
+        for url in slots.get(key) or []:
+            # An image in two boxes is still one image to send.
+            if url not in ordered:
+                ordered.append(url)
+    return ordered
 
 
 def slots_of(path):
-    """{capture url: slot key} for the captures that have been placed."""
-    return dict((path or {}).get("slots") or {})
+    """{slot key: [urls]} -- what is in each box.
+
+    Keyed by slot rather than by image, because an image can be in more than
+    one box: the same oblique view can be the front 3D and the neighbours 3D,
+    and making the picture pick one was an artefact of the storage rather
+    than anything about the property.
+
+    Reads the older {url: slot} shape too. Boards were filled in before this
+    changed and none of that work should have to be redone.
+    """
+    stored = (path or {}).get("slots") or {}
+    if stored and all(isinstance(v, str) for v in stored.values()):
+        by_slot = {}
+        for url, slot in stored.items():
+            by_slot.setdefault(slot, []).append(url)
+        return by_slot
+    return {slot: [u for u in (urls or []) if isinstance(u, str)]
+            for slot, urls in stored.items()}
+
+
+def slots_for(path, url):
+    """Every box this image is in."""
+    return [slot for slot, urls in slots_of(path).items() if url in urls]
 
 
 def set_slot(lead, url, slot):
-    """Say which shot in the plan a capture is.
+    """Put an image in a box.
 
-    One capture per slot: re-taking the front overhead should replace the
-    front overhead, not leave two of them both claiming to be it. The older
-    one stays in the gallery, just unplaced.
+    Additive: it does not take the image out of any other box. One picture
+    can honestly answer two questions -- an oblique that shows the front of
+    this house also shows the neighbour's -- and forcing a choice between
+    them lost information for no reason.
     """
     path = dict(lead.drone_path or {})
-    if url not in images_of(path) and url not in (lead.photo_urls or []):
-        raise PathError("that image is not one of this listing's")
-    if slot and slot not in CAPTURE_SLOTS:
-        raise PathError("there is no such shot in the plan")
+    _check(lead, path, url, slot)
 
-    # One image per slot, except the multi ones: re-taking the front overhead
-    # should replace the front overhead rather than leave two both claiming to
-    # be it, but a second front elevation is another answer to the same
-    # question, not a correction of the first.
-    keep_others = slot in MULTI_SLOTS
-    slots = {u: s for u, s in slots_of(path).items()
-             if u != url and (keep_others or not slot or s != slot)}
-    if slot:
-        if sum(1 for s in slots.values() if s == slot) >= MAX_PER_SLOT:
-            raise PathError("that box already holds %d images" % MAX_PER_SLOT)
-        slots[url] = slot
+    slots = slots_of(path)
+    holding = list(slots.get(slot) or [])
+    if url in holding:
+        return _stamped(lead, path)          # already there; nothing to say
+    if len(holding) >= MAX_PER_SLOT:
+        raise PathError("that box already holds %d images" % MAX_PER_SLOT)
+
+    holding.append(url)
+    slots[slot] = holding
     path["slots"] = slots
     return _stamped(lead, path)
+
+
+def unset_slot(lead, url, slot):
+    """Take one image out of one box, leaving it in any others."""
+    path = dict(lead.drone_path or {})
+    _check(lead, path, url, slot)
+
+    slots = slots_of(path)
+    holding = [u for u in (slots.get(slot) or []) if u != url]
+    if holding:
+        slots[slot] = holding
+    else:
+        slots.pop(slot, None)
+    path["slots"] = slots
+    return _stamped(lead, path)
+
+
+def _check(lead, path, url, slot):
+    if url not in images_of(path) and url not in (lead.photo_urls or []):
+        raise PathError("that image is not one of this listing's")
+    if slot not in CAPTURE_SLOTS:
+        raise PathError("there is no such shot in the plan")
 
 
 def full_address(lead):

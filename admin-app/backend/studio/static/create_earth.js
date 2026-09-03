@@ -35,7 +35,12 @@ function escapeHtml(value) {
 }
 
 function placedIn(slot) {
-  return Object.keys(slots).filter((url) => slots[url] === slot);
+  return slots[slot] || [];
+}
+
+/* Which boxes an image is in -- more than one is normal now. */
+function boxesFor(url) {
+  return Object.keys(slots).filter((slot) => (slots[slot] || []).includes(url));
 }
 
 /* ---------- full size ---------- */
@@ -123,7 +128,8 @@ function dropBox(shot) {
             <img src="${url}" alt="">
             ${zoomButton(url)}
             <button type="button" class="ge-box-x" data-act="clear"
-                    data-url="${url}" aria-label="Take out">&times;</button>
+                    data-url="${url}" data-slot="${shot.key}"
+                    aria-label="Take out">&times;</button>
           </span>`).join("")}</div>` : ""}
       </div>`;
   }
@@ -135,7 +141,8 @@ function dropBox(shot) {
       ${url
         ? `<img src="${url}" alt="${escapeHtml(shot.label)}">
            <button type="button" class="ge-box-x" data-act="clear"
-                   data-url="${url}" aria-label="Take out">&times;</button>`
+                   data-url="${url}" data-slot="${shot.key}"
+                   aria-label="Take out">&times;</button>`
         : ""}
       <span class="ge-box-label">${escapeHtml(shot.label)}</span>
       <span class="ge-box-hint">${escapeHtml(shot.hint)}</span>
@@ -146,10 +153,12 @@ function wireBox(box) {
   const slot = box.dataset.slot;
   if (!slot) return;
 
+  // Taking an image out of THIS box, which no longer means taking it out of
+  // every box.
   box.querySelectorAll('[data-act="clear"]').forEach((button) =>
     button.addEventListener("click", (e) => {
       e.stopPropagation();
-      place(button.dataset.url, "");
+      unplace(button.dataset.url, button.dataset.slot || slot);
     }));
 
   ["dragenter", "dragover"].forEach((name) =>
@@ -213,7 +222,7 @@ function roomLabel(url) {
    of this strip: a photo can be the reference for a box and still be a photo
    of the house. */
 function renderListing() {
-  const used = new Set(Object.keys(slots));
+  const used = new Set(Object.values(slots).flat());
   el("ge-listing").innerHTML = listingPhotos.map((url) => `
     <figure class="ge-shot${used.has(url) ? " is-used" : ""}"
             data-url="${url}" draggable="true">
@@ -236,7 +245,8 @@ function renderListing() {
 }
 
 function renderShots() {
-  const spare = images.filter((url) => !slots[url]);
+  const placedAnywhere = new Set(Object.values(slots).flat());
+  const spare = images.filter((url) => !placedAnywhere.has(url));
   el("ge-shots").innerHTML = spare.map((url, i) => `
     <figure class="ge-shot" data-url="${url}" draggable="true">
       <img src="${url}" alt="Unplaced capture ${i + 1}">
@@ -303,15 +313,21 @@ function renderPicker() {
   const multi = !!(found && found.shot.multi);
 
   el("ge-picker-grid").innerHTML = pickerSource().map((url) => {
-    const elsewhere = slots[url] && slots[url] !== pickSlot;
+    // Where else this image is already used. Shown rather than prevented:
+    // one picture can honestly answer two questions.
+    const elsewhere = boxesFor(url).filter((slot) => slot !== pickSlot);
     return `
       <button type="button" class="en-pick-item${picked.has(url) ? " is-on" : ""}"
               data-url="${url}">
         <img src="${url}" alt="">
         ${zoomButton(url)}
-        <span title="${escapeHtml(elsewhere ? `In ${shotName(slots[url])}` : "")}">${
-          escapeHtml(elsewhere ? shotName(slots[url]) : (
-            found.shot.source === "listing" ? roomLabel(url) : "Not placed"))}</span>
+        <span title="${escapeHtml(elsewhere.length
+          ? "Also in " + elsewhere.map(shotName).join(", ") : "")}">${
+          escapeHtml(elsewhere.length
+            ? (elsewhere.length > 1
+                ? `also in ${elsewhere.length} boxes`
+                : `also in ${shotName(elsewhere[0])}`)
+            : (found.shot.source === "listing" ? roomLabel(url) : "Not placed"))}</span>
       </button>`;
   }).join("");
 
@@ -357,7 +373,7 @@ el("ge-picker-done").addEventListener("click", async () => {
   // a round trip per image for no change, and on a single-image slot it
   // would evict and re-add the same picture.
   for (const url of before) {
-    if (!picked.has(url)) await place(url, "");
+    if (!picked.has(url)) await unplace(url, slot);
   }
   for (const url of picked) {
     if (!before.has(url)) await place(url, slot);
@@ -397,6 +413,7 @@ async function change(action, url, slot) {
 }
 
 const place = (url, slot) => change("slot", url, slot);
+const unplace = (url, slot) => change("unslot", url, slot);
 
 async function upload(file) {
   // The field is "photos" and the reply is {photos: [...]} -- the same
