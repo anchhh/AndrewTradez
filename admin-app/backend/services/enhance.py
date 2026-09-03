@@ -197,7 +197,7 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None):
     # The capture first: Atlas passes the list straight through and the model
     # treats the first image as the subject. Everything after it is context.
     try:
-        blob = atlas_image.edit([str(path)] + references, PROMPT)
+        blob = atlas_image.edit([str(path)] + references, PROMPT, model=model)
     except atlas_image.AtlasImageError as exc:
         raise EnhanceError(str(exc)) from exc
 

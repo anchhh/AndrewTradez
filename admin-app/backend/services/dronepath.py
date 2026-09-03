@@ -332,8 +332,14 @@ def base_for(lead, side):
     nearby = collect(["nb_3d", "nb_overhead", "nb_street"])
     tail = collect(["%s_reference" % other])[:MAX_OTHER_SIDE]
 
-    references = mine + nearby + tail
-    return base, references[:MAX_REFERENCES]
+    # The tail gets reserved room rather than whatever is left. On a board
+    # where the same capture sits in several boxes -- which is normal, an
+    # oblique is often the front 3D and the neighbours' 3D at once -- this
+    # side and the neighbours filled the whole cap and the other side's
+    # photographs never went at all. The merge was configured and not
+    # happening.
+    room = max(1, MAX_REFERENCES - MAX_OTHER_SIDE)
+    return base, (mine + nearby)[:room] + tail
 
 
 def generated_of(path):

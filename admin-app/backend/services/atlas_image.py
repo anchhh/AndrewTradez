@@ -22,9 +22,37 @@ import requests
 
 from services import video
 
-# Ultra rather than plain edit: $0.15 against $0.14, and it is the one that
-# takes a resolution at all. These become the first frame of a 1080p clip.
-MODEL = "google/nano-banana-pro/edit-ultra"
+# What this stage can be run on, tested against the same capture and the same
+# references rather than chosen from a leaderboard.
+#
+#   Nano Banana Pro     5028x3336, held the geometry and the materials. $0.15
+#   Seedream 5 Pro      1888x2192, also held them, visibly close.       $0.045
+#   Flux 2 Pro          512x592, and a DIFFERENT house -- wrong roof, an
+#                       invented chimney, a red front door, shot from the
+#                       ground. Not listed, because it does not do this job.
+#
+# Pro is the default because these become the first frame of a 1080p clip and
+# it is the only one that clears 1920 wide with room to spare. Seedream is
+# here for the part of the work that is iterating on a crop, where a third of
+# the price matters more than a third of the pixels.
+MODELS = [
+    {
+        "key": "google/nano-banana-pro/edit-ultra",
+        "label": "Best",
+        "note": "Nano Banana Pro. 5028×3336, about 15¢.",
+        "resolution": "4k",
+    },
+    {
+        "key": "bytedance/seedream-v5.0-pro/edit",
+        "label": "Draft",
+        "note": "Seedream 5 Pro. 1888×2192, about 4.5¢ — for trying crops.",
+        "resolution": None,
+    },
+]
+
+MODEL_KEYS = {m["key"]: m for m in MODELS}
+
+MODEL = MODELS[0]["key"]
 RESOLUTION = "4k"
 
 # The model's own ceiling. A front set can run to eleven with the neighbours
@@ -41,18 +69,25 @@ class AtlasImageError(Exception):
     """Atlas Cloud refused the edit, or never finished it."""
 
 
-def settings(cfg=None):
-    """Which model and resolution, config first so both can be changed."""
+def settings(cfg=None, model=None):
+    """Which model and resolution.
+
+    A model named by the caller wins, then the configured one, then Best.
+    Anything unrecognised falls back rather than being sent, because an
+    unknown model string reaches Atlas as a failure halfway through a run.
+    """
     cfg = cfg or video.load_config()
-    return (cfg.get("image_model") or MODEL,
-            cfg.get("image_resolution") or RESOLUTION)
+    chosen = model or cfg.get("image_model") or MODEL
+    if chosen not in MODEL_KEYS:
+        chosen = MODEL
+    return chosen, MODEL_KEYS[chosen].get("resolution")
 
 
 def is_configured():
     return bool(video.load_config().get("api_key"))
 
 
-def edit(paths, prompt, cfg=None, on_tick=None):
+def edit(paths, prompt, cfg=None, on_tick=None, model=None):
     """Edit the first image, using the rest as reference. Returns bytes.
 
     Order matters and is the caller's business: Atlas passes the list
@@ -67,7 +102,7 @@ def edit(paths, prompt, cfg=None, on_tick=None):
     if not paths:
         raise AtlasImageError("nothing to edit")
 
-    model, resolution = settings(cfg)
+    model, resolution = settings(cfg, model)
 
     # Uploaded rather than inlined, because this model reads URLs. Done here
     # rather than by the caller so a half-uploaded set is this function's
@@ -88,9 +123,12 @@ def edit(paths, prompt, cfg=None, on_tick=None):
         "model": model,
         "prompt": prompt,
         "images": urls,
-        "resolution": resolution,
         "output_format": "png",
     }
+    # Only some of them take one, and sending it to a model that does not is
+    # a rejected request rather than an ignored field.
+    if resolution:
+        payload["resolution"] = resolution
 
     try:
         resp = requests.post(

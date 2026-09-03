@@ -1347,7 +1347,7 @@ def create_generate():
     board at stage 2 feeds one of these two columns, with the neighbours in
     both.
     """
-    from services import dronepath, enhance
+    from services import atlas_image, dronepath
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1371,6 +1371,8 @@ def create_generate():
         "create_generate.html", lead=lead,
         sides=sides,
         generated=dronepath.generated_of(path),
+        models=atlas_image.MODELS,
+        default_model=atlas_image.MODEL,
         slots=dronepath.slots_of(path),
         shot_labels=dronepath.SHOT_LABELS,
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
@@ -3369,7 +3371,9 @@ def api_generate_side(lead_id):
             return jsonify({"error": "Nothing is placed for the %s of this "
                                      "property yet." % side}), 400
         try:
-            image = enhance.enhance_capture(lead, base, references=references)
+            image = enhance.enhance_capture(
+                lead, base, references=references,
+                model=(data.get("model") or "").strip() or None)
         except enhance.EnhanceError as exc:
             return jsonify({"error": str(exc)}), 400
 

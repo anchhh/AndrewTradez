@@ -29,6 +29,22 @@
           house is rebuilt in its street. Nano Banana Pro at 4K through
           Atlas Cloud, about 15&cent; a shot.</p>
       </div>
+
+      {# Two, chosen by testing them against the same capture rather than
+         from a leaderboard. Best is what these are for; Draft exists because
+         most runs are trying a crop again. #}
+      <div class="en-models">
+        {% for model in models %}
+          <label class="en-model">
+            <input type="radio" name="gn-model" value="{{ model.key }}"
+                   {{ 'checked' if model.key == default_model }}>
+            <span>
+              <strong>{{ model.label }}</strong>
+              <span class="hint">{{ model.note }}</span>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
     </div>
 
     <p class="hint" id="gn-note"></p>

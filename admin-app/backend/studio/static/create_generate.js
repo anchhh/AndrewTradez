@@ -111,12 +111,15 @@ async function generate(sideKey) {
   render();
   // Said out loud because it is not fast and it is not free: 4K on Pro takes
   // the better part of a minute and costs about a quarter.
-  note("Nano Banana Pro at 4K, through Atlas Cloud — a minute or two.");
+  note("Generating through Atlas Cloud — a minute or two.");
   try {
     const res = await fetch(`/studio/api/leads/${lead}/generate-side`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ side: sideKey }),
+      body: JSON.stringify({
+        side: sideKey,
+        model: (document.querySelector('input[name="gn-model"]:checked') || {}).value,
+      }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "that didn't generate");
