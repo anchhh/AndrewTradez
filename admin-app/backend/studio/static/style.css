@@ -6192,3 +6192,44 @@ button.en-shot {
   display: block;
 }
 .ge-box-chip .ge-box-x { top: -5px; right: -5px; width: 17px; height: 17px; font-size: 0.72rem; }
+
+/* Filling a box by clicking it. Same overlay shape as stage 3's picker, and
+   it reuses that picker's tiles so the two read as one idea. */
+.ge-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(12, 10, 8, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.ge-picker-panel {
+  background: var(--cream, #efe8dd);
+  border-radius: 14px;
+  padding: 16px;
+  width: min(980px, 94vw);
+  display: grid;
+  gap: 12px;
+}
+.ge-picker-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.ge-picker-head h2 { margin: 0 0 2px; font-size: 1rem; }
+.ge-picker-head .hint { margin: 0; }
+.ge-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.ge-picker-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* A box is clickable now, so it should say so. */
+.ge-box[data-slot] { cursor: pointer; }

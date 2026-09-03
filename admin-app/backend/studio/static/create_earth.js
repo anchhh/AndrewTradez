@@ -111,6 +111,15 @@ function wireBox(box) {
   ["dragleave", "drop"].forEach((name) =>
     box.addEventListener(name, () => box.classList.remove("is-over")));
 
+  // Clicking the box opens a picker. Dragging still works and is quicker
+  // when the image is already beside the box; it stops being quicker the
+  // moment the image is a scroll away, which on a thirty-photo listing is
+  // most of them.
+  box.addEventListener("click", (e) => {
+    if (e.target.closest("[data-act]")) return;
+    openPicker(slot);
+  });
+
   box.addEventListener("drop", async (e) => {
     e.preventDefault();
 
@@ -196,6 +205,99 @@ function renderShots() {
 
   el("ge-empty").hidden = spare.length > 0 || !images.length;
 }
+
+/* ---------- filling a box by clicking it ---------- */
+
+let pickSlot = null;
+let picked = new Set();
+
+function shotFor(slot) {
+  for (const group of plan) {
+    const shot = group.shots.find((s) => s.key === slot);
+    if (shot) return { group, shot };
+  }
+  return null;
+}
+
+function openPicker(slot) {
+  const found = shotFor(slot);
+  if (!found) return;
+  pickSlot = slot;
+  picked = new Set(placedIn(slot));
+
+  el("ge-picker-title").textContent = `${found.group.label} — ${found.shot.label}`;
+  el("ge-picker-hint").textContent = found.shot.hint;
+  renderPicker();
+  el("ge-picker").hidden = false;
+}
+
+/* What can go in this box. A reference box offers the listing's photographs;
+   every other box offers the captures, including ones already placed
+   elsewhere -- moving a view from one box to another is a legitimate thing
+   to want, and it says where it currently is rather than hiding it. */
+function pickerSource() {
+  const found = shotFor(pickSlot);
+  return found && found.shot.source === "listing" ? listingPhotos : images;
+}
+
+function renderPicker() {
+  const found = shotFor(pickSlot);
+  const multi = !!(found && found.shot.multi);
+
+  el("ge-picker-grid").innerHTML = pickerSource().map((url) => {
+    const elsewhere = slots[url] && slots[url] !== pickSlot;
+    return `
+      <button type="button" class="en-pick-item${picked.has(url) ? " is-on" : ""}"
+              data-url="${url}">
+        <img src="${url}" alt="">
+        <span>${escapeHtml(elsewhere
+          ? `in ${shotName(slots[url])}`
+          : (found.shot.source === "listing" ? roomLabel(url) : "Capture"))}</span>
+      </button>`;
+  }).join("");
+
+  el("ge-picker-grid").querySelectorAll(".en-pick-item").forEach((button) =>
+    button.addEventListener("click", () => {
+      const url = button.dataset.url;
+      if (picked.has(url)) picked.delete(url);
+      else {
+        // A box that holds one is a choice, not a list.
+        if (!multi) picked.clear();
+        picked.add(url);
+      }
+      renderPicker();
+    }));
+
+  el("ge-picker-count").textContent = multi
+    ? `${picked.size} selected`
+    : (picked.size ? "1 selected" : "none selected");
+}
+
+function shotName(slot) {
+  const found = shotFor(slot);
+  return found ? `${found.group.label} — ${found.shot.label}` : slot;
+}
+
+el("ge-picker-cancel").addEventListener("click", () => { el("ge-picker").hidden = true; });
+el("ge-picker-done").addEventListener("click", async () => {
+  const slot = pickSlot;
+  const before = new Set(placedIn(slot));
+  el("ge-picker").hidden = true;
+
+  // Only the difference is sent. Re-placing what is already there would be
+  // a round trip per image for no change, and on a single-image slot it
+  // would evict and re-add the same picture.
+  for (const url of before) {
+    if (!picked.has(url)) await place(url, "");
+  }
+  for (const url of picked) {
+    if (!before.has(url)) await place(url, slot);
+  }
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !el("ge-picker").hidden) el("ge-picker").hidden = true;
+});
 
 /* ---------- talking to the server ---------- */
 

@@ -79,6 +79,26 @@
   </div>
 </div>
 
+{# Filling a box by clicking it. Dragging is fine when the image is next to
+   the box and awkward when it is a scroll away, which on a listing with
+   thirty photos is most of them. #}
+<div class="ge-picker" id="ge-picker" hidden>
+  <div class="ge-picker-panel">
+    <div class="ge-picker-head">
+      <div>
+        <h2 id="ge-picker-title"></h2>
+        <p class="hint" id="ge-picker-hint"></p>
+      </div>
+      <span class="hint" id="ge-picker-count"></span>
+    </div>
+    <div class="ge-picker-grid" id="ge-picker-grid"></div>
+    <div class="ge-picker-actions">
+      <button type="button" class="btn-secondary" id="ge-picker-cancel">Cancel</button>
+      <button type="button" class="btn-send" id="ge-picker-done">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
   window.__LEAD__ = {{ lead.id | tojson }};
   window.__PLAN__ = {{ plan | tojson }};
