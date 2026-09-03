@@ -395,7 +395,8 @@ function renderVideo(project) {
         ${escapeHtml(runs[0].model_label || "the video model")}.
       </p>
       <button type="button" class="btn-capcut btn-tiny" id="lp-capcut">Open in CapCut</button>
-      <a class="btn-secondary btn-tiny" href="/studio/create/render?job=${runs[0].id}">Open</a>
+      <a class="btn-secondary btn-tiny"
+         href="/studio/create/video/clips?lead_id=${lead.id}">All videos</a>
     </div>
 
     <div class="lp-video-stage">

@@ -41,6 +41,21 @@ function ago(value) {
 
 const STYLES = { drone: "Drone shot", walkthrough: "Walkthrough", basic: "Basic" };
 
+/* Back to where a clip was made.
+
+   A clip on its own says nothing about how to make another like it, and
+   "which page produced this" is the thing you want the moment you decide a
+   clip is nearly right. Drone shots go to their own stage, which still holds
+   the two frames and the route that made them; everything else goes to the
+   render page for that run, which is where its photo grid and per-clip moves
+   live. */
+function madeAt(run) {
+  if (run.style === "drone") {
+    return "/studio/create/video/drone?lead_id=" + lead + "&style=drone";
+  }
+  return "/studio/create/render?job=" + run.id;
+}
+
 async function load() {
   let runs = [];
   try {
@@ -63,6 +78,7 @@ async function load() {
         url: clip.video_url,
         job: run.id,
         style: STYLES[run.style] || "Video",
+        origin: madeAt(run),
         cost: run.cost != null ? run.cost : run.estimated_cost,
         model: run.model_label || "",
         made: run.created_at,
@@ -81,7 +97,8 @@ async function load() {
             id="cl-job-${t.job}">
       <video src="${esc(t.url)}" controls playsinline preload="metadata"></video>
       <figcaption>
-        <span class="cl-style">${esc(t.style)}</span>
+        <a class="cl-style" href="${esc(t.origin)}"
+           title="Open the step this was made in">${esc(t.style)} &rarr;</a>
         <span class="cl-meta">${esc(ago(t.made))}${
           t.cost != null ? " · $" + Number(t.cost).toFixed(2) : ""}${
           t.model ? " · " + esc(t.model) : ""}</span>

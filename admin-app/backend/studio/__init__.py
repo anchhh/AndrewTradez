@@ -1522,18 +1522,40 @@ def create_clips():
     if lead is None:
         return redirect(url_for("studio.create", style="drone"))
 
-    style = (request.args.get("style") or "drone").strip().lower()
+    # Only wear the drone flow's step bar when arriving through it. Opened
+    # from a lead profile this is just that property's videos, and a
+    # seven-step drone bar over a listing that has never been near the drone
+    # flow is a lie about where you are.
+    style = (request.args.get("style") or "").strip().lower()
+    in_flow = style == "drone"
     project_id = request.args.get("project")
+
+    from services import dronepath
+
+    made = dronepath.generated_of(lead.drone_path or {})
     tail = "&project=%s" % quote(project_id) if project_id else ""
 
     return render_template(
         "create_clips.html", lead=lead,
+        in_flow=in_flow,
         highlight=request.args.get("job"),
         back_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
-        shot_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
+        # "Make another" has to mean the flow this listing is actually set up
+        # for. Arriving from a lead profile there is no style in the URL, and
+        # the honest signal is whether the drone flow is READY here -- both
+        # shots generated -- rather than what happened to be rendered last.
+        # Sending a listing that has only ever had walkthrough clips to the
+        # drone stage is an invitation to a six-step detour it never asked
+        # for; sending a drone property to the photo grid is the same mistake
+        # the other way round.
+        shot_href=("/studio/create/video/drone?lead_id=%s&style=drone%s"
+                   % (lead.id, tail)
+                   if in_flow or (made.get("front") and made.get("back"))
+                   else "/studio/create/render?lead=%s" % lead.id),
         profile_href="/studio/leads/%s" % lead.id,
-        steps=_steps(style, "Videos"),
-        crumbs=_create_crumbs("clips", style=style, project_id=project_id))
+        steps=_steps("drone", "Videos") if in_flow else None,
+        crumbs=_create_crumbs("clips", style=style or None,
+                              project_id=project_id))
 
 
 @studio_bp.route("/create/video/rendering")

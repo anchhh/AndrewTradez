@@ -17,7 +17,7 @@
     </div>
   </header>
 
-  {% include "_steps.html" %}
+  {% if steps %}{% include "_steps.html" %}{% endif %}
 
   <section class="card">
     <div class="en-head">
@@ -38,8 +38,10 @@
   </section>
 
   <div class="row action-row ge-actions">
-    <a class="btn-secondary" href="{{ back_href }}">Back</a>
-    <a class="btn-secondary" href="{{ profile_href }}">Open the lead</a>
+    <a class="btn-secondary" href="{{ profile_href }}">Back to the lead</a>
+    {% if in_flow %}
+      <a class="btn-secondary" href="{{ back_href }}">Back to the shot</a>
+    {% endif %}
     <a class="cta-btn" href="{{ shot_href }}">Make another</a>
   </div>
 </div>

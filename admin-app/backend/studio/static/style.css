@@ -6853,3 +6853,7 @@ button.gn-review-shot {
   text-overflow: ellipsis;
 }
 .rv-name { padding-bottom: 2px; font-weight: 600; color: var(--ink); }
+/* The way back to the step that made a clip. A link, not a label: it is the
+   thing you want the moment a clip is nearly right. */
+a.cl-style { color: var(--accent); text-decoration: none; }
+a.cl-style:hover { text-decoration: underline; }
