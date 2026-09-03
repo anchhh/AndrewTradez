@@ -555,7 +555,7 @@ async function load() {
   document.title = `${lead.address || "Lead"} — estly Studio`;
   el("lp-body").classList.remove("hidden");
 
-  setBackLink();
+
   renderLead();
   wireContactEditing();
   renderCandidates(lead.email_candidates);
@@ -881,15 +881,27 @@ function renderSpend() {
    which is empty on a hard reload and lies after a redirect -- the arrow
    would quietly point at the wrong page in exactly the cases someone is
    most likely to use it. */
+const BACK_TO = {
+  dashboard: ["/studio/dashboard", "Dashboard"],
+  projects: ["/studio/projects", "Projects"],
+};
+
 function setBackLink() {
   const link = el("lp-back");
   if (!link) return;
   const params = new URLSearchParams(location.search);
-  if (params.get("from") !== "projects") return;
+  const where = BACK_TO[params.get("from")];
+  if (!where) return;  // the Lead Manager, which the markup already says
 
+  let href = where[0];
+  // Projects also remembers which folder was open, so Back lands back inside
+  // it rather than at the top of the page.
   const folder = params.get("folder");
-  link.href = "/studio/projects" + (folder ? "?folder=" + encodeURIComponent(folder) : "");
-  link.innerHTML = "&larr; Projects";
+  if (params.get("from") === "projects" && folder) {
+    href += "?folder=" + encodeURIComponent(folder);
+  }
+  link.href = href;
+  link.innerHTML = "&larr; " + where[1];
 }
 
 
@@ -1193,6 +1205,13 @@ function renderSceneryRooms() {
 }
 
 /* ---------- media tabs ---------- */
+
+/* Before anything is fetched. Back is the arrow someone reaches for WHEN the
+   page did not work -- running it after the lead loads meant the one case
+   that needs it most, a lead that failed to load, still pointed at the Lead
+   Manager. It depends on the URL and nothing else. */
+setBackLink();
+
 
 function initMediaTabs() {
   document.querySelectorAll(".lp-tab").forEach((tab) => {

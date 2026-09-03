@@ -99,13 +99,27 @@ function factsLine(lead) {
    that ends a text selection. */
 const INTERACTIVE = "a, button, select, input, textarea, label, option";
 
+/* Which page a lead card is sitting on, for the profile's Back arrow.
+
+   The same card renders on the Dashboard, the Lead Manager and the outreach
+   queue, and opening one always said "from the Lead Manager" -- so Back from
+   a project opened on the Dashboard landed somewhere you had not been. Taken
+   from the page rather than passed in by every caller: the card is rendered
+   BY the page it is on, so the page already knows. */
+const CARD_PAGE = {
+  "/studio/dashboard": "dashboard",
+  "/studio/projects": "projects",
+};
+
 function makeRowOpenProfile(row, leadId) {
   row.classList.add("is-clickable");
   row.tabIndex = 0;
   row.setAttribute("role", "link");
 
   const go = () => {
-    window.location.href = `/studio/leads/${leadId}`;
+    const from = CARD_PAGE[window.location.pathname];
+    window.location.href = `/studio/leads/${leadId}`
+      + (from ? `?from=${from}` : "");
   };
 
   row.addEventListener("click", (e) => {
