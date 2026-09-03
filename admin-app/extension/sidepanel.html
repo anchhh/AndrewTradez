@@ -193,19 +193,37 @@
   }
   #create-status.error { color: var(--accent); }
   #create-status.ok { color: #2f7a4f; }
-  /* A confirmation, not a viewer: capped so a tall capture cannot push the
-     button that made it off the panel. */
-  #shot-preview {
-    margin-top: 10px;
-    width: 100%;
-    height: auto;
-    max-height: 200px;
-    object-fit: contain;
-    object-position: top;
+  /* The panel is narrow, so two columns of thumbnails rather than one
+     column of screenshots -- these are for recognising a view, not reading
+     it. */
+  #shots {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #shots figure {
+    margin: 0;
     border: 1px solid var(--line);
     border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+  }
+  #shots img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
     display: block;
   }
+  #shots figcaption {
+    padding: 4px 6px;
+    font-size: 0.64rem;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+  /* The one Studio will draw the flight path on. */
+  #shots figure.is-primary { border-color: var(--accent); }
+  #shots figure.is-primary figcaption { color: var(--accent); font-weight: 700; }
   .site-note {
     margin: 10px 16px 0;
     padding: 8px 10px;
@@ -361,7 +379,12 @@
 
     <button type="button" id="btn-shot">Screenshot this page</button>
     <p id="create-status"></p>
-    <img id="shot-preview" alt="The view just captured" hidden>
+
+    <!-- Every view sent for the chosen listing, not just the last one: a
+         flight is framed from a few angles, and knowing which you already
+         have is the difference between taking the missing one and taking
+         the same one again. -->
+    <div id="shots"></div>
   </section>
 
   <main>

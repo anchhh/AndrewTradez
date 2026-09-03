@@ -309,8 +309,7 @@ def save_earth_capture(lead_id):
     path already drawn is kept: replacing the picture is not abandoning the
     flight, and re-capturing the same view should not throw the line away.
     """
-    from datetime import datetime, timezone
-
+    from services import dronepath
     from studio import save_capture_data_url
 
     owner = _owner_from_api_key()
@@ -333,12 +332,32 @@ def save_earth_capture(lead_id):
     if not saved:
         return jsonify({"error": "That screenshot couldn't be read."}), 400
 
-    path = dict(lead.drone_path or {})
-    path["image"] = saved
-    path["saved_at"] = datetime.now(timezone.utc).isoformat()
-    lead.drone_path = path
+    # Appended, not replaced: a flight is framed from a few angles, and the
+    # second capture is usually the reason there was a first one.
+    path = dronepath.add_image(lead, saved)
     db.session.commit()
 
     return jsonify({"image": saved, "lead_id": lead.id,
                     "address": lead.full_address,
+                    "images": dronepath.images_of(path),
+                    "primary": path.get("image"),
                     "points": len(path.get("points") or [])})
+
+
+@bp.get("/<int:lead_id>/earth-captures")
+def list_earth_captures(lead_id):
+    """Every view captured for this property, so the panel can show them."""
+    owner = _owner_from_api_key()
+    if not owner:
+        return jsonify({"error": "Sign in to the extension first."}), 401
+
+    lead = db.session.get(Lead, lead_id)
+    if lead is None or lead.owner_id != owner:
+        return jsonify({"error": "Lead not found."}), 404
+
+    from services import dronepath
+
+    path = lead.drone_path or {}
+    return jsonify({"images": dronepath.images_of(path),
+                    "primary": path.get("image"),
+                    "address": lead.full_address})

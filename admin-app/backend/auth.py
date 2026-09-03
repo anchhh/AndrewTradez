@@ -48,6 +48,7 @@ _API_KEY_ROUTES = {
 # Same idea, for paths with an id in them.
 _API_KEY_PATTERNS = (
     ("POST", re.compile(r"^/api/leads/\d+/earth-capture$")),
+    ("GET", re.compile(r"^/api/leads/\d+/earth-captures$")),
 )
 
 

@@ -33,15 +33,19 @@
 
     <h2 class="ge-step">Step 2: Capture the view</h2>
     <p class="hint">Screenshot Earth with the extension, then bring it back
-      here. It becomes the overhead the flight path is drawn on.</p>
+      here. Take as many views as the flight needs &mdash; a front angle, a
+      top-down, the run itself. One of them is the one the path gets drawn
+      on, and you choose which.</p>
     <label class="ge-drop" id="ge-drop">
-      <input type="file" id="ge-file" accept="image/*" hidden>
-      <span id="ge-drop-text">Drop the screenshot here, or click to choose it</span>
+      <input type="file" id="ge-file" accept="image/*" multiple hidden>
+      <span id="ge-drop-text">Drop screenshots here, or click to choose them</span>
     </label>
-    <div class="ge-shot" id="ge-shot" hidden>
-      <img id="ge-shot-img" alt="The captured Earth view">
-      <button type="button" class="btn-secondary btn-tiny" id="ge-replace">Replace</button>
-    </div>
+
+    {# Several views of one property: a front angle, a top-down, the line the
+       flight takes. One of them is drawn on, and which one is a choice --
+       marked rather than assumed, because the path lives in that picture's
+       coordinates and cannot move to another. #}
+    <div class="ge-shots" id="ge-shots"></div>
     <p class="hint" id="ge-note"></p>
   </section>
 

@@ -649,10 +649,50 @@ async function loadCreateLeads() {
       .map((lead) => `<option value="${lead.id}">${lead.address}</option>`)
       .join("");
     setCreateStatus("");
+    loadShots();
   } catch (err) {
     select.innerHTML = "<option value=\"\">Couldn't load leads</option>";
     setCreateStatus(err.message, "error");
   }
+}
+
+/* What has already been sent for the chosen listing. Fetched rather than
+   remembered, because a capture might have come from Studio's own upload or
+   from a different window, and a panel showing only its own work would be
+   confidently wrong about what the flight plan holds. */
+async function loadShots() {
+  const leadId = $("create-lead").value;
+  const box = $("shots");
+  box.innerHTML = "";
+  if (!leadId) return;
+
+  try {
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}/api/leads/${leadId}/earth-captures`, {
+      headers: await getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return;
+    renderShots(apiBase, body.images || [], body.primary);
+  } catch (err) {
+    /* the gallery is a convenience -- a capture still works without it */
+  }
+}
+
+function renderShots(apiBase, images, primary) {
+  const box = $("shots");
+  // Stored as site-relative paths, so they need the backend's origin to load
+  // inside the panel.
+  box.innerHTML = images
+    .map((url, i) => {
+      const src = url.startsWith("http") ? url : apiBase + url;
+      const chosen = url === primary;
+      return `<figure class="${chosen ? "is-primary" : ""}">
+          <img src="${src}" alt="Captured view ${i + 1}">
+          <figcaption>${chosen ? "Drawing on this" : `View ${i + 1}`}</figcaption>
+        </figure>`;
+    })
+    .join("");
 }
 
 async function captureAndSend() {
@@ -683,12 +723,13 @@ async function captureAndSend() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Send failed (${res.status})`);
 
-    $("shot-preview").src = shot;
-    $("shot-preview").hidden = false;
+    const count = (body.images || []).length;
+    renderShots(apiBase, body.images || [], body.primary);
     setCreateStatus(
-      `Sent to ${body.address}.` +
-        (body.points ? " The flight path already drawn on it was kept." : "") +
-        " Open Studio and go to step 2 to draw on it.",
+      `Sent to ${body.address} — ${count} view${count === 1 ? "" : "s"} on this ` +
+        `listing now.` +
+        (body.points ? " The flight path already drawn was kept." : "") +
+        " Open Studio and go to step 2 to draw on one.",
       "ok"
     );
   } catch (err) {
@@ -705,6 +746,10 @@ async function captureAndSend() {
 $("mode-lead").addEventListener("click", () => showMode("lead"));
 $("mode-create").addEventListener("click", () => showMode("create"));
 $("btn-shot").addEventListener("click", captureAndSend);
+$("create-lead").addEventListener("change", () => {
+  setCreateStatus("");
+  loadShots();
+});
 
 async function init() {
   const { lastCapture } = await chrome.storage.session.get("lastCapture");

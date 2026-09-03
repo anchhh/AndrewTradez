@@ -5779,14 +5779,53 @@ gmp-map-3d {
 }
 .ge-drop:hover, .ge-drop.is-over { border-color: var(--accent); color: var(--accent); }
 
-.ge-shot { margin: 12px 0 4px; display: grid; gap: 8px; justify-items: start; }
-.ge-shot img {
-  max-width: 100%;
-  max-height: 380px;
-  border-radius: 10px;
+/* Several captures of one property, side by side. Sized so three or four
+   fit without scrolling: they are being compared, not read. */
+.ge-shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 14px 0 4px;
+}
+.ge-shot {
+  margin: 0;
   border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--cream-soft, #f6f2ea);
+}
+.ge-shot img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
   display: block;
 }
+.ge-shot figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+}
+/* The one the flight path is drawn on, marked rather than merely first. */
+.ge-shot.is-primary { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ge-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+}
+.ge-x {
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.ge-x:hover { color: var(--accent); }
 
 .ge-actions { margin-top: 18px; gap: 10px; }
 

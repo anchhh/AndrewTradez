@@ -40,6 +40,75 @@ class PathError(Exception):
     """The path could not be read or planned."""
 
 
+# How many captures one property is worth keeping. A flight is planned from a
+# handful of angles, not from a photo album, and every one of these is a full
+# screen PNG sitting in the uploads folder.
+MAX_IMAGES = 12
+
+
+def images_of(path):
+    """Every captured view, oldest first.
+
+    Reads the older single-image shape too: a path saved before captures were
+    a list still has one, and it is the same picture.
+    """
+    path = path or {}
+    images = [url for url in (path.get("images") or []) if isinstance(url, str)]
+    single = path.get("image")
+    if single and single not in images:
+        images.insert(0, single)
+    return images
+
+
+def add_image(lead, url):
+    """Append a capture, and draw on it if nothing was chosen yet.
+
+    Adding never changes which view the path is drawn on once one is set --
+    taking a second angle should not silently move the line onto it.
+    """
+    path = dict(lead.drone_path or {})
+    images = images_of(path)
+    if url not in images:
+        images.append(url)
+    path["images"] = images[-MAX_IMAGES:]
+    if not path.get("image"):
+        path["image"] = url
+    return _stamped(lead, path)
+
+
+def set_primary(lead, url):
+    """Choose the view the flight path is drawn on."""
+    path = dict(lead.drone_path or {})
+    if url not in images_of(path):
+        raise PathError("that view is not one of this listing's captures")
+    # The line was drawn in the coordinates of the old picture, so it cannot
+    # be carried across to a different one. Better to lose it here, visibly,
+    # than to keep a path that no longer matches what is under it.
+    if path.get("image") != url:
+        path.pop("points", None)
+    path["image"] = url
+    return _stamped(lead, path)
+
+
+def remove_image(lead, url):
+    """Drop one capture. Removing the one being drawn on moves to another."""
+    path = dict(lead.drone_path or {})
+    images = [u for u in images_of(path) if u != url]
+    path["images"] = images
+    if path.get("image") == url:
+        path["image"] = images[0] if images else None
+        path.pop("points", None)
+    return _stamped(lead, path)
+
+
+def _stamped(lead, path):
+    from datetime import datetime, timezone
+
+    path["saved_at"] = datetime.now(timezone.utc).isoformat()
+    lead.drone_path = path
+    return path
+
+
 def full_address(lead):
     """Kept as a function because the callers here read like one.
 

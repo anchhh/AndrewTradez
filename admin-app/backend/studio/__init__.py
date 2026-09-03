@@ -3003,23 +3003,33 @@ def api_lead_drone_path(lead_id):
     if request.method == "GET":
         path = lead.drone_path or {}
         return jsonify({"path": path, "described": dronepath.describe(path),
+                        "images": dronepath.images_of(path),
                         "earth_url": dronepath.earth_url(
                             dronepath.full_address(lead))})
 
     data = request.get_json(force=True, silent=True) or {}
     points = data.get("points") or []
 
-    # The Earth stage saves a view before any line is drawn on it. Keeping
-    # whatever path already exists rather than clearing it: replacing the
-    # picture is not the same as abandoning the flight, and re-capturing the
-    # same view should not silently throw away the path drawn on it.
-    if not points and (data.get("image") or "").strip():
-        path = dict(lead.drone_path or {})
-        path["image"] = data["image"].strip()
-        path["saved_at"] = datetime.now(timezone.utc).isoformat()
-        lead.drone_path = path
+    # The Earth stage manages the captures themselves before any line is
+    # drawn on them: adding one, choosing which to draw on, removing one. The
+    # path is left alone by an add -- taking a second angle is not abandoning
+    # the flight -- and dropped by the other two, because a line drawn in one
+    # picture's coordinates means nothing over a different picture.
+    action = (data.get("action") or "").strip()
+    image = (data.get("image") or "").strip()
+    if not points and image and action in ("", "add", "primary", "remove"):
+        try:
+            if action == "primary":
+                path = dronepath.set_primary(lead, image)
+            elif action == "remove":
+                path = dronepath.remove_image(lead, image)
+            else:
+                path = dronepath.add_image(lead, image)
+        except dronepath.PathError as exc:
+            return jsonify({"error": str(exc)}), 400
         db.session.commit()
-        return jsonify({"path": path, "described": dronepath.describe(path)})
+        return jsonify({"path": path, "images": dronepath.images_of(path),
+                        "described": dronepath.describe(path)})
 
     if not isinstance(points, list) or len(points) < 2:
         return jsonify({"error": "A path needs at least two points."}), 400
@@ -3032,11 +3042,15 @@ def api_lead_drone_path(lead_id):
             return jsonify({"error": "That path has a point in it that "
                                      "isn't a coordinate."}), 400
 
+    existing = lead.drone_path or {}
     path = {
         "points": clean,
         "width": float(data.get("width") or 0) or None,
         "height": float(data.get("height") or 0) or None,
         "image": (data.get("image") or "").strip() or None,
+        # Saving a path is not a statement about the other captures, so the
+        # gallery survives it.
+        "images": dronepath.images_of(existing),
         "references": [r for r in (data.get("references") or []) if isinstance(r, str)][:8],
         "saved_at": datetime.now(timezone.utc).isoformat(),
     }
