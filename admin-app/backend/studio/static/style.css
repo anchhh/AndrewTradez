@@ -1002,40 +1002,69 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .task-tab.active .task-tab-count { background: var(--accent); color: #fff; }
 
-/* The two tasks Create can do. A strip of links, not panels: each flow is
-   its own document (see _create_tabs.html for why). */
-.task-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 22px;
-  flex-wrap: wrap;
+/* The two things Create makes, as cards that show what they make.
+
+   Each plays a loop built from this account's own work. They are links, not
+   panels: the two flows share element ids and live in separate documents
+   (see _create_tabs.html). */
+.task-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin: 0 0 24px;
 }
-.task-tab {
-  flex: 1 1 200px;
-  padding: 11px 14px;
+
+.task-card {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 14px;
+  overflow: hidden;
   background: var(--cream-soft);
   text-decoration: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
-.task-tab:hover { border-color: var(--ink-soft); background: #fff; }
-.task-tab.active {
-  background: #fff;
+.task-card:hover {
   border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(23, 19, 15, 0.14);
 }
-.task-tab-name {
-  display: block;
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: var(--ink);
+.task-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(239, 90, 43, 0.25);
 }
-.task-tab-note {
+
+.task-card-loop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
-  margin-top: 1px;
-  font-size: 0.72rem;
-  color: var(--ink-soft);
+}
+
+/* A gradient rather than a flat scrim: the label sits at the bottom, and the
+   top of the picture should stay as bright as it was. */
+.task-card-body {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 34px 16px 14px;
+  background: linear-gradient(to top, rgba(23, 19, 15, 0.82), rgba(23, 19, 15, 0));
+  color: #fff;
+}
+.task-card-name {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.task-card-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  opacity: 0.88;
 }
 
 /* ---------- the sidebar ----------

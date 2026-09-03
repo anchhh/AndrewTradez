@@ -1,18 +1,54 @@
-{# The two things "Create" can mean, as one strip.
+{# The two things Create makes, each showing what it actually made.
 
-   These stay separate documents rather than two panels in one, because the
-   video and scenery flows share 32 element ids -- both reuse the listing
-   picker -- and putting them in one page would have each script wiring the
-   other's markup. The tab navigates; the page underneath is whole. #}
-<nav class="task-tabs" aria-label="What to make">
+   The loops are built from this account's own clips and staged rooms, not
+   stock footage -- the card's claim is "here is what you made with this", and
+   a stock house makes that a lie. Built on request by services/showcase.py;
+   when one has not been built yet the card still works and just shows no
+   loop. #}
+<nav class="task-cards" aria-label="What to make">
   <a href="/studio/create"
-     class="task-tab {{ 'active' if task == 'video' else '' }}">
-    <span class="task-tab-name">Video</span>
-    <span class="task-tab-note">Bring listing photos to life</span>
+     class="task-card {{ 'active' if task == 'video' else '' }}">
+    {% if showcase and showcase.video.exists %}
+      <video class="task-card-loop" src="{{ showcase.video.url }}"
+             autoplay muted loop playsinline preload="metadata"></video>
+    {% endif %}
+    <span class="task-card-body">
+      <span class="task-card-name">Video</span>
+      <span class="task-card-note">Bring listing photos to life</span>
+    </span>
   </a>
+
   <a href="/studio/create/scenery"
-     class="task-tab {{ 'active' if task == 'scenery' else '' }}">
-    <span class="task-tab-name">Scenery</span>
-    <span class="task-tab-note">Stage a room, or empty it</span>
+     class="task-card {{ 'active' if task == 'scenery' else '' }}">
+    {% if showcase and showcase.staging.exists %}
+      <video class="task-card-loop" src="{{ showcase.staging.url }}"
+             autoplay muted loop playsinline preload="metadata"></video>
+    {% endif %}
+    <span class="task-card-body">
+      <span class="task-card-name">Staging</span>
+      <span class="task-card-note">Furnish a room, or empty it</span>
+    </span>
   </a>
 </nav>
+
+<script>
+  /* autoplay+muted is supposed to be enough, and often is not: a tab that
+     was in the background when the video loaded gets a paused element with
+     readyState 4 -- fully decoded and sitting still, which reads as a broken
+     card rather than a policy. So it is asked to play, and asked again when
+     the page becomes visible. play() is allowed to be refused; a still frame
+     of the work is an acceptable card, an unhandled rejection is not. */
+  (function () {
+    var loops = document.querySelectorAll(".task-card-loop");
+    function nudge() {
+      loops.forEach(function (v) {
+        if (v.paused) { var p = v.play(); if (p) p.catch(function () {}); }
+      });
+    }
+    nudge();
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) nudge();
+    });
+    window.addEventListener("pageshow", nudge);
+  })();
+</script>

@@ -43,6 +43,8 @@ admin-app/backend/studio/anthropic.json
 admin-app/backend/studio/users.json
 admin-app/backend/studio/projects.json
 admin-app/backend/studio/static/uploads/
+# Built from the user's own photos and clips; this repo is public.
+admin-app/backend/studio/static/showcase/
 admin-app/backend/studio/static/_sheets/
 admin-app/backend/_sort_queue/
 

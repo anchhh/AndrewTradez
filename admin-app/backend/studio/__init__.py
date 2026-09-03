@@ -1072,7 +1072,10 @@ def create():
         except (ValueError, TypeError):
             prefill = None
 
-    return render_template("create.html", project=project, prefill=prefill)
+    from services import showcase
+
+    return render_template("create.html", project=project, prefill=prefill,
+                           showcase=showcase.status())
 
 
 @studio_bp.route("/create/style")
@@ -1214,7 +1217,10 @@ def scenery():
             prefill = _lead_prefill(int(lead_id))
         except (ValueError, TypeError):
             prefill = None
-    return render_template("scenery.html", prefill=prefill)
+    from services import showcase
+
+    return render_template("scenery.html", prefill=prefill,
+                           showcase=showcase.status())
 
 
 @studio_bp.route("/outreach")
@@ -2707,6 +2713,25 @@ def _clip_owner_job(job_id):
     if job is None or job.owner_id != session["user_id"]:
         return None
     return job
+
+
+@studio_bp.route("/api/showcase/rebuild", methods=["POST"])
+@login_required
+def api_showcase_rebuild():
+    """Rebuild the two loops on the Create page from current work.
+
+    On request rather than on every visit: a Create page that waits for two
+    encodes before showing you a menu is worse than one showing last week's
+    loop. Encoding is local, so this costs nothing but seconds.
+    """
+    from services import showcase
+
+    made = showcase.build_all()
+    return jsonify({
+        "built": {k: bool(v["path"]) for k, v in made.items()},
+        "errors": {k: v["error"] for k, v in made.items() if v["error"]},
+        "status": showcase.status(),
+    })
 
 
 @studio_bp.route("/api/folders", methods=["GET", "POST"])
