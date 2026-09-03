@@ -220,10 +220,14 @@ function drag() {
 /* ---------- saving ---------- */
 
 /* Debounced, because a drag ends every time a finger lifts and a plan is
-   usually two or three of those in a row. */
+   usually two or three of those in a row. Leaving the page cannot wait for a
+   debounce, so the write itself is separate and can be called directly. */
 function save() {
   clearTimeout(saving);
-  saving = setTimeout(async () => {
+  saving = setTimeout(persist, 400);
+}
+
+async function persist() {
     if (points.length < 2) return;
     try {
       const res = await fetch("/studio/api/leads/" + lead + "/flight", {
@@ -252,7 +256,42 @@ function save() {
     } catch (err) {
       note(err.message);
     }
-  }, 400);
+}
+
+/* ---------- on the way out ---------- */
+
+/* The line becomes a picture when you leave, not on every save. A drag ends
+   several times in the making of one route and each of those would write a
+   file; leaving happens once.
+
+   Worth being clear about what this file is for: it is a record, not an
+   input. The video model takes a first frame, a last frame and words -- it
+   has no slot for a diagram -- so what the model learns about the route is
+   still the sentence. This is so a person can see what was planned without
+   opening the planner. */
+async function flatten() {
+  try {
+    await fetch("/studio/api/leads/" + lead + "/flight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "render" }),
+    });
+  } catch (err) {
+    /* Moving on matters more than the picture. */
+  }
+}
+
+if (el("fp-next")) {
+  el("fp-next").addEventListener("click", async (e) => {
+    if (points.length < 2) return;
+    e.preventDefault();
+    const href = el("fp-next").getAttribute("href");
+    note("Saving the route…");
+    clearTimeout(saving);
+    await persist();
+    await flatten();
+    window.location.href = href;
+  });
 }
 
 /* ---------- go ---------- */

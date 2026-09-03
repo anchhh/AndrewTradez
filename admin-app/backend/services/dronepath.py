@@ -416,9 +416,77 @@ def set_flight(lead, image, width, height, points):
     return _stamped(lead, path)
 
 
+def route_image_of(path):
+    """The flattened picture of the drawn route, if one has been made."""
+    return (path or {}).get("route_image")
+
+
+# What the line looks like when it is baked into a picture rather than drawn
+# over one by the browser. Same colours as the planner, so the two read as
+# the same object.
+ROUTE_CASING = (12, 10, 8, 200)
+ROUTE_LINE = (255, 107, 53, 255)
+ROUTE_START = (255, 107, 53, 255)
+ROUTE_END = (31, 122, 77, 255)
+
+
+def render_route(lead):
+    """Burn the drawn route into a new image and file it against the lead.
+
+    A canvas drawn over a photograph exists only while that page is open. This
+    makes the route a file: something the recap can show without running any
+    script, something that survives being emailed to somebody, and something
+    that is unambiguously a record of what was planned.
+
+    Returns the saved URL, or None when there is nothing to draw.
+    """
+    from PIL import Image, ImageDraw
+
+    from studio import UPLOAD_DIR, local_path_from_url
+
+    path = lead.drone_path or {}
+    flight = flight_of(path)
+    points = flight.get("points") or []
+    source = local_path_from_url(flight.get("image") or "")
+    if len(points) < 2 or not source or not source.exists():
+        return None
+
+    image = Image.open(str(source)).convert("RGB")
+    # The line was drawn against the image's own pixels at the size the
+    # planner reported. If that disagrees with the file -- a re-cropped
+    # capture, say -- scale rather than draw the line in the wrong place.
+    sx = image.width / float(flight.get("width") or image.width)
+    sy = image.height / float(flight.get("height") or image.height)
+    line = [(p[0] * sx, p[1] * sy) for p in points]
+
+    # Widths from the picture rather than fixed, so a 1400px capture and a
+    # 5000px one get the same line, not the same number of pixels.
+    unit = max(2.0, image.width / 320.0)
+    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    pen = ImageDraw.Draw(layer)
+    pen.line(line, fill=ROUTE_CASING, width=int(unit * 2.2), joint="curve")
+    pen.line(line, fill=ROUTE_LINE, width=int(unit), joint="curve")
+
+    for point, colour in ((line[0], ROUTE_START), (line[-1], ROUTE_END)):
+        r = unit * 2.0
+        box = [point[0] - r, point[1] - r, point[0] + r, point[1] + r]
+        pen.ellipse(box, fill=colour, outline=(255, 255, 255, 255),
+                    width=max(1, int(unit * 0.6)))
+
+    out = Image.alpha_composite(image.convert("RGBA"), layer).convert("RGB")
+    name = "%s-route.jpg" % os.path.splitext(os.path.basename(str(source)))[0]
+    out.save(UPLOAD_DIR / name, "JPEG", quality=92, subsampling=0)
+
+    url = "/studio/static/uploads/%s" % name
+    path = dict(lead.drone_path or {})
+    path["route_image"] = url
+    _stamped(lead, path)
+    return url
+
+
 def clear_flight(lead):
     path = dict(lead.drone_path or {})
-    for key in ("points", "width", "height", "path_image"):
+    for key in ("points", "width", "height", "path_image", "route_image"):
         path.pop(key, None)
     return _stamped(lead, path)
 

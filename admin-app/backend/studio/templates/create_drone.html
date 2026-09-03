@@ -66,8 +66,13 @@
         <span class="dr-recap-tag">Route</span>
         {# The line, not just the picture it was drawn on. Showing the bare
            overhead here invited the reasonable question of whether the path
-           had been recorded at all. #}
-        {% if flight.image %}
+           had been recorded at all.
+
+           The flattened file when the planner made one; the canvas overlay
+           otherwise, so a route drawn before that existed still shows. #}
+        {% if route_image %}
+          <img src="{{ route_image }}" alt="The route drawn over the property">
+        {% elif flight.image %}
           <div class="dr-route">
             <img id="dr-route-img" src="{{ flight.image }}"
                  alt="The overhead the route was drawn on">

@@ -1431,6 +1431,10 @@ def create_drone():
         "create_drone.html", lead=lead,
         made=made,
         flight=flight,
+        # The flattened picture if the planner made one. The canvas overlay
+        # stays as the fallback, so a route drawn before this existed still
+        # shows.
+        route_image=dronepath.route_image_of(path),
         described=dronepath.describe(path),
         move=video.MOVE_NAMES.get(dronepath.MOVE),
         move_note=dict((k, note) for k, _, note, _ in video.EXTERIOR_MOVES).get(
@@ -3350,6 +3354,18 @@ def api_lead_flight(lead_id):
         return jsonify({"flight": dronepath.flight_of(path), "described": ""})
 
     data = request.get_json(silent=True) or {}
+
+    # Flattening the line into a picture. Asked for on the way out of the
+    # planner rather than on every save, because it writes a file and a drag
+    # ends several times in the making of one route.
+    if (data.get("action") or "").strip() == "render":
+        try:
+            url = dronepath.render_route(lead)
+        except Exception as exc:  # noqa: BLE001 -- a picture that will not
+            return jsonify({"error": str(exc)}), 400  # draw must not block
+        db.session.commit()                            # moving on
+        return jsonify({"route_image": url})
+
     points = data.get("points")
     if not isinstance(points, list):
         return jsonify({"error": "That is not a path."}), 400

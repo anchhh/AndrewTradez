@@ -92,7 +92,9 @@
 
   <div class="row action-row ge-actions">
     <a class="btn-secondary" href="{{ back_href }}">Back</a>
-    <a class="cta-btn" href="{{ next_href }}">Continue</a>
+    {# Continue flattens the line into a picture on the way out, so the next
+       stage has a file rather than a canvas. #}
+    <a class="cta-btn" id="fp-next" href="{{ next_href }}">Continue</a>
   </div>
 </div>
 
