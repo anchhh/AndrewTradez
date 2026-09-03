@@ -271,15 +271,28 @@ def group_of(slot):
 # else on the board exists to make those two right.
 SIDES = ("front", "back")
 
+# How many images go with the capture. Five, not ten: a run with ten spread
+# across street views, neighbours and both sides came back visibly worse than
+# one with three front elevations. More references dilute rather than
+# reinforce, and the model's own ceiling is ten including the subject.
+MAX_REFERENCES = 5
+
 
 def base_for(lead, side):
     """The capture a side's generated shot is built ON, and its references.
 
     The oblique first: it already looks like a photograph taken from the air,
-    so the model has less to invent than it would from a top-down. Everything
-    else placed for that side becomes reference, and the neighbours go in too
-    -- a house is rebuilt in its street, and without them the street is
-    invented as well.
+    so the model has less to invent than it would from a top-down.
+
+    The rest are ordered by how much they are worth, because the list gets
+    truncated and what falls off the end should be the least useful. Real
+    photographs of that side come first -- they are the only things in the
+    set that are actually this house -- then that side's other captures, then
+    the neighbours, which are context for the street rather than the subject.
+
+    Deliberately short. A run with ten references spread across street views,
+    neighbours and both sides came back worse than one with three front
+    elevations: the signal was diluted rather than reinforced.
     """
     slots = slots_of(lead.drone_path or {})
     prefer = ["%s_3d" % side, "%s_overhead" % side, "%s_street" % side]
@@ -289,14 +302,13 @@ def base_for(lead, side):
         for url in slots.get(key) or []:
             base = base or url
 
+    ordered = ["%s_reference" % side] + prefer + ["nb_3d", "nb_overhead", "nb_street"]
     references = []
-    for key in CAPTURE_SLOTS:
-        if not (key.startswith(side + "_") or key.startswith("nb_")):
-            continue
+    for key in ordered:
         for url in slots.get(key) or []:
             if url != base and url not in references:
                 references.append(url)
-    return base, references
+    return base, references[:MAX_REFERENCES]
 
 
 def generated_of(path):

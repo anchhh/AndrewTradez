@@ -57,9 +57,16 @@ together with the ground photographs of the same home, to produce a
 realistic drone photograph of it from above.
 
 The first image is the view to work from: stay over the property, looking at
-what it is looking at. The ground photographs are the truth about the
-building -- its colours, materials, roof, windows, doors, fencing, driveway
-and planting.
+what it is looking at. THE SUBJECT IS THE HOUSE IN THE CENTRE OF THAT FRAME.
+Anything else in shot is a neighbour: keep it where it is, but the centre
+house is the one being rebuilt and the one every reference photograph is of.
+
+The ground photographs are the truth about that house -- its colours,
+materials, roof, windows, doors, fencing, driveway and planting. Its roof is
+one continuous structure: do not break it into stepped blocks or invent a
+second roof over the garage. Every roof plane on the house -- the main roof,
+the garage, the porch below the windows -- is the same shingle in the same
+colour; from above the lower ones are simply in more shadow.
 
 The result is a real photograph: sharp, detailed, naturally lit.
 
@@ -100,15 +107,46 @@ def placed_references(lead):
     return dronepath.placed(lead) or exterior_references(lead)
 
 
-def _paths_for(urls):
+# Listing photographs carry the agency's watermark along the bottom edge,
+# and the model has copied it into the output every time -- a generated shot
+# with someone else's copyright bar burned into it. Telling it not to did not
+# work; not showing it the bar does.
+WATERMARK_STRIP = 0.045
+
+
+def _paths_for(urls, trim_watermark=False):
     from studio import local_path_from_url
 
     paths = []
     for url in urls:
         path = local_path_from_url(url)
-        if path and path.exists():
-            paths.append(str(path))
+        if not (path and path.exists()):
+            continue
+        paths.append(_trimmed(path) if trim_watermark else str(path))
     return paths
+
+
+def _trimmed(path):
+    """A copy with the bottom strip removed, or the original if that fails.
+
+    Written to a temporary file rather than the uploads folder: it is an
+    input to one call, not something the listing should end up owning.
+    """
+    import tempfile
+
+    from PIL import Image
+
+    try:
+        image = Image.open(str(path)).convert("RGB")
+        height = int(image.height * (1 - WATERMARK_STRIP))
+        if height < 64:
+            return str(path)
+        handle = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        image.crop((0, 0, image.width, height)).save(handle.name, "JPEG", quality=95)
+        handle.close()
+        return handle.name
+    except Exception:  # noqa: BLE001 -- a reference that will not open is
+        return str(path)  # not worth failing a generation over
 
 
 def enhance_capture(lead, url, references=None, cfg=None, model=None):
@@ -137,7 +175,9 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None):
 
     allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
     chosen = [u for u in (references or []) if u in allowed and u != url]
-    references = _paths_for(chosen or placed_references(lead))
+    # Trimmed, because these are the listing's own photographs and they
+    # carry its watermark.
+    references = _paths_for(chosen or placed_references(lead), trim_watermark=True)
     if not references:
         raise EnhanceError(
             "this listing has no exterior photos, so there is nothing to "
