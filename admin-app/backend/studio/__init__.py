@@ -3484,6 +3484,46 @@ def api_flow_bundle(lead_id):
                      as_attachment=True, download_name=name)
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/flow-brief", methods=["POST"])
+@login_required
+def api_flow_brief(lead_id):
+    """Tell the extension which shot to set up in Flow next.
+
+    Studio cannot reach into Flow -- one origin cannot touch another's app --
+    so it writes down the intention and the extension, which is allowed to
+    touch both, picks it up.
+    """
+    from services import dronepath, enhance, flowbrief
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    side = ((request.get_json(silent=True) or {}).get("side") or "").strip().lower()
+    if side not in dronepath.SIDES:
+        return jsonify({"error": "There is no such side."}), 400
+
+    grouped = dronepath.placed_by_group(lead)
+    order = [side] + (["neighbours"] if "neighbours" in grouped else [])
+    images = []
+    for group in order:
+        for url in grouped.get(group) or []:
+            if url not in images:
+                images.append(url)
+    if not images:
+        return jsonify({"error": "Nothing is placed for the %s of this "
+                                 "property yet." % side}), 400
+
+    brief = flowbrief.save(session["user_id"], {
+        "lead_id": lead.id,
+        "address": lead.full_address,
+        "side": side,
+        "prompt": enhance.PROMPT,
+        "images": [urljoin(request.host_url, url.lstrip("/")) for url in images],
+    })
+    return jsonify({"brief": brief})
+
+
 @studio_bp.route("/api/showcase/rebuild", methods=["POST"])
 @login_required
 def api_showcase_rebuild():

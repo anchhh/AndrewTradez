@@ -131,6 +131,20 @@ async function toFlow(side) {
     // Clipboard access can be refused; the prompt is still on this page.
   }
 
+  // Tell the extension what this is, before anything else. Its Flow tab
+  // reads the brief and can put the images into Flow directly, which is the
+  // one thing this page cannot do for itself.
+  try {
+    await fetch(`/studio/api/leads/${lead}/flow-brief`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ side }),
+    });
+  } catch (err) {
+    // The downloads below still work without the extension, so this is a
+    // convenience that failed rather than a run that did.
+  }
+
   note(`Fetching the ${side} set…`);
   let manifest;
   try {
@@ -161,8 +175,8 @@ async function toFlow(side) {
 
   window.open(window.__FLOW_URL__, "_blank", "noopener");
   note(`${manifest.files.length} images saved in order` +
-       (copied ? " and the prompt is on your clipboard" : "") +
-       ". Flow is open — drag them in" + (copied ? " and paste" : "") + ".");
+       (copied ? ", the prompt is on your clipboard" : "") +
+       ", and the extension's Flow tab has the brief. Flow is open.");
 }
 
 document.querySelectorAll(".gn-flow").forEach((button) =>

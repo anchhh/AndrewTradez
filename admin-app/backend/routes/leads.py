@@ -361,3 +361,34 @@ def list_earth_captures(lead_id):
     return jsonify({"images": dronepath.images_of(path),
                     "primary": path.get("image"),
                     "address": lead.full_address})
+
+
+@bp.get("/flow-brief")
+def read_flow_brief():
+    """What Studio asked for last, for the extension's Flow tab.
+
+    Under /api/leads because that is the prefix the extension is already
+    allowed to reach with its key; the brief is about a lead either way.
+    """
+    from services import flowbrief
+
+    owner = _owner_from_api_key()
+    if not owner:
+        return jsonify({"error": "Sign in to the extension first."}), 401
+
+    brief = flowbrief.load(owner)
+    return jsonify({"brief": brief})
+
+
+@bp.delete("/flow-brief")
+def clear_flow_brief():
+    """Done with it. Cleared by hand rather than on read, so opening the tab
+    twice does not lose the brief the second time."""
+    from services import flowbrief
+
+    owner = _owner_from_api_key()
+    if not owner:
+        return jsonify({"error": "Sign in to the extension first."}), 401
+
+    flowbrief.clear(owner)
+    return jsonify({"brief": None})

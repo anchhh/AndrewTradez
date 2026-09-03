@@ -606,27 +606,36 @@ function setCreateStatus(text, kind) {
 
 function showMode(mode) {
   currentMode = mode;
-  const creating = mode === "create";
-  $("mode-lead").classList.toggle("active", !creating);
-  $("mode-create").classList.toggle("active", creating);
+  const lead = mode === "lead";
+
+  ["lead", "create", "flow"].forEach((name) => {
+    const tab = $(`mode-${name}`);
+    if (tab) tab.classList.toggle("active", mode === name);
+  });
 
   // Capture's own furniture, hidden together rather than one piece at a
   // time -- a stray source tab above a screenshot button reads as a bug.
-  $("create-panel").hidden = !creating;
+  $("create-panel").hidden = mode !== "create";
+  const flowPanel = $("flow-panel");
+  if (flowPanel) flowPanel.hidden = mode !== "flow";
+
   ["source-tabs", "site-note", "empty-state", "status"].forEach((id) => {
     const el = $(id);
-    if (el) el.hidden = creating;
+    if (el) el.hidden = !lead;
   });
-  document.querySelector("main").hidden = creating;
+  document.querySelector("main").hidden = !lead;
   const save = $("btn-save");
-  if (creating) {
+  if (!lead) {
     save.hidden = true;
   } else if (currentRaw) {
     save.hidden = false;
   }
 
-  if (creating && !createLeads.length) loadCreateLeads();
+  if (mode === "create" && !createLeads.length) loadCreateLeads();
+  // Defined in flow.js, which loads after this file.
+  if (mode === "flow" && typeof loadFlowBrief === "function") loadFlowBrief();
 }
+
 
 async function loadCreateLeads() {
   const select = $("create-lead");
@@ -746,6 +755,7 @@ async function captureAndSend() {
 
 $("mode-lead").addEventListener("click", () => showMode("lead"));
 $("mode-create").addEventListener("click", () => showMode("create"));
+$("mode-flow").addEventListener("click", () => showMode("flow"));
 $("btn-shot").addEventListener("click", captureAndSend);
 $("create-lead").addEventListener("change", () => {
   setCreateStatus("");
