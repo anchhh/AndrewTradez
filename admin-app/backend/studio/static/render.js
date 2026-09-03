@@ -1204,9 +1204,14 @@ function finish(job) {
 
   // Stitching is the next arrow in the chain and does not exist yet; saying so
   // beats implying these are a finished video.
+  // Back's destination named here rather than on the button, so the button
+  // can stay the word people scan for.
+  const back = "Back goes to the shots, where you can change them and render "
+    + "again.";
   el("rn-results-note").textContent = clips.length > 1
-    ? "These are separate clips — stitching them into one video isn't built yet."
-    : "";
+    ? "These are separate clips — stitching them into one video isn't built "
+      + "yet. " + back
+    : back;
 }
 
 /* ---------- every render for one listing, on one page ----------
@@ -1484,12 +1489,10 @@ async function openSavedJob(jobId) {
     }
 
     finish(body.job);
-    // Step 2 is reachable from here, so this is the same journey either way.
-    const again = el("rn-again");
-    if (again) {
-      again.textContent = state.available.length ? "Change shots and render again"
-                                                 : "New render";
-    }
+    // The button keeps the label the markup gave it. It used to be relabelled
+    // "Change shots and render again" here, which is what it DOES but not
+    // what people look for -- asked for a Back button on this step three
+    // times while a button that goes back sat there under another name.
   } catch (err) {
     show("rn-setup", true);
     banner(err.message);
