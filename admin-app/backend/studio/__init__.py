@@ -1109,6 +1109,10 @@ def _create_crumbs(here, style=None, project_id=None):
     if name:
         trail.append((name, link("/studio/create/video/listing", style=style)))
 
+    if here == "path":
+        trail.append(("Flight path", None))
+        return trail
+
     if here == "listing":
         if name:
             trail[-1] = (name, None)
@@ -1143,14 +1147,42 @@ def create_video_style():
     starting point, and every clip can still be changed individually later.
     """
     carry, carry_amp = _carry()
+    styles = [
+        ("basic", "Basic", "Simple photo-to-video pans, quick and clean",
+         "/studio/create/video/listing" + carry_amp + "style=basic"),
+        ("walkthrough", "Walkthrough",
+         "Steady room-to-room glide, a classic listing tour",
+         "/studio/create/video/listing" + carry_amp + "style=walkthrough"),
+        # Drone goes through the flight planner when the listing is already
+        # known -- the path is drawn on THAT property's overhead, so there is
+        # nothing to plan until there is an address. Without one it falls
+        # through to the listing picker, which is where the address comes from.
+        ("drone", "Drone", "Sweeping aerial establishing shots, orbits and rises",
+         ("/studio/create/video/path" + carry_amp + "style=drone")
+         if request.args.get("lead_id")
+         else ("/studio/create/video/listing" + carry_amp + "style=drone")),
+    ]
     return render_template(
         "create_style.html", carry=carry, carry_amp=carry_amp,
-        crumbs=_create_crumbs("style"),
-        styles=[
-            ("basic", "Basic", "Simple photo-to-video pans, quick and clean"),
-            ("walkthrough", "Walkthrough", "Steady room-to-room glide, a classic listing tour"),
-            ("drone", "Drone", "Sweeping aerial establishing shots, orbits and rises"),
-        ])
+        crumbs=_create_crumbs("style"), styles=styles)
+
+
+@studio_bp.route("/create/video/path")
+@login_required
+def create_path():
+    """Plan the flight before rendering it.
+
+    Needs a lead, because the path is drawn on that property's overhead and
+    saved against it. Without one there is nothing to fly over, so it sends
+    you back to pick a listing first.
+    """
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    return render_template("create_path.html", lead=lead,
+                           crumbs=_create_crumbs("path", style="drone"))
 
 
 @studio_bp.route("/create/video/listing")
@@ -2501,7 +2533,7 @@ def api_video_site():
     real shot or an invented one, and that is worth knowing while it is still
     free to change.
     """
-    from services import site
+    from services import dronepath, site
 
     data = request.get_json(force=True, silent=True) or {}
     lead_id = data.get("lead_id")
@@ -2533,6 +2565,9 @@ def api_video_site():
             "depth": analysis.get("depth"),
             "notes": analysis.get("notes"),
             "satellite": analysis.get("satellite"),
+            # A path drawn by hand, so the shots step can say the flight is
+            # planned rather than leaving it to be discovered at render time.
+            "flight_path": dronepath.describe(lead.drone_path) or None,
         },
         "clips": site.verdicts(analysis, data.get("clips") or []),
         "recommended": site.recommend(analysis),
@@ -2807,10 +2842,17 @@ def exterior_site_facts(lead, site_data):
             number = token
             break
 
+    # A flight the user drew themselves outranks anything read off a
+    # satellite: it is a stated intention, not an inference. It is carried as
+    # the finished sentence rather than the points, because points cannot be
+    # sent to the model -- there is no camera-path parameter.
+    from services import dronepath
+
     return {
         "front_faces": site_data.get("front_faces"),
         "depth": site_data.get("depth"),
         "house_number": number or None,
+        "flight_path": dronepath.describe(lead.drone_path) or None,
     }
 
 
@@ -2823,6 +2865,67 @@ def _clip_owner_job(job_id):
     if job is None or job.owner_id != session["user_id"]:
         return None
     return job
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/overhead", methods=["POST"])
+@login_required
+def api_lead_overhead(lead_id):
+    """Fetch an overhead of this listing to plan a flight on."""
+    from services import dronepath
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+    try:
+        return jsonify(dronepath.overhead_for(lead))
+    except dronepath.PathError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/drone-path", methods=["GET", "POST"])
+@login_required
+def api_lead_drone_path(lead_id):
+    """The planned flight path for this property.
+
+    Stored on the lead: a path is a fact about the house, and every flight
+    over it reuses the same one.
+    """
+    from extensions import db
+    from services import dronepath
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    if request.method == "GET":
+        path = lead.drone_path or {}
+        return jsonify({"path": path, "described": dronepath.describe(path),
+                        "earth_url": dronepath.earth_url(lead.address)})
+
+    data = request.get_json(force=True, silent=True) or {}
+    points = data.get("points") or []
+    if not isinstance(points, list) or len(points) < 2:
+        return jsonify({"error": "A path needs at least two points."}), 400
+
+    clean = []
+    for point in points[:200]:
+        try:
+            clean.append([float(point[0]), float(point[1])])
+        except (TypeError, ValueError, IndexError):
+            return jsonify({"error": "That path has a point in it that "
+                                     "isn't a coordinate."}), 400
+
+    path = {
+        "points": clean,
+        "width": float(data.get("width") or 0) or None,
+        "height": float(data.get("height") or 0) or None,
+        "image": (data.get("image") or "").strip() or None,
+        "references": [r for r in (data.get("references") or []) if isinstance(r, str)][:8],
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    lead.drone_path = path
+    db.session.commit()
+    return jsonify({"path": path, "described": dronepath.describe(path)})
 
 
 @studio_bp.route("/api/showcase/rebuild", methods=["POST"])

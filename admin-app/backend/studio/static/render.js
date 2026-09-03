@@ -782,12 +782,28 @@ function renderClipMoves() {
              invent one.</p>`
         : `<p class="rn-scope-note">Reading the property from the outside…</p>`);
 
+  // The drawn flight, if there is one. Shown as the sentence the render will
+  // actually use rather than as "a path is saved" -- the point of drawing it
+  // is to see what it says before paying for it.
+  const planned = site && site.flight_path;
+  const pathNote = !outside.length || !project.lead_id ? "" : `
+    <p class="rn-scope-note rn-flight">
+      ${planned
+        ? `<span class="rn-flight-text">${escapeHtml(planned)}</span>`
+        : `<span class="rn-flight-text">No flight path drawn. The camera
+             follows the move on each clip.</span>`}
+      <a class="btn-tiny" href="/studio/create/video/path?lead_id=${
+        encodeURIComponent(project.lead_id)}&style=drone">${
+        planned ? "Edit path" : "Draw a path"}</a>
+    </p>`;
+
   box.innerHTML =
     (outside.length ? `
       <section class="rn-scope">
         <h3 class="rn-scope-head" data-scope="Exterior"><span
           class="rn-scope-count">${outside.length}</span></h3>
         ${siteNote}
+        ${pathNote}
         ${outside.join("")}
       </section>` : "") +
     (inside.length ? `

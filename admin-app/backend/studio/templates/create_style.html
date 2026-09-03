@@ -22,9 +22,8 @@
      clips in that style worth showing. The frame is the same shape a video
      will fill, so adding one later changes nothing about the layout. #}
   <nav class="style-cards" aria-label="Video style">
-    {% for key, name, note in styles %}
-      <a href="/studio/create/video/listing{{ carry_amp }}style={{ key }}"
-         class="style-card">
+    {% for key, name, note, href in styles %}
+      <a href="{{ href }}" class="style-card">
         <span class="style-card-media" aria-hidden="true"></span>
         <span class="style-card-body">
           <span class="style-card-name">{{ name }}</span>

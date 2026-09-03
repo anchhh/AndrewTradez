@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Flight path</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Flight path</h1>
+      <p class="sub">Draw the line the drone should follow. It becomes the
+        camera direction in the prompt.</p>
+    </div>
+  </header>
+
+  <div class="dp-layout">
+    <section class="card dp-stage">
+      <div class="dp-toolbar">
+        <button type="button" class="btn-secondary btn-tiny" id="dp-clear">Clear</button>
+        <button type="button" class="btn-secondary btn-tiny" id="dp-undo">Undo point</button>
+        <label class="btn-secondary btn-tiny dp-upload">
+          Use my own overhead
+          <input type="file" id="dp-image" accept="image/*" hidden>
+        </label>
+        <a class="btn-secondary btn-tiny" id="dp-earth" href="#" target="_blank"
+           rel="noopener">Open in Google Earth</a>
+        <span class="hint" id="dp-note"></span>
+      </div>
+
+      {# The image and the line are two layers: the drawing never touches the
+         photograph, so Clear cannot damage it and a new overhead does not
+         have to repaint the path. #}
+      <div class="dp-canvas-wrap" id="dp-wrap">
+        <img id="dp-image-el" alt="Overhead view of this property">
+        <canvas id="dp-canvas"></canvas>
+      </div>
+      <p class="hint">Click to place points along the path. The first point is
+        where the flight starts.</p>
+    </section>
+
+    <aside class="dp-side">
+      <div class="card">
+        <h2>What this says</h2>
+        <p class="dp-described" id="dp-described">Draw a path to see it.</p>
+      </div>
+
+      <div class="card">
+        <h2>Reference images</h2>
+        <p class="hint">Optional. Anything that shows what the flight should
+          look like.</p>
+        <label class="btn-secondary btn-tiny dp-upload">
+          Add reference
+          <input type="file" id="dp-ref" accept="image/*" hidden multiple>
+        </label>
+        <div class="dp-refs" id="dp-refs"></div>
+      </div>
+
+      <div class="dp-actions">
+        <button type="button" class="btn-send" id="dp-save">Save path</button>
+        <a class="cta-btn cta-btn-sm" id="dp-next"
+           href="/studio/create/video/listing?style=drone&lead_id={{ lead.id }}">Continue</a>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>window.__LEAD__ = {{ lead.id | tojson }};</script>
+<script src="{{ url_for('studio.static', filename='create_path.js') }}"></script>
+</body>
+</html>

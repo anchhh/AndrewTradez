@@ -77,6 +77,12 @@ class Lead(db.Model):
     # reported as half a million dollars of income.
     sold_amount = db.Column(db.Float, nullable=True)
     sold_at = db.Column(db.DateTime, nullable=True)
+    # The planned drone path: the overhead image it was drawn on, the points
+    # of the line, and what that line means in words. Kept on the lead rather
+    # than a render, because the path is a fact about the property and gets
+    # reused by every flight over it.
+    drone_path_json = db.Column(db.Text, nullable=True)
+
     # Which folder this project sits in on the Projects page, or None for the
     # top level. A plain nullable column rather than a join table: a project
     # is in one folder, the way a file is in one folder.
@@ -121,6 +127,17 @@ class Lead(db.Model):
 
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    @property
+    def drone_path(self):
+        try:
+            return json.loads(self.drone_path_json) if self.drone_path_json else None
+        except ValueError:
+            return None
+
+    @drone_path.setter
+    def drone_path(self, value):
+        self.drone_path_json = json.dumps(value) if value else None
 
     @property
     def photo_rooms(self):
@@ -199,6 +216,7 @@ class Lead(db.Model):
             "sold_amount": self.sold_amount,
             "sold_package": self.sold_package,
             "folder_id": self.folder_id,
+            "drone_path": self.drone_path,
             "sold_at": (self.sold_at.replace(tzinfo=timezone.utc).isoformat()
                         if self.sold_at else None),
             "photo_rooms": self.photo_rooms,

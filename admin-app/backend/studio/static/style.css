@@ -1002,6 +1002,93 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .task-tab.active .task-tab-count { background: var(--accent); color: #fff; }
 
+/* ---------- planning a drone flight ---------- */
+
+.dp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) { .dp-layout { grid-template-columns: 1fr; } }
+
+.dp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.dp-upload { cursor: pointer; }
+
+/* The photograph and the line are stacked, not composited: clearing the path
+   never touches the image underneath. */
+/* The overhead is square and comes back at 1024px, which put the bottom of
+   the plot below the fold -- half the flight could only be drawn by
+   scrolling. Fitting it to the viewport keeps the whole property clickable;
+   the path is stored in image coordinates, so scaling it costs nothing. */
+.dp-canvas-wrap {
+  position: relative;
+  line-height: 0;
+  min-height: 320px;
+  display: flex;
+  justify-content: center;
+}
+.dp-canvas-wrap img {
+  max-width: 100%;
+  width: auto;
+  display: block;
+  border-radius: 10px;
+  background: var(--line);
+}
+/* Positioned against the IMAGE rather than the wrapper: the image no longer
+   fills the wrapper once it is height-limited, and a canvas pinned to the
+   wrapper would sit beside the picture it is drawing on. */
+.dp-canvas-wrap canvas {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: crosshair;
+}
+
+.dp-side { display: grid; gap: 14px; }
+.dp-side .card h2 { margin: 0 0 6px; font-size: 0.95rem; }
+.dp-described {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.dp-refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dp-ref { position: relative; line-height: 0; }
+.dp-ref img {
+  width: 62px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+.dp-ref button {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dp-actions { display: flex; gap: 8px; align-items: center; }
+.dp-actions .cta-btn { text-decoration: none; }
+
 /* One step back, above the page title. Looks like the Projects page's back
    button on purpose: same shape, same place, same word. */
 .create-back {
@@ -5640,3 +5727,14 @@ gmp-map-3d {
 }
 .cc-actions .hint { flex: 1 1 auto; margin: 0; }
 .cc-actions .btn-send { width: auto; flex: 0 0 auto; }
+
+/* The planned flight, above this listing's exterior clips. Laid out as text
+   plus one action rather than a card, because it is a note about the shots
+   underneath it and not a step of its own. */
+.rn-flight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rn-flight-text { flex: 1 1 220px; }

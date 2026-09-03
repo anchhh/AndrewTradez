@@ -576,6 +576,17 @@ def site_context(site):
     return "SITE, from an overhead view, for orientation only: %s." % "; ".join(bits)
 
 
+def flight_rule(site):
+    """The path the user drew, as prompt text.
+
+    Ranked above site_context in every rung of the ladder below: the overhead
+    analysis is a guess about the building, this is an instruction about the
+    shot. If only one of the two survives the character budget, it should be
+    this one.
+    """
+    return ((site or {}).get("flight_path") or "").strip()
+
+
 def exterior_prompt(move, cfg=None, site=None):
     """The full prompt for one exterior clip, bracketed like the interior one:
     constraint, movement, constraint."""
@@ -584,6 +595,7 @@ def exterior_prompt(move, cfg=None, site=None):
     limit = model_info(cfg).get("max_prompt", 2500)
     context = site_context(site)
     address = address_rule(site)
+    flight = flight_rule(site)
 
     # A ladder, shortening from the least load-bearing end. What never goes:
     # the opening constraint, a "never change" of some length, no-invention
@@ -592,21 +604,21 @@ def exterior_prompt(move, cfg=None, site=None):
     # move that most needs them.
     ladders = [
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE, EXT_NO_INVENTION, instruction,
-         context, address, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION_SHORT,
+         flight, context, address, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION_SHORT,
          EXT_WHEN_UNSURE],
         # The itemised list goes to the negative prompt; the ban stays.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, context, address, EXT_TEMPORAL, EXT_LOOK,
+         instruction, flight, context, address, EXT_TEMPORAL, EXT_LOOK,
          EXT_NO_INVENTION_SHORT, EXT_WHEN_UNSURE],
         # The look is craft, not compliance, so it goes before any rule does.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, context, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT,
-         EXT_WHEN_UNSURE],
+         instruction, flight, context, address, EXT_TEMPORAL,
+         EXT_NO_INVENTION_SHORT, EXT_WHEN_UNSURE],
         # Orientation goes before the address: a wrong house number is a
         # compliance problem, a missing bearing is only a worse flight path.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
-        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, instruction, address,
+         instruction, flight, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, instruction, flight,
          EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
     ]
     for parts in ladders:
