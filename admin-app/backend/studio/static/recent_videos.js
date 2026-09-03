@@ -91,7 +91,8 @@ async function recentVideos() {
   });
   if (!list.length) return;
 
-  const STYLES = { drone: "drone", walkthrough: "walkthrough", basic: "basic" };
+  const STYLES = { drone: "drone", aerial: "aerial", walkthrough: "walkthrough",
+                   basic: "basic" };
 
   grid.innerHTML = list.map((home) => {
     // Straight to the videos, not the profile. The profile is everything

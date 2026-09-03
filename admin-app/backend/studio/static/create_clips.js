@@ -39,7 +39,8 @@ function ago(value) {
   return at.toLocaleDateString();
 }
 
-const STYLES = { drone: "Drone shot", walkthrough: "Walkthrough", basic: "Basic" };
+const STYLES = { drone: "Drone shot", aerial: "Aerial", walkthrough: "Walkthrough",
+                 basic: "Basic" };
 
 /* The order sections appear in, and what an unlabelled render is called.
 
@@ -47,7 +48,7 @@ const STYLES = { drone: "Drone shot", walkthrough: "Walkthrough", basic: "Basic"
    rearrange itself between visits -- a section that moves is a section you
    have to find again. Renders made before the style was recorded have none,
    and "Video" is the honest name for those rather than a guess. */
-const SECTIONS = ["drone", "walkthrough", "basic", ""];
+const SECTIONS = ["drone", "aerial", "walkthrough", "basic", ""];
 const SECTION_NAMES = Object.assign({}, STYLES, { "": "Video" });
 
 /* Back to where a clip was made.
@@ -59,6 +60,9 @@ const SECTION_NAMES = Object.assign({}, STYLES, { "": "Video" });
    render page for that run, which is where its photo grid and per-clip moves
    live. */
 function madeAt(run) {
+  if (run.style === "aerial") {
+    return "/studio/create/video/aerial?lead_id=" + lead;
+  }
   if (run.style === "drone") {
     return "/studio/create/video/drone?lead_id=" + lead + "&style=drone";
   }

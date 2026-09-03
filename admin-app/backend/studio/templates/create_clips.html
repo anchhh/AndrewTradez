@@ -17,7 +17,8 @@
     </div>
   </header>
 
-  {% if steps %}{% include "_steps.html" %}{% endif %}
+  {% if steps %}{% if shot_tab %}{% include "_drone_tabs.html" %}{% endif %}
+  {% include "_steps.html" %}{% endif %}
 
   <section class="card">
     <div class="en-head">

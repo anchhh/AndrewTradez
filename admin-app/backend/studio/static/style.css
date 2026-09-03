@@ -6934,3 +6934,57 @@ a.btn-secondary {
    the pair swap rather than both landing on the same colour. */
 .cta-btn.is-accent { background: var(--accent); color: #fff; }
 .cta-btn.is-accent:hover { background: var(--ink); color: var(--cream); }
+
+/* Which shot this process is building. Two tabs above the stage bar, because
+   the stages below them belong to whichever is selected. */
+.pr-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.pr-tab {
+  display: grid;
+  gap: 2px;
+  padding: 10px 18px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  text-decoration: none;
+  color: var(--ink-soft);
+  min-width: 210px;
+}
+.pr-tab:hover { border-color: var(--accent); }
+.pr-tab-name { font-weight: 700; color: var(--ink); font-size: 0.95rem; }
+.pr-tab-note { font-size: 0.72rem; }
+.pr-tab.is-on {
+  border-color: var(--accent);
+  background: rgba(255, 107, 53, 0.09);
+}
+.pr-tab.is-on .pr-tab-name { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .pr-tabs { flex-direction: column; }
+  .pr-tab { min-width: 0; }
+}
+
+/* The aerial's two ends: what it opens on, what it lands on. */
+.ae-ends {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin: 14px 0 16px;
+}
+.ae-end { margin: 0; display: grid; gap: 4px; }
+.ae-end img { width: 100%; border-radius: 9px; display: block; }
+.ae-end figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+@media (max-width: 800px) {
+  .ae-ends { grid-template-columns: minmax(0, 1fr); }
+}

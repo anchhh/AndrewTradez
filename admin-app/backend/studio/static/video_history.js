@@ -206,7 +206,10 @@
        So a render goes back to the stage that produced it: drone renders to
        the waiting page, which plays the clip and links on to the shot and
        the lead; everything else to the render page as before. */
-    const isDrone = (r) => (r || {}).style === "drone";
+    // Both of the drone flow's shots go back into that flow, not the
+    // walkthrough page: same captures, same lead, same tabs.
+    const isDrone = (r) =>
+      ["drone", "aerial"].includes((r || {}).style);
     const runById = (id) => renders.find((r) => String(r.id) === String(id));
 
     function openRender(id) {

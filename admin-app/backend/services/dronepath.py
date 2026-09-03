@@ -273,6 +273,12 @@ def group_of(slot):
 # a different shot than the one the flow is building.
 MOVE = "drone_flight"
 
+# The establishing shot, made on the drone flow's second tab. A separate
+# move, a separate style on the job row, and its own section in a property's
+# videos -- it is a different shot of a different subject that happens to end
+# where the flyover starts.
+AERIAL_MOVE = "aerial_approach"
+
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything
 # else on the board exists to make those two right.
@@ -505,6 +511,21 @@ def clear_flight(lead):
     path = dict(lead.drone_path or {})
     for key in ("points", "width", "height", "path_image", "route_image"):
         path.pop(key, None)
+    return _stamped(lead, path)
+
+
+def aerial_opening_of(path):
+    """Which wide view the establishing shot opens on."""
+    return (path or {}).get("aerial_opening")
+
+
+def set_aerial_opening(lead, url):
+    """Remember it, so the choice survives leaving the page."""
+    path = dict(lead.drone_path or {})
+    if url:
+        path["aerial_opening"] = url
+    else:
+        path.pop("aerial_opening", None)
     return _stamped(lead, path)
 
 

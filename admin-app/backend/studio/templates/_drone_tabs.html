@@ -1,0 +1,19 @@
+{# The drone flow makes two shots, not one.
+
+   The flyover is the property; the aerial is where the property IS -- and it
+   ends on the flyover's first frame, so the pair cut together with no seam.
+   They share a listing, a set of captures and a lead, and differ only in
+   which shot is being built, so they are tabs on one process rather than two
+   entries on the Create screen. #}
+<nav class="pr-tabs" aria-label="Which shot">
+  <a class="pr-tab{{ ' is-on' if shot_tab != 'aerial' }}"
+     href="{{ tab_drone_href }}">
+    <span class="pr-tab-name">Drone shot</span>
+    <span class="pr-tab-note">Over the house, front to back</span>
+  </a>
+  <a class="pr-tab{{ ' is-on' if shot_tab == 'aerial' }}"
+     href="{{ tab_aerial_href }}">
+    <span class="pr-tab-name">Aerial</span>
+    <span class="pr-tab-note">The neighbourhood, down onto the front</span>
+  </a>
+</nav>

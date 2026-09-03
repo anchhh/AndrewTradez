@@ -425,6 +425,22 @@ EXT_NEGATIVE = (
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
     (
+        "aerial_approach",
+        "Aerial approach",
+        "Opens wide over the neighbourhood and descends onto the front of the "
+        "house",
+        "MOVEMENT: one continuous drone descent, single take. Begin exactly on "
+        "the first photograph, high and wide over the neighbourhood, and fly "
+        "steadily DOWN and FORWARD toward the subject property, arriving "
+        "exactly at the final photograph. The house in the final photograph "
+        "is the one you are descending onto: it is somewhere in the first "
+        "frame already, and the whole move is closing the distance to it. "
+        "Lose height and lose width together, evenly, so the surrounding "
+        "streets and rooftops leave the frame gradually rather than jumping. "
+        "Do not rotate, do not orbit, do not pass the property. Even speed, "
+        "flown not animated: no cuts, no jumps. Invent nothing in between.",
+    ),
+    (
         # The drone flow's only move. The menu below it is a menu of legs --
         # rise, cross, orbit, pull back -- and picking one was picking a
         # fragment of a flight when what the stage produces is the flight. The

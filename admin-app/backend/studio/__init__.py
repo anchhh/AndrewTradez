@@ -1093,6 +1093,20 @@ STEP_FLOWS = {
 STEPS_SOON = set()
 
 
+def _shot_tabs(lead_id, shot="drone", project_id=None):
+    """The drone flow's two tabs, for any page inside it.
+
+    One template variable set in one place rather than three hrefs written
+    out on every drone page -- there are seven of them and they would drift.
+    """
+    tail = "&project=%s" % quote(str(project_id)) if project_id else ""
+    return {
+        "shot_tab": shot,
+        "tab_drone_href": "/studio/create/video/earth?lead_id=%s%s" % (lead_id, tail),
+        "tab_aerial_href": "/studio/create/video/aerial?lead_id=%s%s" % (lead_id, tail),
+    }
+
+
 def _steps(style, current):
     """The stage bar, as [{num, label, state, soon, href}].
 
@@ -1324,6 +1338,7 @@ def create_earth():
     path = lead.drone_path or {}
     return render_template(
         "create_earth.html", lead=lead,
+        **_shot_tabs(lead.id, project_id=project_id),
         plan=dronepath.SHOT_PLAN,
         captures=dronepath.images_of(path),
         slots=dronepath.slots_of(path),
@@ -1365,6 +1380,7 @@ def create_enhance():
     path = lead.drone_path or {}
     return render_template(
         "create_crop.html", lead=lead,
+        **_shot_tabs(lead.id, project_id=project_id),
         captures=dronepath.images_of(path),
         originals=path.get("originals") or {},
         slots=dronepath.slots_of(path),
@@ -1414,6 +1430,7 @@ def create_generate():
 
     return render_template(
         "create_generate.html", lead=lead,
+        **_shot_tabs(lead.id, project_id=project_id),
         sides=sides,
         generated=dronepath.generated_of(path),
         prompts=dict((key, enhance.prompt_for(key))
@@ -1474,6 +1491,7 @@ def create_drone():
 
     return render_template(
         "create_drone.html", lead=lead,
+        **_shot_tabs(lead.id, project_id=project_id),
         have=have,
         clips_href=("/studio/create/video/clips?lead_id=%s&style=drone" % lead.id
                     + ("&project=%s" % quote(project_id) if project_id else "")),
@@ -1528,6 +1546,7 @@ def create_flight():
 
     return render_template(
         "create_flight.html", lead=lead,
+        **_shot_tabs(lead.id, project_id=project_id),
         made=dronepath.generated_of(path),
         surfaces=dronepath.overheads(lead),
         drawn=dronepath.flight_of(path),
@@ -1537,6 +1556,69 @@ def create_flight():
         next_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
         steps=_steps("drone", "Flight path"),
         crumbs=_create_crumbs("flight", style="drone", project_id=project_id))
+
+
+@studio_bp.route("/create/video/aerial")
+@login_required
+def create_aerial():
+    """The drone flow's second shot: the establishing one.
+
+    A descent from a wide view of the neighbourhood onto the front of the
+    house -- ending exactly on the frame the flyover begins with, so the two
+    cut together with no seam. That is the whole point of it: another
+    handsome wide shot is easy, one that lands on a frame you already have is
+    what makes a sequence.
+
+    It borrows the flyover's stages rather than repeating them. The captures
+    come from stage 2, the front shot from stage 4; what is chosen here is
+    which wide view it opens on and how long it runs.
+    """
+    from services import dronepath, video
+
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    path = lead.drone_path or {}
+    project_id = request.args.get("project")
+    tail = "&project=%s" % quote(project_id) if project_id else ""
+    cfg = video.load_config()
+    made = dronepath.generated_of(path)
+
+    # What it can open on: the widest views of the plot and its street. The
+    # neighbours' captures first -- they are the ones that show the property
+    # in a neighbourhood rather than filling the frame with it.
+    slots = dronepath.slots_of(path)
+    wide = []
+    for key in ("nb_overhead", "nb_3d", "nb_street", "front_overhead",
+                "front_3d", "front_street"):
+        for url in slots.get(key) or []:
+            if url not in wide:
+                wide.append(url)
+    for url in dronepath.images_of(path):
+        if url not in wide:
+            wide.append(url)
+
+    return render_template(
+        "create_aerial.html", lead=lead,
+        **_shot_tabs(lead.id, shot="aerial", project_id=project_id),
+        wide=wide,
+        opening=dronepath.aerial_opening_of(path) or (wide[0] if wide else None),
+        made=made,
+        move=video.MOVE_NAMES.get(dronepath.AERIAL_MOVE),
+        shot_labels=dronepath.SHOT_LABELS,
+        slots=slots,
+        slot_order=dronepath.CAPTURE_SLOTS,
+        durations=video.model_info(cfg).get("durations") or [5, 8, 10],
+        resolutions=video.model_info(cfg).get("resolutions") or ["1080p"],
+        rates=video.model_info(cfg).get("rates") or {},
+        configured=bool(cfg.get("api_key")),
+        config_error=cfg.get("config_error"),
+        earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
+        generate_href="/studio/create/video/generate?lead_id=%s&style=drone%s" % (lead.id, tail),
+        clips_href="/studio/create/video/clips?lead_id=%s&style=drone%s" % (lead.id, tail),
+        crumbs=_create_crumbs("earth", style="drone", project_id=project_id))
 
 
 @studio_bp.route("/create/video/clips")
@@ -1568,6 +1650,7 @@ def create_clips():
 
     return render_template(
         "create_clips.html", lead=lead,
+        **_shot_tabs(lead.id, project_id=project_id),
         in_flow=in_flow,
         highlight=request.args.get("job"),
         back_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
@@ -3480,6 +3563,29 @@ def api_lead_drone_path(lead_id):
     return jsonify({"path": path, "described": dronepath.describe(path)})
 
 
+@studio_bp.route("/api/leads/<int:lead_id>/aerial", methods=["POST"])
+@login_required
+def api_lead_aerial(lead_id):
+    """Which wide view the establishing shot opens on."""
+    from extensions import db
+    from services import dronepath
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    opening = (data.get("opening") or "").strip()
+    allowed = set(dronepath.images_of(lead.drone_path or {}))
+    if opening and opening not in allowed:
+        return jsonify({"error": "That view is not one of this property's "
+                                 "captures."}), 400
+
+    dronepath.set_aerial_opening(lead, opening or None)
+    db.session.commit()
+    return jsonify({"opening": dronepath.aerial_opening_of(lead.drone_path or {})})
+
+
 @studio_bp.route("/api/leads/<int:lead_id>/flight", methods=["POST", "DELETE"])
 @login_required
 def api_lead_flight(lead_id):
@@ -4341,10 +4447,11 @@ def api_video_drone():
         return jsonify({"error": "A shot can't end on the frame it starts "
                                  "from."}), 400
 
-    # One move, not the caller's. Every shot this flow produces is a drone
-    # flight between two photographs along a drawn route; the menu of legs
-    # that used to be here was offering fragments of that.
-    move = dronepath.MOVE
+    # One move per shot, not the caller's. The flyover crosses the property
+    # along the drawn route; the aerial descends onto its front. Anything
+    # else the menu used to offer was a fragment of one of those.
+    aerial = (data.get("shot") or "").strip().lower() == "aerial"
+    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
 
     info = video.model_info(cfg)
     try:
@@ -4362,6 +4469,11 @@ def api_video_drone():
     # House number, plot geometry and the drawn flight, the same facts the
     # exterior clips carry.
     site = exterior_site_facts(lead, {})
+    # The drawn route belongs to the flyover. The aerial is a descent onto
+    # the house from outside the plot, so a heading across it is at best
+    # noise and at worst a second instruction pulling the other way.
+    if aerial:
+        site = dict(site, flight_path=None)
     spec = {"move": move, "duration": seconds, "resolution": resolution,
             "site": site}
     if end:
@@ -4376,7 +4488,8 @@ def api_video_drone():
     try:
         job = start_job(current_app._get_current_object(), session["user_id"],
                         [start], lead_id=lead.id, duration=seconds,
-                        prompt=wording or None, style="drone",
+                        prompt=wording or None,
+                        style="aerial" if aerial else "drone",
                         resolution=resolution, specs=[spec])
     except VideoJobBusy as exc:
         return jsonify({"error": str(exc)}), 409
@@ -4404,7 +4517,8 @@ def api_video_drone_preview():
     cfg = video.load_config()
     from services import dronepath
 
-    move = dronepath.MOVE
+    aerial = (data.get("shot") or "").strip().lower() == "aerial"
+    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)
@@ -4412,6 +4526,8 @@ def api_video_drone_preview():
         seconds = 10
 
     site = exterior_site_facts(lead, {})
+    if aerial:
+        site = dict(site, flight_path=None)
     # No cost here: the page already prices a clip from the rate table it was
     # given, and a second implementation of the same arithmetic is how two
     # screens end up showing different dollars.

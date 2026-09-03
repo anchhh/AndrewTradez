@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Aerial</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Aerial</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_drone_tabs.html" %}
+
+  {% if not configured %}
+    <p class="rn-scope-note is-warn">{{ config_error or
+      "The video generator isn't connected. Add an Atlas Cloud key to
+       studio/atlascloud.json." }}</p>
+  {% endif %}
+
+  {% if not made.front %}
+    <section class="card">
+      <h2>The landing frame is missing</h2>
+      <p class="hint">This shot descends onto the front of the house &mdash;
+        the same frame the flyover opens on &mdash; so that has to exist
+        first. <a href="{{ generate_href }}">Generate it at stage 4</a>.</p>
+    </section>
+  {% elif not wide %}
+    <section class="card">
+      <h2>Nothing wide enough to open on</h2>
+      <p class="hint">Capture a view that shows the property in its street
+        &mdash; zoomed out, with the neighbours in it.
+        <a href="{{ earth_href }}">Take one from Google Earth</a>.</p>
+    </section>
+  {% else %}
+
+  <section class="card">
+    <div class="en-head">
+      <div>
+        <h2>Open wide, land on the front</h2>
+        <p class="hint">One continuous descent from a view of the
+          neighbourhood onto the front of this house &mdash; ending on
+          exactly the frame the flyover begins with, so the two cut together
+          with no seam. Pick what it opens on; where it lands is already
+          decided.</p>
+      </div>
+    </div>
+
+    <div class="ae-ends">
+      <figure class="ae-end">
+        <span class="dr-recap-tag">Opens on</span>
+        <img id="ae-open-img" src="{{ opening }}" alt="The opening wide view">
+        <figcaption id="ae-open-name">Choose below</figcaption>
+      </figure>
+
+      <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
+
+      <figure class="ae-end">
+        <span class="dr-recap-tag">Lands on</span>
+        <img src="{{ made.front }}" alt="The generated front shot">
+        <figcaption>The front
+          <a class="btn-tiny" href="{{ generate_href }}">Change</a>
+        </figcaption>
+      </figure>
+    </div>
+
+    <p class="gn-inputs-label hint">Opens on &mdash; pick the widest view that
+      still shows this house</p>
+    <div class="fp-views" id="ae-views"></div>
+
+    <p class="hint"><b>{{ move }}.</b> It loses height and width together, so
+      the streets and rooftops leave the frame gradually rather than jumping,
+      and it does not rotate or pass the property.</p>
+  </section>
+
+  <section class="card">
+    <h2>Length and size</h2>
+    <div class="rn-setall">
+      <span class="rn-setall-label">Length</span>
+      <select id="ae-duration" class="rn-select">
+        {% for seconds in durations %}
+          <option value="{{ seconds }}"{{ ' selected' if seconds == 8 }}>{{ seconds }} seconds</option>
+        {% endfor %}
+      </select>
+      <span class="rn-setall-label">Resolution</span>
+      <select id="ae-resolution" class="rn-select">
+        {% for res in resolutions %}<option value="{{ res }}">{{ res }}</option>{% endfor %}
+      </select>
+      <span class="hint" id="ae-cost"></span>
+    </div>
+  </section>
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ earth_href }}">Back</a>
+    <button type="button" class="cta-btn is-accent" id="ae-go">Generate the aerial</button>
+    <a class="btn-secondary" href="{{ clips_href }}">All videos</a>
+    <span class="hint" id="ae-note"></span>
+  </div>
+
+  {# The same confirmation both other generators use. #}
+  <div class="gn-review" id="ae-review" hidden>
+    <div class="en-crop-panel gn-review-panel">
+      <div class="en-crop-head">
+        <strong>Generate the aerial</strong>
+        <span>This is exactly what gets sent. Nothing runs until you confirm.</span>
+      </div>
+
+      <div class="gn-review-body">
+        <div class="gn-review-col">
+          <h4 class="gn-review-h">The prompt</h4>
+          <p class="hint">Editable, for this run.</p>
+          <textarea id="ae-review-prompt" class="gn-review-prompt"
+                    spellcheck="false" rows="18"></textarea>
+          <button type="button" class="btn-secondary btn-tiny gn-review-reset"
+                  id="ae-review-reset">Back to the default wording</button>
+        </div>
+
+        <div class="gn-review-col">
+          <h4 class="gn-review-h">The frames</h4>
+          <p class="hint">It opens on the first and lands on the second.</p>
+          <div class="gn-review-shots" id="ae-review-frames"></div>
+
+          <h4 class="gn-review-h">The settings</h4>
+          <p class="hint" id="ae-review-specs"></p>
+        </div>
+      </div>
+
+      <div class="en-crop-actions">
+        <span class="en-crop-spacer"></span>
+        <button type="button" class="btn-secondary" id="ae-review-cancel">Cancel</button>
+        <button type="button" class="btn-send" id="ae-review-go">Generate</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__WIDE__ = {{ wide | tojson }};
+  window.__OPENING__ = {{ (opening or "") | tojson }};
+  window.__FRONT__ = {{ (made.front or "") | tojson }};
+  window.__SLOTS__ = {{ slots | tojson }};
+  window.__SLOT_ORDER__ = {{ slot_order | tojson }};
+  window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+  window.__RATES__ = {{ rates | tojson }};
+  window.__MOVE_NAME__ = {{ (move or "") | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_aerial.js') }}"></script>
+</body>
+</html>
