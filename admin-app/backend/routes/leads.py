@@ -267,3 +267,78 @@ def trigger_outreach(lead_id):
         "ready": outreach.is_ready(lead),
         "blockers": outreach.blockers(lead),
     }), 501
+
+
+# ---------------------------------------------------------------------------
+# The extension's Create tab.
+#
+# Same shape as a lead capture -- the extension reads something in the page it
+# is already looking at and hands the bytes over -- but the thing it reads is
+# a view of Google Earth rather than a listing, and it lands on the lead's
+# flight plan rather than in its photo set. None of the scraping path is
+# touched by any of this.
+# ---------------------------------------------------------------------------
+
+
+@bp.get("/mine")
+def list_my_leads():
+    """The leads this key's account owns, as a picker.
+
+    GET /api/leads deliberately does not accept an extension key, because it
+    returns every lead regardless of owner. This one is scoped to the account
+    the key names, which is what makes it safe to open to the extension.
+    """
+    owner = _owner_from_api_key()
+    if not owner:
+        return jsonify({"error": "Sign in to the extension first."}), 401
+
+    leads = (Lead.query
+             .filter(Lead.owner_id == owner)
+             .order_by(Lead.created_at.desc())
+             .limit(200)
+             .all())
+    return jsonify({"leads": [{"id": lead.id, "address": lead.full_address}
+                              for lead in leads]})
+
+
+@bp.post("/<int:lead_id>/earth-capture")
+def save_earth_capture(lead_id):
+    """A screenshot of Google Earth, saved as this property's aerial view.
+
+    It becomes the image the flight path is drawn on at the next step. Any
+    path already drawn is kept: replacing the picture is not abandoning the
+    flight, and re-capturing the same view should not throw the line away.
+    """
+    from datetime import datetime, timezone
+
+    from studio import save_capture_data_url
+
+    owner = _owner_from_api_key()
+    if not owner:
+        return jsonify({"error": "Sign in to the extension first."}), 401
+
+    lead = db.session.get(Lead, lead_id)
+    if lead is None or lead.owner_id != owner:
+        return jsonify({"error": "Lead not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    image = (data.get("image") or "").strip()
+    if not image:
+        return jsonify({"error": "No screenshot received."}), 400
+
+    # Not the listing-photo saver: that one drops anything under 3KB as a
+    # tracking pixel and de-duplicates against what is already stored, and
+    # neither rule belongs on a screenshot the user just took by hand.
+    saved = save_capture_data_url(image)
+    if not saved:
+        return jsonify({"error": "That screenshot couldn't be read."}), 400
+
+    path = dict(lead.drone_path or {})
+    path["image"] = saved
+    path["saved_at"] = datetime.now(timezone.utc).isoformat()
+    lead.drone_path = path
+    db.session.commit()
+
+    return jsonify({"image": saved, "lead_id": lead.id,
+                    "address": lead.full_address,
+                    "points": len(path.get("points") or [])})

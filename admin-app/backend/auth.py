@@ -14,6 +14,7 @@ makes still requires real credentials either way.
 """
 import base64
 import os
+import re
 
 from flask import Response, jsonify, request
 
@@ -38,7 +39,23 @@ _API_KEY_ROUTES = {
     ("POST", "/api/leads"),
     ("POST", "/api/leads/import/csv"),
     ("GET", "/api/health"),
+    # The extension's Create tab: the leads this key's own account has, and
+    # somewhere to put a screenshot of one of them. Both are scoped to the
+    # account the key names, which is what /api/leads itself is not.
+    ("GET", "/api/leads/mine"),
 }
+
+# Same idea, for paths with an id in them.
+_API_KEY_PATTERNS = (
+    ("POST", re.compile(r"^/api/leads/\d+/earth-capture$")),
+)
+
+
+def _key_route_allowed():
+    if (request.method, request.path) in _API_KEY_ROUTES:
+        return True
+    return any(method == request.method and pattern.match(request.path)
+               for method, pattern in _API_KEY_PATTERNS)
 
 
 def _has_valid_api_key():
@@ -81,7 +98,7 @@ def register_basic_auth(app):
             return
         if not request.path.startswith("/api/"):
             return  # static frontend bundle -- see module docstring
-        if (request.method, request.path) in _API_KEY_ROUTES and _has_valid_api_key():
+        if _key_route_allowed() and _has_valid_api_key():
             return  # authenticated as a specific account by its extension key
         if not _check_credentials(request.headers.get("Authorization")):
             return Response(

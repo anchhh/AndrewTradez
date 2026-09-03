@@ -13,6 +13,11 @@
     --line: #ddd3c2;
   }
   * { box-sizing: border-box; }
+  /* A class that sets a display beats the hidden attribute, so `form` and
+     `main` stayed on screen after being hidden in script. It showed as the
+     empty-state and the blank form sitting on top of each other; it now also
+     decides whether Lead or Create is visible, so it has to actually hold. */
+  [hidden] { display: none !important; }
   html, body {
     height: 100%;
     margin: 0;
@@ -111,6 +116,95 @@
     color: var(--ink);
     border-color: var(--accent);
     box-shadow: inset 0 2px 0 var(--accent);
+  }
+  /* Which job the panel is doing. Above the source tabs, because those
+     belong to capture and mean nothing in Create. */
+  .modes {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px 0;
+    flex-shrink: 0;
+  }
+  .mode {
+    flex: 1 1 0;
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 7px 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--cream-soft);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .mode.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  #create-panel { padding: 14px 16px; overflow-y: auto; }
+  #create-panel h2 {
+    margin: 0 0 4px;
+    font-size: 0.86rem;
+  }
+  #create-panel p.hint {
+    margin: 0 0 12px;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+  #create-panel label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+  }
+  #create-panel select {
+    width: 100%;
+    margin-top: 4px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    padding: 7px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+  }
+  #btn-shot {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 11px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  #btn-shot:disabled { opacity: 0.55; cursor: default; }
+  #create-status {
+    margin: 10px 0 0;
+    font-size: 0.74rem;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+  #create-status.error { color: var(--accent); }
+  #create-status.ok { color: #2f7a4f; }
+  /* A confirmation, not a viewer: capped so a tall capture cannot push the
+     button that made it off the panel. */
+  #shot-preview {
+    margin-top: 10px;
+    width: 100%;
+    height: auto;
+    max-height: 200px;
+    object-fit: contain;
+    object-position: top;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    display: block;
   }
   .site-note {
     margin: 10px 16px 0;
@@ -224,7 +318,14 @@
     <p class="backend-status" id="backend-status">Checking backend…</p>
   </header>
 
-  <div class="tabs">
+  <div class="modes">
+    <button type="button" class="mode active" id="mode-lead">Lead</button>
+    <button type="button" class="mode" id="mode-create">Create</button>
+  </div>
+
+  <!-- Everything below here belongs to Lead capture and is hidden, not
+       changed, when Create is showing. -->
+  <div class="tabs" id="source-tabs">
     <button type="button" class="tab" id="tab-zillow" data-source="zillow">
       <img class="tab-icon" src="https://www.google.com/s2/favicons?domain=zillow.com&sz=32" alt="">Zillow
     </button>
@@ -247,6 +348,21 @@
     the site you're on; switch it manually if it guessed wrong (re-parses
     instantly, no new page read).
   </div>
+
+  <section id="create-panel" hidden>
+    <h2>Capture this page</h2>
+    <p class="hint">Frame the property in Google Earth, then send the view
+      here. It lands on the listing’s flight plan, ready to draw the drone
+      path on at step 2 in Studio.</p>
+
+    <label>Listing
+      <select id="create-lead"></select>
+    </label>
+
+    <button type="button" id="btn-shot">Screenshot this page</button>
+    <p id="create-status"></p>
+    <img id="shot-preview" alt="The view just captured" hidden>
+  </section>
 
   <main>
     <form id="form" hidden>

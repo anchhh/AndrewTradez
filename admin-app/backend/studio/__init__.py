@@ -1599,6 +1599,40 @@ def save_data_url_images(data_urls, existing_photos=None):
     return {"photos": saved, "failed": failed, "duplicates": duplicates}
 
 
+def save_capture_data_url(data_url):
+    """Save one deliberately-taken screenshot, and apply no judgement to it.
+
+    Deliberately not save_data_url_images(): that one is built for photos
+    scraped off a listing, so it drops anything under 3KB as a tracking pixel
+    and de-duplicates against what is already there. Neither rule fits a
+    capture the user just took by hand -- a flat aerial can compress small,
+    and re-capturing the same view on purpose is not a duplicate to discard.
+
+    Returns the saved URL, or None when the payload is not a usable image.
+    """
+    match = DATA_URL_RE.match((data_url or "").strip())
+    if not match:
+        return None
+
+    subtype, payload = match.groups()
+    ext = CONTENT_TYPE_EXT.get("image/%s" % subtype.lower()) or (
+        subtype.lower() if subtype.lower() in ALLOWED_IMAGE_EXTENSIONS else None
+    )
+    if not ext:
+        return None
+
+    try:
+        content = base64.b64decode(payload, validate=False)
+    except (ValueError, binascii.Error):
+        return None
+    if not content:
+        return None
+
+    name = secure_filename("%s.%s" % (uuid.uuid4().hex, ext))
+    (UPLOAD_DIR / name).write_bytes(content)
+    return "/studio/static/uploads/%s" % name
+
+
 def download_image_urls(urls, existing_photos=None):
     """Download image URLs and save local copies, exactly like a manual
     upload. We fetch each URL with a plain GET the same way a browser

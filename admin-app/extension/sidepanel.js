@@ -514,6 +514,18 @@ function applyParser() {
 }
 
 function renderCapture(capture) {
+  // Pages keep loading while Create is open, and each one re-runs this. The
+  // decisions below are still worth making -- the capture is real and Lead
+  // will want it -- but none of them should become visible from here.
+  const restore = () => { if (currentMode === "create") showMode("create"); };
+  try {
+    return renderCaptureInner(capture);
+  } finally {
+    restore();
+  }
+}
+
+function renderCaptureInner(capture) {
   if (!capture) {
     currentRaw = null;
     $("empty-state").hidden = false;
@@ -569,6 +581,130 @@ async function checkBackend() {
     el.className = "backend-status error";
   }
 }
+
+/* ---------------------------------------------------------------------------
+   The Create tab.
+
+   Lead capture reads a listing page and sends its photos to the database.
+   This does the same shape of thing with a different subject: it screenshots
+   whatever is on screen -- Google Earth, framed the way the flight should
+   look -- and sends it to the lead's flight plan, which is what step 2 of a
+   drone video draws on.
+
+   None of the scraping path is involved. The only thing shared is the API
+   base and the account key.
+--------------------------------------------------------------------------- */
+
+let createLeads = [];
+let currentMode = "lead";
+
+function setCreateStatus(text, kind) {
+  const el = $("create-status");
+  el.textContent = text || "";
+  el.className = kind || "";
+}
+
+function showMode(mode) {
+  currentMode = mode;
+  const creating = mode === "create";
+  $("mode-lead").classList.toggle("active", !creating);
+  $("mode-create").classList.toggle("active", creating);
+
+  // Capture's own furniture, hidden together rather than one piece at a
+  // time -- a stray source tab above a screenshot button reads as a bug.
+  $("create-panel").hidden = !creating;
+  ["source-tabs", "site-note", "empty-state", "status"].forEach((id) => {
+    const el = $(id);
+    if (el) el.hidden = creating;
+  });
+  document.querySelector("main").hidden = creating;
+  const save = $("btn-save");
+  if (creating) {
+    save.hidden = true;
+  } else if (currentRaw) {
+    save.hidden = false;
+  }
+
+  if (creating && !createLeads.length) loadCreateLeads();
+}
+
+async function loadCreateLeads() {
+  const select = $("create-lead");
+  select.innerHTML = "<option>Loading…</option>";
+  try {
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}/api/leads/mine`, {
+      headers: await getAuthHeaders(),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Couldn't load leads (${res.status})`);
+
+    createLeads = body.leads || [];
+    if (!createLeads.length) {
+      select.innerHTML = "<option value=\"\">No leads saved yet</option>";
+      setCreateStatus("Capture a lead first — the screenshot has to belong to one.");
+      return;
+    }
+    select.innerHTML = createLeads
+      .map((lead) => `<option value="${lead.id}">${lead.address}</option>`)
+      .join("");
+    setCreateStatus("");
+  } catch (err) {
+    select.innerHTML = "<option value=\"\">Couldn't load leads</option>";
+    setCreateStatus(err.message, "error");
+  }
+}
+
+async function captureAndSend() {
+  const leadId = $("create-lead").value;
+  if (!leadId) {
+    setCreateStatus("Pick the listing this view belongs to first.", "error");
+    return;
+  }
+
+  const button = $("btn-shot");
+  button.disabled = true;
+  setCreateStatus("Taking the shot…");
+  try {
+    // The visible area of the current window, which is what the user framed.
+    // Requires host access to that page: earth.google.com and Maps are in the
+    // manifest, and anything else fails here rather than silently sending a
+    // blank image.
+    const shot = await chrome.tabs.captureVisibleTab(undefined, { format: "png" });
+    if (!shot) throw new Error("Chrome returned no image for this page.");
+
+    setCreateStatus("Sending…");
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}/api/leads/${leadId}/earth-capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+      body: JSON.stringify({ image: shot }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Send failed (${res.status})`);
+
+    $("shot-preview").src = shot;
+    $("shot-preview").hidden = false;
+    setCreateStatus(
+      `Sent to ${body.address}.` +
+        (body.points ? " The flight path already drawn on it was kept." : "") +
+        " Open Studio and go to step 2 to draw on it.",
+      "ok"
+    );
+  } catch (err) {
+    const message = /permission|cannot be scripted|Cannot access/i.test(err.message)
+      ? "Chrome won't screenshot this page — the extension only has access to " +
+        "Google Earth and Google Maps. Open Earth and try again."
+      : err.message;
+    setCreateStatus(message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$("mode-lead").addEventListener("click", () => showMode("lead"));
+$("mode-create").addEventListener("click", () => showMode("create"));
+$("btn-shot").addEventListener("click", captureAndSend);
 
 async function init() {
   const { lastCapture } = await chrome.storage.session.get("lastCapture");
