@@ -271,43 +271,68 @@ def group_of(slot):
 # else on the board exists to make those two right.
 SIDES = ("front", "back")
 
-# How many images go with the capture. Five, not ten: a run with ten spread
-# across street views, neighbours and both sides came back visibly worse than
-# one with three front elevations. More references dilute rather than
-# reinforce, and the model's own ceiling is ten including the subject.
-MAX_REFERENCES = 5
+# The model takes ten images including the subject, so nine references fill
+# it. An earlier run with ten came back worse than one with three, but that
+# test was confounded: it also used a wide crop, which turned out to be the
+# real problem. What was actually wrong was the ORDER -- the real photographs
+# of the house sat fourth and later, behind street views. Ordered properly,
+# more context helps, and the truncation drops what matters least.
+MAX_REFERENCES = 6
+
+# How many photographs of the OTHER side ride along. They are worth having --
+# the siding and shingle are the same all the way round -- and they are worth
+# rationing, because the first attempt with the whole board redrew a back
+# elevation as the front door.
+MAX_OTHER_SIDE = 2
 
 
 def base_for(lead, side):
-    """The capture a side's generated shot is built ON, and its references.
+    """The capture a side's shot is built ON, and everything to match against.
 
-    The oblique first: it already looks like a photograph taken from the air,
-    so the model has less to invent than it would from a top-down.
+    The base is that side's oblique: it already looks like a photograph taken
+    from the air, so the model has least to invent from it.
 
-    The rest are ordered by how much they are worth, because the list gets
-    truncated and what falls off the end should be the least useful. Real
-    photographs of that side come first -- they are the only things in the
-    set that are actually this house -- then that side's other captures, then
-    the neighbours, which are context for the street rather than the subject.
+    The references are the WHOLE board, both sides. A house is one building
+    -- the siding, the shingle and the stone are the same at the back as at
+    the front -- so the front elevations are evidence about the back, and
+    withholding them was leaving the back to be guessed. The prompt is what
+    keeps that honest: geometry comes from the first image, materials come
+    from the photographs.
 
-    Deliberately short. A run with ten references spread across street views,
-    neighbours and both sides came back worse than one with three front
-    elevations: the signal was diluted rather than reinforced.
+    Order carries the weight, because the list is truncated at the model's
+    ceiling and what falls off the end should be the least useful. This
+    side's real photographs first -- they are this house, from the angle
+    being drawn -- then this side's other captures, then the other side's
+    photographs, then its captures, then the neighbours, which are context
+    for the street rather than the subject.
     """
     slots = slots_of(lead.drone_path or {})
-    prefer = ["%s_3d" % side, "%s_overhead" % side, "%s_street" % side]
+    other = "back" if side == "front" else "front"
 
     base = None
-    for key in prefer:
+    for key in ("%s_3d" % side, "%s_overhead" % side, "%s_street" % side):
         for url in slots.get(key) or []:
             base = base or url
 
-    ordered = ["%s_reference" % side] + prefer + ["nb_3d", "nb_overhead", "nb_street"]
-    references = []
-    for key in ordered:
-        for url in slots.get(key) or []:
-            if url != base and url not in references:
-                references.append(url)
+    def collect(keys):
+        out = []
+        for key in keys:
+            for url in slots.get(key) or []:
+                if url != base and url not in out:
+                    out.append(url)
+        return out
+
+    # This side, then the neighbours, then a short tail from the other side.
+    # The tail is capped hard and comes last for a reason: the first attempt
+    # at merging both sides in full turned a back elevation into the front
+    # of the house. The front photographs are the sharpest images in the set,
+    # and given enough of them the model follows them instead of the base.
+    mine = collect(["%s_reference" % side, "%s_3d" % side,
+                    "%s_overhead" % side, "%s_street" % side])
+    nearby = collect(["nb_3d", "nb_overhead", "nb_street"])
+    tail = collect(["%s_reference" % other])[:MAX_OTHER_SIDE]
+
+    references = mine + nearby + tail
     return base, references[:MAX_REFERENCES]
 
 

@@ -68,6 +68,17 @@ second roof over the garage. Every roof plane on the house -- the main roof,
 the garage, the porch below the windows -- is the same shingle in the same
 colour; from above the lower ones are simply in more shadow.
 
+A few of those photographs show the OTHER side of the same house. They are
+colour and material swatches only. Take the siding, the shingle, the stone
+and the trim from them, and take nothing else: not the layout, not the
+orientation, not a single feature.
+
+THE FIRST IMAGE DECIDES WHAT IS WHERE. If it shows the back of the house,
+the result shows the back of the house -- garden below, street beyond, no
+front door and no driveway anywhere in it. If it shows the front, the result
+shows the front. Where the road runs, which way the roof faces and what sits
+in the foreground are all read from the first image and from nothing else.
+
 The result is a real photograph: sharp, detailed, naturally lit.
 
 Do not include Google Earth's interface, and do not include its map labels --
