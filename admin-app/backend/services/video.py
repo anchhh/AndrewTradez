@@ -373,6 +373,37 @@ EXT_TEMPORAL = (
     "last."
 )
 
+# The aerial legs are the one place a speed ramp is the point rather than a
+# fault, so they get a temporal rule that permits it and a look that does not
+# forbid acceleration. Everything else in those rules stays: no cuts, no
+# dissolves, no geometry morphing, same light throughout. "Almost a morph"
+# means the FEEL of the transition -- a rush through the middle frame -- not
+# the house changing shape.
+EXT_TEMPORAL_RAMP = (
+    "One continuous shot from one moving camera. Do NOT dissolve, crossfade, "
+    "blend or cut between the first and last frames -- the camera travels the "
+    "whole way, and every frame between them is a real view from a point on "
+    "that path. The SPEED is meant to change: a smooth ramp, not a jump. "
+    "Nothing may warp, melt, stretch, flicker or swap between frames -- "
+    "motion blur from speed is fine, buildings changing shape is not. "
+    "Straight lines -- rooflines, walls, fences, kerbs -- must stay straight. "
+    "Keep the lighting, shadows, weather, sky, season, white balance and "
+    "exposure identical throughout: the same time of day from first frame to "
+    "last."
+)
+
+EXT_LOOK_RAMP = (
+    "Photorealistic real-estate drone footage, shot on a professional "
+    "cinema drone: crisp and high-resolution, with fine detail resolved in "
+    "roofing, brick, render and planting. Motion is smooth with no jerks and "
+    "no handheld shake; its speed ramps deliberately. Keep the photograph's "
+    "own exposure, white balance and colour exactly as they are -- do not "
+    "grade, warm, cool or add glow, flare or vignette. No people, no pets, no "
+    "moving vehicles, no text, no captions, no watermark, no logos."
+)
+
+RAMP_MOVES = ("aerial_in", "aerial_approach")
+
 EXT_LOOK = (
     "Photorealistic real-estate drone footage, shot on a professional "
     "cinema drone: crisp and high-resolution, with fine detail resolved in "
@@ -424,21 +455,41 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
+    # The aerial, in two legs that meet on a middle frame. Written as halves
+    # of ONE flight: the first accelerates into the middle, the second
+    # arrives at speed and brakes onto the front. Cut together they read as
+    # a single ramp through the middle -- the "speed up almost to a morph"
+    # that was asked for -- without either clip containing a cut.
+    (
+        "aerial_in",
+        "Aerial approach — first leg",
+        "Opens wide over the neighbourhood and accelerates in toward the "
+        "middle frame",
+        "MOVEMENT: the first half of one continuous aerial drone flight, "
+        "single take. Begin exactly on the first photograph, high over the "
+        "neighbourhood, and fly FORWARD toward the second, which is the same "
+        "neighbourhood from closer in. Start steady and ACCELERATE as you go, "
+        "so by the last second you are rushing toward the second photograph "
+        "and arrive on it at speed -- streets and rooftops streaming past "
+        "beneath, motion blur welcome in that final stretch. Ease down a "
+        "little but do not descend onto any house yet, do not rotate, do not "
+        "orbit. Invent nothing in between.",
+    ),
     (
         "aerial_approach",
         "Aerial approach",
-        "Opens wide over the neighbourhood and descends onto the front of the "
-        "house",
-        "MOVEMENT: one continuous drone descent, single take. Begin exactly on "
-        "the first photograph, high and wide over the neighbourhood, and fly "
-        "steadily DOWN and FORWARD toward the subject property, arriving "
-        "exactly at the final photograph. The house in the final photograph "
-        "is the one you are descending onto: it is somewhere in the first "
-        "frame already, and the whole move is closing the distance to it. "
-        "Lose height and lose width together, evenly, so the surrounding "
-        "streets and rooftops leave the frame gradually rather than jumping. "
-        "Do not rotate, do not orbit, do not pass the property. Even speed, "
-        "flown not animated: no cuts, no jumps. Invent nothing in between.",
+        "Arrives at speed over the neighbourhood and brakes down onto the "
+        "front of the house",
+        "MOVEMENT: one continuous drone descent, single take. Begin exactly "
+        "on the first photograph, ALREADY MOVING FAST -- this is the second "
+        "half of a flight that was accelerating into that frame -- and fly "
+        "DOWN and FORWARD toward the subject property, DECELERATING smoothly "
+        "the whole way so you settle gently and exactly onto the final "
+        "photograph. The house in the final photograph is the one you are "
+        "descending onto; it is somewhere in the first frame already. Lose "
+        "height and width together so the streets leave the frame steadily. "
+        "Do not rotate, do not orbit, do not pass the property. Invent "
+        "nothing in between.",
     ),
     (
         # The drone flow's only move. The menu below it is a menu of legs --
@@ -643,6 +694,11 @@ def exterior_prompt(move, cfg=None, site=None):
     address = address_rule(site)
     flight = flight_rule(site)
 
+    # The aerial legs ramp on purpose; every other exterior move holds an
+    # even speed. Same ladder below, different temporal and look rules.
+    temporal = EXT_TEMPORAL_RAMP if key in RAMP_MOVES else EXT_TEMPORAL
+    look = EXT_LOOK_RAMP if key in RAMP_MOVES else EXT_LOOK
+
     # A ladder, shortening from the least load-bearing end. What never goes:
     # the opening constraint, a "never change" of some length, no-invention
     # before AND after the movement, and the temporal rule. Dropping those was
@@ -650,20 +706,20 @@ def exterior_prompt(move, cfg=None, site=None):
     # move that most needs them.
     ladders = [
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE, EXT_NO_INVENTION, instruction,
-         flight, context, address, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION_SHORT,
+         flight, context, address, temporal, look, EXT_NO_INVENTION_SHORT,
          EXT_WHEN_UNSURE],
         # The itemised list goes to the negative prompt; the ban stays.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, flight, context, address, EXT_TEMPORAL, EXT_LOOK,
+         instruction, flight, context, address, temporal, look,
          EXT_NO_INVENTION_SHORT, EXT_WHEN_UNSURE],
         # The look is craft, not compliance, so it goes before any rule does.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, flight, context, address, EXT_TEMPORAL,
+         instruction, flight, context, address, temporal,
          EXT_NO_INVENTION_SHORT, EXT_WHEN_UNSURE],
         # Orientation goes before the address: a wrong house number is a
         # compliance problem, a missing bearing is only a worse flight path.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, flight, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
+         instruction, flight, address, temporal, EXT_NO_INVENTION_SHORT],
         # Then the LONG no-invention goes short, before the address does. It
         # is stated twice by design -- before the movement and after it -- and
         # this keeps both statements while shortening the first. The address
@@ -672,9 +728,9 @@ def exterior_prompt(move, cfg=None, site=None):
         # not. Without this rung the longest flight sentences knocked the
         # house number out of the prompt by four characters.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION_SHORT,
-         instruction, flight, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
+         instruction, flight, address, temporal, EXT_NO_INVENTION_SHORT],
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, instruction, flight,
-         EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
+         temporal, EXT_NO_INVENTION_SHORT],
     ]
     for parts in ladders:
         text = " ".join(part for part in parts if part)

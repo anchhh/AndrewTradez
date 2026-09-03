@@ -4535,21 +4535,33 @@ def api_video_drone():
         return jsonify({"error": "The middle frame has to be different from "
                                  "the two ends."}), 400
 
-    def leg(to):
-        spec = {"move": move, "duration": seconds, "resolution": resolution,
+    # Whatever was on screen when it was confirmed, per clip. Empty means
+    # "the standard wording", which the worker builds from the clip's move.
+    # `prompts` is the per-leg form the aerial sends; `prompt` is the single
+    # form everything else sends. Both are checked the same way.
+    typed = data.get("prompts")
+    if not isinstance(typed, list):
+        typed = [data.get("prompt")]
+    typed = [(t or "").strip() if isinstance(t, str) else "" for t in typed]
+    if any(len(t) > 6000 for t in typed):
+        return jsonify({"error": "That prompt is too long to send."}), 400
+
+    def leg(index, to, leg_move):
+        spec = {"move": leg_move, "duration": seconds, "resolution": resolution,
                 "site": site}
         if to:
             spec["anchor"] = to
+        if index < len(typed) and typed[index]:
+            spec["prompt"] = typed[index]
         return spec
 
-    photos = [start, middle] if middle else [start]
-    specs = [leg(middle), leg(end)] if middle else [leg(end)]
-
-    # Whatever was on screen when it was confirmed. Empty means "use the
-    # standard wording", which is what the job already does with no prompt.
-    wording = (data.get("prompt") or "").strip()
-    if len(wording) > 6000:
-        return jsonify({"error": "That prompt is too long to send."}), 400
+    if middle:
+        photos = [start, middle]
+        specs = [leg(0, middle, dronepath.AERIAL_IN), leg(1, end, move)]
+    else:
+        photos = [start]
+        specs = [leg(0, end, move)]
+    wording = typed[0] if len(typed) == 1 else ""
 
     try:
         job = start_job(current_app._get_current_object(), session["user_id"],
@@ -4594,11 +4606,19 @@ def api_video_drone_preview():
     site = exterior_site_facts(lead, {})
     if aerial:
         site = dict(site, flight_path=None)
+    # An aerial with a middle frame is two clips with two instructions, and
+    # the confirmation has to show both -- the whole point of it is that what
+    # you read is what runs.
+    legs = []
+    if aerial and (data.get("middle") or "").strip():
+        legs = [video.prompt_for_clip(move=dronepath.AERIAL_IN, cfg=cfg, site=site),
+                video.prompt_for_clip(move=move, cfg=cfg, site=site)]
     # No cost here: the page already prices a clip from the rate table it was
     # given, and a second implementation of the same arithmetic is how two
     # screens end up showing different dollars.
     return jsonify({
         "prompt": video.prompt_for_clip(move=move, cfg=cfg, site=site),
+        "prompts": legs,
         "site": site,
         "seconds": seconds,
         "model": video.model_info(cfg).get("label"),

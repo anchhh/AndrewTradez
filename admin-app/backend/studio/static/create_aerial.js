@@ -24,10 +24,15 @@ const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || 
 let opening = window.__OPENING__ || wide[0] || "";
 /* Optional, and never the same picture as either end. */
 let middle = window.__MIDDLE__ || "";
-let standard = "";
-let edited = null;
+/* One standard wording per clip, and one edit slot per clip. With a middle
+   frame there are two clips and two different instructions -- the first
+   accelerates into the middle, the second brakes from it onto the front --
+   so the confirmation shows both and an edit to one leaves the other alone. */
+let standards = [];
+let edits = [null, null];
 
-const promptNow = () => (edited === null ? standard : edited);
+const promptNow = (i) => (edits[i] === null ? (standards[i] || "") : edits[i]);
+const legCount = () => (middle ? 2 : 1);
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -145,14 +150,18 @@ el("ae-go").addEventListener("click", async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        lead_id: lead, shot: "aerial",
+        lead_id: lead, shot: "aerial", middle: middle,
         duration: Number(el("ae-duration").value),
         resolution: el("ae-resolution").value,
       }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "couldn't read the prompt");
-    standard = body.prompt || "";
+    // Two instructions when there is a middle frame, one otherwise. Fetched
+    // rather than rebuilt here: a preview assembled its own way is a preview
+    // of something else.
+    standards = (body.prompts && body.prompts.length === 2)
+      ? body.prompts : [body.prompt || ""];
     note("");
     review(body);
   } catch (err) {
@@ -161,7 +170,14 @@ el("ae-go").addEventListener("click", async () => {
 });
 
 function review(body) {
-  el("ae-review-prompt").value = promptNow();
+  const two = legCount() === 2 && standards.length === 2;
+  el("ae-review-prompt").value = promptNow(0);
+  el("ae-review-leg2").hidden = !two;
+  el("ae-review-h1").textContent = two ? "Leg 1 — opening to the middle" : "The prompt";
+  el("ae-review-hint1").textContent = two
+    ? "Starts steady and accelerates into the middle frame. Editable, for this run."
+    : "Editable, for this run.";
+  if (two) el("ae-review-prompt2").value = promptNow(1);
 
   const ends = middle
     ? [[opening, "Opens on", nameOf(opening)],
@@ -190,8 +206,9 @@ function closeReview() { el("ae-review").hidden = true; }
 
 el("ae-review-cancel").addEventListener("click", closeReview);
 el("ae-review-reset").addEventListener("click", () => {
-  edited = null;
-  el("ae-review-prompt").value = standard;
+  edits = [null, null];
+  el("ae-review-prompt").value = promptNow(0);
+  if (legCount() === 2) el("ae-review-prompt2").value = promptNow(1);
 });
 el("ae-review").addEventListener("click", (e) => {
   if (e.target.id === "ae-review") closeReview();
@@ -201,8 +218,12 @@ window.addEventListener("keydown", (e) => {
 });
 
 el("ae-review-go").addEventListener("click", () => {
-  const typed = el("ae-review-prompt").value.trim();
-  edited = typed && typed !== standard ? typed : null;
+  // Remembered per leg, so a second confirmation opens on what just ran.
+  const boxes = [el("ae-review-prompt"), el("ae-review-prompt2")];
+  for (let i = 0; i < legCount(); i += 1) {
+    const typed = (boxes[i].value || "").trim();
+    edits[i] = typed && typed !== (standards[i] || "") ? typed : null;
+  }
   closeReview();
   generate();
 });
@@ -224,7 +245,9 @@ async function generate() {
         end: front,
         duration: Number(el("ae-duration").value),
         resolution: el("ae-resolution").value,
-        prompt: promptNow(),
+        // Sent every time, edited or not: "what I saw" and "what ran" are
+        // the same string or the confirmation was theatre. One per clip.
+        prompts: middle ? [promptNow(0), promptNow(1)] : [promptNow(0)],
       }),
     });
     const body = await res.json();

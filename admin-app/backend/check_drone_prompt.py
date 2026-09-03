@@ -100,7 +100,36 @@ def main():
                     failures.append(("%s / %s" % (shape, label),
                                      'missing "%s" -- %s' % (clause, why)))
 
-    cases = len(SHAPES) * len(SITES)
+    # The aerial's two legs. Their whole point is a speed ramp through the
+    # middle frame, which every other exterior move forbids -- so the checks
+    # run the other way round here: the ramp permission must be present, the
+    # even-speed rule must be absent, and the house number must still ride
+    # along. If a refactor ever hands the legs the flyover's temporal rule,
+    # the clip comes back as a steady glide and nobody is told why.
+    for leg, must in (("aerial_in", "ACCELERATE"),
+                      ("aerial_approach", "DECELERATING")):
+        for label, facts in SITES.items():
+            prompt = video.exterior_prompt(leg, cfg, site=dict(facts, flight_path=None))
+            longest = max(longest, len(prompt))
+            where = "%s / %s" % (leg, label)
+            if len(prompt) > limit:
+                failures.append((where, "prompt is %d characters, over the %d limit"
+                                 % (len(prompt), limit)))
+            for clause, why in (
+                (must, "the leg's own movement -- without it both halves are the "
+                       "same descent and the ramp never happens"),
+                ("SPEED is meant to change",
+                 "the ramp permission. The standard temporal rule says 'no speed "
+                 "ramp' and the model obeys it"),
+                ("It must read exactly", "the house number, same reason as above"),
+            ):
+                if clause not in prompt:
+                    failures.append((where, 'missing "%s" -- %s' % (clause, why)))
+            if "no speed ramp" in prompt:
+                failures.append((where, "still carries 'no speed ramp' -- the "
+                                        "flyover's temporal rule leaked in"))
+
+    cases = len(SHAPES) * len(SITES) + 2 * len(SITES)
     if failures:
         print("FAILED: %d problem(s) across %d cases\n" % (len(failures), cases))
         for where, what in failures:

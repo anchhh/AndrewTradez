@@ -278,6 +278,9 @@ MOVE = "drone_flight"
 # videos -- it is a different shot of a different subject that happens to end
 # where the flyover starts.
 AERIAL_MOVE = "aerial_approach"
+# The first leg, only used when a middle frame is set: it accelerates INTO
+# the middle, and AERIAL_MOVE then brakes from it onto the front.
+AERIAL_IN = "aerial_in"
 
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything

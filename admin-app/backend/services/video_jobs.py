@@ -123,7 +123,10 @@ def _run(app, job_id):
                         # The site facts ride on the spec, put there when the
                         # render was submitted -- the worker has no lead and
                         # should not be re-reading satellites mid-run.
-                        prompt=job.prompt or prompt_for_clip(
+                        # A clip's own wording first. The aerial's two legs
+                        # are different instructions, and one job-wide prompt
+                        # would hand the landing's text to the approach.
+                        prompt=spec.get("prompt") or job.prompt or prompt_for_clip(
                             move=spec["move"], cfg=cfg, site=spec.get("site")),
                         cfg=cfg,
                         duration=spec["duration"],

@@ -140,10 +140,22 @@
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          <h4 class="gn-review-h">The prompt</h4>
-          <p class="hint">Editable, for this run.</p>
+          {# One instruction per clip. With a middle frame there are two
+             clips and two instructions -- the first accelerates into the
+             middle, the second brakes from it onto the front -- and the whole
+             point of this box is that what you read is what runs. #}
+          <h4 class="gn-review-h" id="ae-review-h1">The prompt</h4>
+          <p class="hint" id="ae-review-hint1">Editable, for this run.</p>
           <textarea id="ae-review-prompt" class="gn-review-prompt"
-                    spellcheck="false" rows="18"></textarea>
+                    spellcheck="false" rows="12"></textarea>
+
+          <div id="ae-review-leg2" hidden>
+            <h4 class="gn-review-h">Leg 2 &mdash; middle to the front</h4>
+            <p class="hint">Arrives at speed and brakes onto the front.</p>
+            <textarea id="ae-review-prompt2" class="gn-review-prompt"
+                      spellcheck="false" rows="12"></textarea>
+          </div>
+
           <button type="button" class="btn-secondary btn-tiny gn-review-reset"
                   id="ae-review-reset">Back to the default wording</button>
         </div>
