@@ -1,236 +1,198 @@
 """
-Stage 3: making a listing photograph look like it was shot properly.
+Stage 3: an image editor for the Google Earth captures.
 
-The obvious way to build this does not work, and it is worth writing down
-why before someone tries it again.
+What is being edited matters, because it decides what is honest here.
 
-Gemini's image model was asked to retouch a photograph, twice, the second
-time with wording that forbade redrawing in six different ways. Both times
-it returned a *regenerated* picture: the canvas came back 1248x832 instead
-of 1280x849, a light switch lost its outlet, the picture frames on the wall
-changed shape, and the "(c) IRES" watermark came back mirrored. It is an
-image generator. Asked for the same photograph slightly brighter, it paints
-a new photograph that looks similar -- and on a listing that means an agent
-sending a client a picture of fixtures the house does not have.
+These are not photographs of the property. They are screenshots of Earth's
+3D mesh: the roof is a smeared triangle, the walls are projected texture,
+and anything smaller than a car is a suggestion. Nobody is going to mistake
+one for a photo of the house, and nobody sends one to a client. It is the
+plate a drone flight gets planned and generated from.
 
-So the work is split at the seam where each side is good:
+So generation is the right tool here, where it was the wrong tool for a
+listing photograph. Asked to retouch a real photo, Gemini's image model
+redraws the fixtures -- which on a listing means an agent sending a client a
+door handle the house does not have. Asked to sharpen a mesh into something
+that looks like a building, redrawing is the entire job.
 
-  * Gemini LOOKS. Vision is what it is reliable at, it is free, and this app
-    already trusts it to sort rooms and read a site. It returns numbers --
-    how far out the exposure is, which way the colour leans.
-  * The app APPLIES those numbers with PIL. Arithmetic on the real pixels:
-    nothing invented, nothing moved, the dimensions unchanged and the
-    watermark exactly where the photographer put it.
+What keeps it honest is the reference photographs. The listing's own
+exterior shots go up alongside the capture, so when the model resolves that
+smear into a roof it is resolving it toward the roof this house actually
+has: its colour, its pitch, its materials. Without them the model would
+invent a plausible house. With them it is copying from the real one.
 
-The result is a smaller correction than a generated "enhancement", and it is
-a correction to the photograph that was actually taken.
-
-Reference photographs are the other pictures of the same property, sent so
-the judgement is made knowing what colour the brick really is rather than
-guessing from one frame.
+Cropping is separate and deliberately dumb: PIL, exact pixels, no model
+involved. Framing a shot is not a judgement anything needs to make for you.
 """
-import json
 import os
-import re
 
 from services import gemini_image
 
-# How many other photographs go along for context. Enough to establish the
-# property's real colours and light; not so many that the reply drifts into
-# describing the listing.
-MAX_REFERENCES = 3
+# How many exterior photographs go up with the capture. Enough to establish
+# the house from more than one side; few enough that the capture is still
+# clearly the subject rather than one image among many.
+MAX_REFERENCES = 4
 
-# Bounds on every correction. A model asked for a number will occasionally
-# answer with a large one, and a listing photo pushed two stops is a worse
-# photograph, not a bolder one. The ceiling is what a careful edit looks
-# like, so the worst case here is "not enough", never "ruined".
-LIMITS = {
-    "exposure": (-0.35, 0.60),    # stops, roughly
-    "contrast": (-0.20, 0.35),
-    "warmth": (-0.30, 0.30),      # negative cools, positive warms
-    "saturation": (-0.20, 0.30),
-    "shadows": (0.0, 0.45),       # lift only; crushing blacks is not a fix
-    "highlights": (-0.40, 0.0),   # recover only
-    "sharpen": (0.0, 0.60),
-}
-
-QUESTION = """You are a photo editor judging one real-estate photograph.
-
-The FIRST image is the photograph to judge. Any images after it are other
-photographs of the same property, for context about its true colours and
-lighting -- do not judge those.
-
-Reply with ONLY a JSON object, no prose and no code fence:
-
-{"exposure": 0.0, "contrast": 0.0, "warmth": 0.0, "saturation": 0.0,
- "shadows": 0.0, "highlights": 0.0, "sharpen": 0.0, "note": ""}
-
-  exposure    -0.35..0.60  how much brighter the whole frame should be
-  contrast    -0.20..0.35
-  warmth      -0.30..0.30  positive warms a blue cast, negative cools an
-                           orange one
-  saturation  -0.20..0.30
-  shadows      0.00..0.45  lifting dark areas only
-  highlights  -0.40..0.00  recovering bright areas only
-  sharpen      0.00..0.60
-  note        one short sentence on what is wrong with the photograph
-
-Judge conservatively. A photograph that is already well exposed should come
-back as zeros -- there is no credit for finding something to change. These
-numbers are applied arithmetically to the real pixels, so anything large
-will look obviously edited."""
+# Which room labels count as a look at the outside of the building. Same set
+# the video stage uses to split exterior from interior.
+EXTERIOR_ROOMS = ("exterior_front", "exterior_back", "aerial", "outdoor_space")
 
 
 class EnhanceError(Exception):
-    """The photograph could not be enhanced."""
+    """The capture could not be edited."""
 
 
-def references_for(lead, url, limit=MAX_REFERENCES):
-    """Other photographs of the same property, for colour and light.
+PROMPT = """EDIT THE FIRST IMAGE. Return the first image, redrawn. Do not
+return any of the other images.
 
-    Same room first: a bedroom says more about a bedroom's real lighting
-    than the front elevation does.
+The first image is a screenshot of Google Earth's 3D view of a property.
+Make it look like a photograph taken from exactly that position.
+
+THE CAMERA DOES NOT MOVE. Whatever the first image is looking at, from
+whatever height and angle, the result looks at the same thing from the same
+height and the same angle, with the same things in the same places in the
+frame. If the first image looks straight down, the result looks straight
+down. If a house sits in the lower left of the first image, it sits in the
+lower left of the result.
+
+The images after the first are photographs of THAT SAME HOUSE, taken from
+the ground. They are reference for what the building looks like, not
+pictures to return and not a camera position to copy. Take from them: the
+colour and material of the walls, the roof colour and pitch, the windows,
+the garage, the door, the driveway, the landscaping.
+
+DO:
+- resolve the soft, melted 3D geometry into clean architecture, matching
+  what the reference photographs show
+- clean up smeared texture on the roof, the walls, the road and the grass
+- keep the lighting natural for the time of day already in the capture
+
+DO NOT:
+- change the viewpoint, the angle, the height, the framing or the crop
+- change the layout of the plot, or move the house, the driveway, the fences
+  or the neighbouring buildings
+- add or remove buildings, vehicles, people, pools or trees
+- produce an illustration, a render or a painting: the result is a
+  photograph
+- add text, logos, watermarks or a border
+
+If the reference photographs do not show a part of the building, leave that
+part as the first image has it rather than inventing it.
+
+Again: the output is the FIRST image, from its own camera position, redrawn
+to look like a photograph."""
+
+
+def exterior_references(lead, limit=MAX_REFERENCES):
+    """The listing's own photographs of the outside of the house.
+
+    Front elevations first: they show the most of the building and are what a
+    flight usually opens on. Falls back to any photo at all rather than none,
+    because an unsorted listing still knows what its house looks like.
     """
-    photos = [u for u in (lead.photo_urls or []) if u != url]
-    if not photos:
-        return []
-
+    photos = lead.photo_urls or []
     rooms = lead.photo_rooms or {}
 
     def room_of(photo):
         entry = rooms.get(photo)
         return (entry.get("room") if isinstance(entry, dict) else entry) or ""
 
-    here = room_of(url)
-    same = [u for u in photos if here and room_of(u) == here]
-    return (same + [u for u in photos if u not in same])[:limit]
+    ranked = []
+    for preferred in EXTERIOR_ROOMS:
+        ranked += [u for u in photos if room_of(u) == preferred]
+    if not ranked:
+        ranked = list(photos)
+    return ranked[:limit]
 
 
-def _clamp(values):
-    """Every number inside its limit, and anything unparseable at zero."""
-    clean = {}
-    for key, (low, high) in LIMITS.items():
-        try:
-            value = float(values.get(key, 0) or 0)
-        except (TypeError, ValueError):
-            value = 0.0
-        clean[key] = max(low, min(high, value))
-    clean["note"] = str(values.get("note") or "")[:200]
-    return clean
-
-
-def judge(lead, url, cfg=None):
-    """What this photograph needs, as numbers."""
+def _paths_for(urls):
     from studio import local_path_from_url
 
-    path = local_path_from_url(url)
-    if not path or not path.exists():
-        raise EnhanceError("that photo is not on disk any more")
-
-    images = [path.read_bytes()]
-    for other in references_for(lead, url):
-        other_path = local_path_from_url(other)
-        if other_path and other_path.exists():
-            images.append(other_path.read_bytes())
-
-    try:
-        answer = gemini_image.ask_about_images(images, QUESTION, cfg=cfg)
-    except gemini_image.GeminiError as exc:
-        raise EnhanceError(str(exc)) from exc
-
-    # Models fence JSON however they like; take the first object in the reply.
-    match = re.search(r"\{.*\}", answer or "", re.S)
-    if not match:
-        raise EnhanceError("Gemini did not answer with any corrections")
-    try:
-        return _clamp(json.loads(match.group(0)))
-    except ValueError as exc:
-        raise EnhanceError("Gemini's answer was not readable JSON") from exc
+    paths = []
+    for url in urls:
+        path = local_path_from_url(url)
+        if path and path.exists():
+            paths.append(str(path))
+    return paths
 
 
-def apply_corrections(path, c):
-    """The numbers, applied to the real pixels.
+def enhance_capture(lead, url, cfg=None):
+    """Redraw one Earth capture as a photograph of this house.
 
-    Order follows how a darkroom works: tone first, then colour, then
-    sharpening last so it is not amplifying a curve applied after it.
-    """
-    from PIL import Image, ImageEnhance, ImageFilter
-
-    image = Image.open(path).convert("RGB")
-
-    # Exposure, shadow lift and highlight recovery are all curve moves, so
-    # they go through one lookup table rather than three passes over the
-    # pixels -- and a curve cannot clip the way a flat multiply does.
-    if c["exposure"] or c["shadows"] or c["highlights"]:
-        table = []
-        for i in range(256):
-            v = i / 255.0
-            if c["exposure"]:
-                v = min(1.0, v * (2 ** c["exposure"]))
-            if c["shadows"]:
-                # Strongest in the darks, nothing at white.
-                v = v + c["shadows"] * (1 - v) ** 2 * (v ** 0.5)
-            if c["highlights"]:
-                # Strongest in the brights, nothing at black.
-                v = v + c["highlights"] * (v ** 3)
-            table.append(max(0, min(255, round(v * 255))))
-        image = image.point(table * 3)
-
-    if c["contrast"]:
-        image = ImageEnhance.Contrast(image).enhance(1 + c["contrast"])
-    if c["saturation"]:
-        image = ImageEnhance.Color(image).enhance(1 + c["saturation"])
-
-    if c["warmth"]:
-        # Red up and blue down together, which is what a white-balance slider
-        # does; a small coefficient keeps neutrals neutral.
-        amount = c["warmth"]
-        r, g, b = image.split()
-        r = r.point(lambda i: max(0, min(255, round(i * (1 + amount * 0.12)))))
-        b = b.point(lambda i: max(0, min(255, round(i * (1 - amount * 0.12)))))
-        image = Image.merge("RGB", (r, g, b))
-
-    if c["sharpen"]:
-        image = image.filter(ImageFilter.UnsharpMask(
-            radius=1.6, percent=int(60 * c["sharpen"]), threshold=3))
-
-    return image
-
-
-def enhance_photo(lead, url, cfg=None):
-    """Judge one photograph and save the corrected version.
-
-    The original is never touched: the corrected file is a new one, and the
-    mapping between them is what makes reverting a deleted line rather than a
-    restore from somewhere.
+    Returns the saved URL of the new image. The capture it came from is left
+    on disk untouched -- reverting is a swap, not a restore.
     """
     from studio import UPLOAD_DIR, local_path_from_url
 
-    if url not in (lead.photo_urls or []):
-        raise EnhanceError("that photo does not belong to this listing")
+    path = local_path_from_url(url)
+    if not path or not path.exists():
+        raise EnhanceError("that capture is not on disk any more")
 
-    corrections = judge(lead, url, cfg=cfg)
+    references = _paths_for(exterior_references(lead))
+    if not references:
+        raise EnhanceError(
+            "this listing has no exterior photos, so there is nothing to "
+            "match the building against. Add some at the listing step first.")
 
-    # A photograph that needs nothing gets nothing. Writing a re-encoded copy
-    # of an already-good picture would cost a JPEG generation for no gain and
-    # leave the listing claiming an enhancement it did not receive.
-    if not any(corrections[k] for k in LIMITS):
-        return None, corrections
+    try:
+        blob = gemini_image.edit_with_references(str(path), PROMPT, references, cfg=cfg)
+    except gemini_image.GeminiError as exc:
+        raise EnhanceError(str(exc)) from exc
+
+    return _save(UPLOAD_DIR, path, blob, "enhanced")
+
+
+def crop_capture(lead, url, box):
+    """Crop one capture to a box given in its own pixels.
+
+    No model: a crop is exact, and asking anything to interpret a rectangle
+    the user drew would only introduce a way for it to be wrong.
+    """
+    from PIL import Image
+
+    from studio import UPLOAD_DIR, local_path_from_url
 
     path = local_path_from_url(url)
-    image = apply_corrections(str(path), corrections)
+    if not path or not path.exists():
+        raise EnhanceError("that capture is not on disk any more")
 
-    # Quality high enough not to add its own artefacts to a photograph that
-    # is about to be rendered into video. Named after the original so the
-    # pair is obvious, and overwritten on a re-run rather than piling up.
+    image = Image.open(str(path)).convert("RGB")
+    try:
+        left, top, right, bottom = (int(round(float(v))) for v in box)
+    except (TypeError, ValueError) as exc:
+        raise EnhanceError("that crop is not a rectangle") from exc
+
+    left, top = max(0, left), max(0, top)
+    right, bottom = min(image.width, right), min(image.height, bottom)
+    if right - left < 32 or bottom - top < 32:
+        raise EnhanceError("that crop is too small to be a shot")
+
+    cropped = image.crop((left, top, right, bottom))
+    out = UPLOAD_DIR / _name_for(path, "cropped", ".jpg")
+    cropped.save(out, "JPEG", quality=94, subsampling=0)
+    return "/studio/static/uploads/%s" % out.name
+
+
+def _name_for(path, suffix, ext):
+    """A name that says what happened, without stacking suffixes forever.
+
+    Cropping an enhanced capture should not produce
+    "x-enhanced-cropped-enhanced-cropped.jpg" after a few passes, so the
+    previous suffix is replaced rather than appended.
+    """
     base = os.path.splitext(os.path.basename(str(path)))[0]
-    name = "%s-enhanced.jpg" % base
-    image.save(UPLOAD_DIR / name, "JPEG", quality=92, subsampling=0)
-    return "/studio/static/uploads/%s" % name, corrections
+    for known in ("-enhanced", "-cropped"):
+        if base.endswith(known):
+            base = base[: -len(known)]
+    return "%s-%s%s" % (base, suffix, ext)
 
 
-def rendered_url(lead, url):
-    """Which file a render should actually use for this photo."""
-    if lead is None:
-        return url
-    return (lead.enhanced_photos or {}).get(url) or url
+def _save(upload_dir, source_path, blob, suffix):
+    import uuid
+
+    # A unique name rather than a predictable one: an edit has to be a NEW
+    # file every time, because the old one is still referenced by the gallery
+    # until the swap goes through, and by the browser's cache after it.
+    name = _name_for(source_path, "%s-%s" % (suffix, uuid.uuid4().hex[:8]), ".png")
+    (upload_dir / name).write_bytes(blob)
+    return "/studio/static/uploads/%s" % name

@@ -5917,3 +5917,60 @@ gmp-map-3d {
 .en-note { font-size: 0.72rem; color: var(--ink-soft); line-height: 1.35; min-height: 1.35em; }
 .en-note.is-warn { color: var(--accent); }
 .en-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* The reference shots the redraw matches against, shown because "matching
+   against the listing's photos" means nothing until you see which ones. */
+.en-refs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.en-refs img {
+  width: 54px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  display: block;
+}
+
+/* The cropper, over everything. Framing a shot means looking at it, and a
+   thumbnail is not looking at it. */
+.en-crop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(12, 10, 8, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.en-crop-panel {
+  background: var(--cream, #efe8dd);
+  border-radius: 14px;
+  padding: 16px;
+  max-width: min(1100px, 96vw);
+  display: grid;
+  gap: 12px;
+}
+.en-crop-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.en-crop-size { font-variant-numeric: tabular-nums; }
+.en-crop-stage { position: relative; line-height: 0; display: flex; justify-content: center; }
+.en-crop-stage img {
+  max-width: 100%;
+  max-height: 68vh;
+  width: auto;
+  border-radius: 8px;
+  display: block;
+}
+.en-crop-stage canvas {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: crosshair;
+}
+.en-crop-actions { display: flex; justify-content: flex-end; gap: 8px; }

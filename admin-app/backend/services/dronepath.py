@@ -76,6 +76,44 @@ def add_image(lead, url):
     return _stamped(lead, path)
 
 
+def replace_image(lead, old_url, new_url, geometry_changed=True):
+    """Swap an edited version in where the capture was.
+
+    The edit takes the capture's PLACE rather than being added beside it: a
+    cropped view and its uncropped self are the same view, and a gallery that
+    shows both is a gallery you have to think about. What it came from is
+    remembered so the edit can be undone.
+
+    A crop or a re-render moves the pixels, so a path drawn on that view no
+    longer describes it -- the line is dropped when the edited view is the
+    one being drawn on.
+    """
+    path = dict(lead.drone_path or {})
+    images = images_of(path)
+    if old_url not in images:
+        raise PathError("that view is not one of this listing's captures")
+
+    path["images"] = [new_url if u == old_url else u for u in images]
+
+    # Chained edits (crop, then enhance) still point back at the first file,
+    # so Revert always returns the original capture rather than the step
+    # before it.
+    originals = dict(path.get("originals") or {})
+    originals[new_url] = originals.pop(old_url, old_url)
+    path["originals"] = originals
+
+    if path.get("image") == old_url:
+        path["image"] = new_url
+        if geometry_changed:
+            path.pop("points", None)
+    return _stamped(lead, path)
+
+
+def original_of(path, url):
+    """The capture an edited view came from, or None."""
+    return (path or {}).get("originals", {}).get(url)
+
+
 def set_primary(lead, url):
     """Choose the view the flight path is drawn on."""
     path = dict(lead.drone_path or {})
@@ -95,6 +133,9 @@ def remove_image(lead, url):
     path = dict(lead.drone_path or {})
     images = [u for u in images_of(path) if u != url]
     path["images"] = images
+    originals = dict(path.get("originals") or {})
+    originals.pop(url, None)
+    path["originals"] = originals
     if path.get("image") == url:
         path["image"] = images[0] if images else None
         path.pop("points", None)

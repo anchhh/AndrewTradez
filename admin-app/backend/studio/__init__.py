@@ -1256,11 +1256,14 @@ def create_enhance():
     back = ("/studio/create/video/earth?lead_id=%s" % lead.id
             + ("&project=%s" % quote(project_id) if project_id else ""))
 
+    from services import dronepath, enhance
+
+    path = lead.drone_path or {}
     return render_template(
         "create_enhance.html", lead=lead,
-        photos=lead.photo_urls or [],
-        rooms=lead.photo_rooms or {},
-        enhanced=lead.enhanced_photos or {},
+        captures=dronepath.images_of(path),
+        originals=path.get("originals") or {},
+        references=enhance.exterior_references(lead),
         configured=gemini_image.is_configured(),
         back_href=back,
         next_href="/studio/create/render?" + tail,
@@ -3097,67 +3100,92 @@ def api_lead_drone_path(lead_id):
     return jsonify({"path": path, "described": dronepath.describe(path)})
 
 
-@studio_bp.route("/api/leads/<int:lead_id>/enhance", methods=["POST"])
-@login_required
-def api_lead_enhance(lead_id):
-    """Judge one photograph and save the corrected version.
+def _capture_edit(lead_id, make_new):
+    """Shared body of the capture edits.
 
-    One photo per request rather than a whole listing: each is a separate
-    call to Google, a listing is thirty of them, and a browser holding one
-    request open for two minutes is a request that times out having done
-    most of the work invisibly.
+    All three do the same three things -- make a new file, swap it into the
+    flight plan, answer with the gallery -- and differ only in how the file is
+    made. Writing that once is what keeps crop and enhance from drifting into
+    disagreeing about what a capture is.
     """
     from extensions import db
-    from services import enhance, gemini_image
+    from services import dronepath, enhance, gemini_image
 
     lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
-    photo = (request.get_json(silent=True) or {}).get("photo")
+    data = request.get_json(silent=True) or {}
+    image = (data.get("image") or "").strip()
+    if image not in dronepath.images_of(lead.drone_path or {}):
+        return jsonify({"error": "That view is not one of this listing's captures."}), 400
+
     try:
-        url, corrections = enhance.enhance_photo(lead, photo)
+        replacement = make_new(lead, image, data)
     except gemini_image.GeminiNotConfigured as exc:
         return jsonify({"error": str(exc)}), 400
-    except enhance.EnhanceError as exc:
+    except (enhance.EnhanceError, dronepath.PathError) as exc:
         return jsonify({"error": str(exc)}), 400
 
-    mapping = dict(lead.enhanced_photos or {})
-    if url:
-        mapping[photo] = url
-    else:
-        # Nothing needed doing. Any earlier correction of this photo is
-        # dropped rather than left behind claiming to be current.
-        mapping.pop(photo, None)
-    lead.enhanced_photos = mapping
+    path = dronepath.replace_image(lead, image, replacement)
     db.session.commit()
+    return jsonify({"image": replacement, "was": image,
+                    "images": dronepath.images_of(path),
+                    "originals": path.get("originals") or {},
+                    "primary": path.get("image")})
 
-    return jsonify({"photo": photo, "enhanced": url,
-                    "corrections": corrections,
-                    "note": corrections.get("note")})
 
-
-@studio_bp.route("/api/leads/<int:lead_id>/enhance/revert", methods=["POST"])
+@studio_bp.route("/api/leads/<int:lead_id>/captures/enhance", methods=["POST"])
 @login_required
-def api_lead_enhance_revert(lead_id):
-    """Go back to the photograph as it was taken.
+def api_capture_enhance(lead_id):
+    """Redraw one Earth capture as a photograph, from the listing's own
+    exterior shots."""
+    from services import enhance
 
-    The file stays on disk -- it is one line of mapping that decides which
-    version anything renders from, and deleting the picture would make this
-    irreversible for no gain.
+    return _capture_edit(lead_id,
+                         lambda lead, image, data: enhance.enhance_capture(lead, image))
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/captures/crop", methods=["POST"])
+@login_required
+def api_capture_crop(lead_id):
+    """Crop one Earth capture to a box drawn in its own pixels."""
+    from services import enhance
+
+    return _capture_edit(
+        lead_id,
+        lambda lead, image, data: enhance.crop_capture(lead, image, data.get("box") or []))
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/captures/revert", methods=["POST"])
+@login_required
+def api_capture_revert(lead_id):
+    """Put the capture back the way it came out of Google Earth.
+
+    The edited file stays on disk. Reverting is a swap in the flight plan,
+    which means re-editing does not have to start from a re-capture.
     """
     from extensions import db
+    from services import dronepath
 
     lead = get_owned_lead(lead_id)
     if lead is None:
         return jsonify({"error": "Lead not found."}), 404
 
-    photo = (request.get_json(silent=True) or {}).get("photo")
-    mapping = dict(lead.enhanced_photos or {})
-    mapping.pop(photo, None)
-    lead.enhanced_photos = mapping
+    image = ((request.get_json(silent=True) or {}).get("image") or "").strip()
+    original = dronepath.original_of(lead.drone_path or {}, image)
+    if not original:
+        return jsonify({"error": "That view is the original."}), 400
+
+    try:
+        path = dronepath.replace_image(lead, image, original)
+    except dronepath.PathError as exc:
+        return jsonify({"error": str(exc)}), 400
     db.session.commit()
-    return jsonify({"photo": photo, "enhanced": None})
+    return jsonify({"image": original, "was": image,
+                    "images": dronepath.images_of(path),
+                    "originals": path.get("originals") or {},
+                    "primary": path.get("image")})
 
 
 @studio_bp.route("/api/showcase/rebuild", methods=["POST"])

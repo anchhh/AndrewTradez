@@ -22,25 +22,38 @@
   <section class="card">
     <div class="en-head">
       <div>
-        <h2>Correct the photographs</h2>
-        <p class="hint">Gemini reads each photograph and says how far the
-          exposure, the white balance and the highlights are out. Those
-          numbers are applied to the real pixels &mdash; nothing is redrawn,
-          nothing is added, and the framing does not move. A photograph that
-          is already right is left alone.</p>
+        <h2>Clean up the Earth captures</h2>
+        <p class="hint">Earth's 3D view is a mesh, not a photograph &mdash;
+          smeared roofs, soft edges. Gemini redraws a capture as a photograph
+          of this house, working from the listing's own exterior shots so the
+          walls, roof and landscaping come out as they actually are. Crop
+          first if the shot needs framing.</p>
       </div>
-      <div class="en-actions">
-        <button type="button" class="btn-send" id="en-all">Check every photo</button>
-        <span class="hint" id="en-note"></span>
-      </div>
+      {% if references %}
+        <div class="en-refs">
+          <span class="hint">Matching against</span>
+          {% for url in references %}<img src="{{ url }}" alt="">{% endfor %}
+        </div>
+      {% endif %}
     </div>
 
     {% if not configured %}
-      <p class="rn-scope-note is-warn">Gemini isn't connected, so nothing can
-        be judged. Add an API key to studio/gemini.json.</p>
+      <p class="rn-scope-note is-warn">Gemini isn't connected, so captures
+        can be cropped but not redrawn. Add an API key to
+        studio/gemini.json.</p>
+    {% elif not references %}
+      <p class="rn-scope-note is-warn">This listing has no exterior photos,
+        so there is nothing to match the building against. Redrawing is off
+        until it has some.</p>
     {% endif %}
 
+    <p class="hint" id="en-note"></p>
     <div class="en-grid" id="en-grid"></div>
+
+    {% if not captures %}
+      <p class="dp-empty">No Earth captures yet.
+        <a href="{{ back_href }}">Capture some at the previous step</a>.</p>
+    {% endif %}
   </section>
 
   <div class="row action-row ge-actions">
@@ -49,11 +62,31 @@
   </div>
 </div>
 
+{# The cropper. A full-size overlay rather than an inline box: framing a shot
+   means looking at it, and a 230px thumbnail is not looking at it. #}
+<div class="en-crop" id="en-crop" hidden>
+  <div class="en-crop-panel">
+    <div class="en-crop-head">
+      <span>Drag a box over the part you want to keep.</span>
+      <span class="en-crop-size" id="en-crop-size"></span>
+    </div>
+    <div class="en-crop-stage" id="en-crop-stage">
+      <img id="en-crop-img" alt="The capture being cropped">
+      <canvas id="en-crop-canvas"></canvas>
+    </div>
+    <div class="en-crop-actions">
+      <button type="button" class="btn-secondary btn-tiny" id="en-crop-reset">Start over</button>
+      <button type="button" class="btn-secondary" id="en-crop-cancel">Cancel</button>
+      <button type="button" class="btn-send" id="en-crop-apply">Crop</button>
+    </div>
+  </div>
+</div>
+
 <script>
   window.__LEAD__ = {{ lead.id | tojson }};
-  window.__PHOTOS__ = {{ photos | tojson }};
-  window.__ROOMS__ = {{ rooms | tojson }};
-  window.__ENHANCED__ = {{ enhanced | tojson }};
+  window.__CAPTURES__ = {{ captures | tojson }};
+  window.__ORIGINALS__ = {{ originals | tojson }};
+  window.__CAN_ENHANCE__ = {{ (configured and references | length > 0) | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_enhance.js') }}"></script>
 </body>

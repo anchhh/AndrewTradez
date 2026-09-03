@@ -1,59 +1,45 @@
-/* Stage 3: correcting the photographs.
+/* Stage 3: the editor for the Google Earth captures.
 
-   Each photo is judged on its own request. A listing is thirty photographs
-   and each is a separate call to Google, so one request for the lot would
-   hold a connection open for a minute and lose everything on a timeout --
-   this way the grid fills in as the answers arrive and a failure costs one
-   picture rather than the run.
+   Two edits, and they are different in kind. Cropping is exact and instant:
+   a rectangle in the image's own pixels, applied by the server with PIL.
+   Enhancing is a model redrawing the capture from the listing's exterior
+   photographs, which takes about ten seconds and can come back looking
+   wrong -- so both are undoable, and Revert always returns the capture as
+   Earth gave it rather than the step before.
 
-   What comes back is numbers, not a new image: the correction is applied
-   here to the real pixels. So "before" and "after" are the same photograph
-   at two settings, and the toggle is worth having because the difference is
-   often small. Small is the point. */
+   Crop coordinates are held in image pixels, never screen pixels, so the box
+   survives the overlay being a different size on a different monitor. Same
+   reason the flight path is stored that way. */
 
 const lead = window.__LEAD__;
-const photos = window.__PHOTOS__ || [];
-const rooms = window.__ROOMS__ || {};
-const enhanced = window.__ENHANCED__ || {};
+const canEnhance = window.__CAN_ENHANCE__;
+let captures = window.__CAPTURES__ || [];
+let originals = window.__ORIGINALS__ || {};
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { el("en-note").textContent = text || ""; };
-const state = {};   // {url: {busy, note, error}}
-
-function escapeHtml(value) {
-  return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  }[c]));
-}
-
-function roomLabel(url) {
-  const entry = rooms[url];
-  const label = entry && typeof entry === "object" ? entry.label : entry;
-  return label || "Unsorted";
-}
+const busy = {};   // {url: true} while a request for that capture is out
 
 function render() {
-  el("en-grid").innerHTML = photos.map((url, i) => {
-    const done = enhanced[url];
-    const info = state[url] || {};
+  el("en-grid").innerHTML = captures.map((url, i) => {
+    const edited = !!originals[url];
+    const working = busy[url];
     return `
-      <figure class="en-item${done ? " is-done" : ""}" data-url="${url}">
+      <figure class="en-item${edited ? " is-done" : ""}" data-url="${url}">
         <div class="en-shot">
-          <img src="${done || url}" alt="${escapeHtml(roomLabel(url))}"
-               data-before="${url}" data-after="${done || ""}">
-          ${done ? `<span class="en-flag">Corrected</span>` : ""}
-          ${info.busy ? `<span class="en-busy">Reading…</span>` : ""}
+          <img src="${url}" alt="Capture ${i + 1}">
+          ${edited ? `<span class="en-flag">Edited</span>` : ""}
+          ${working ? `<span class="en-busy">${working}</span>` : ""}
         </div>
         <figcaption>
-          <span class="en-room">${escapeHtml(roomLabel(url))}</span>
-          <span class="en-note${info.error ? " is-warn" : ""}">${escapeHtml(
-            info.error || info.note || "")}</span>
+          <span class="en-room">View ${i + 1}</span>
           <span class="en-buttons">
-            ${done
-              ? `<button type="button" class="btn-tiny" data-act="hold">Hold to compare</button>
-                 <button type="button" class="btn-secondary btn-tiny" data-act="revert">Revert</button>`
-              : `<button type="button" class="btn-secondary btn-tiny" data-act="enhance"
-                         ${info.busy ? "disabled" : ""}>Check this photo</button>`}
+            <button type="button" class="btn-secondary btn-tiny" data-act="crop"
+                    ${working ? "disabled" : ""}>Crop</button>
+            <button type="button" class="btn-secondary btn-tiny" data-act="enhance"
+                    ${working || !canEnhance ? "disabled" : ""}>Enhance</button>
+            ${edited ? `<button type="button" class="btn-tiny" data-act="revert"
+                    ${working ? "disabled" : ""}>Revert</button>` : ""}
           </span>
         </figcaption>
       </figure>`;
@@ -62,83 +48,153 @@ function render() {
   el("en-grid").querySelectorAll("button").forEach((button) => {
     const url = button.closest(".en-item").dataset.url;
     const act = button.dataset.act;
-    if (act === "enhance") button.addEventListener("click", () => enhance(url));
-    if (act === "revert") button.addEventListener("click", () => revert(url));
-    if (act === "hold") holdToCompare(button);
+    button.addEventListener("click", () => {
+      if (act === "crop") openCrop(url);
+      else post(act, url);
+    });
   });
 }
 
-/* Press and hold shows the original. A slider would be prettier and this is
-   one gesture that cannot be misread -- what you see while holding is what
-   the camera saw. */
-function holdToCompare(button) {
-  const img = button.closest(".en-item").querySelector("img");
-  const show = (which) => { img.src = img.dataset[which] || img.dataset.before; };
-  ["mousedown", "touchstart"].forEach((e) =>
-    button.addEventListener(e, () => show("before")));
-  ["mouseup", "mouseleave", "touchend"].forEach((e) =>
-    button.addEventListener(e, () => show("after")));
-}
-
-async function enhance(url) {
-  state[url] = { busy: true };
+/* One request shape for all three, because the answer is the same shape:
+   the whole gallery back. Patching the list locally from a partial reply is
+   how two views of the same thing start disagreeing. */
+async function post(action, url, extra = {}) {
+  busy[url] = action === "enhance" ? "Redrawing…" : "Working…";
   render();
+  note("");
   try {
-    const res = await fetch(`/studio/api/leads/${lead}/enhance`, {
+    const res = await fetch(`/studio/api/leads/${lead}/captures/${action}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ photo: url }),
+      body: JSON.stringify({ image: url, ...extra }),
     });
     const body = await res.json();
-    if (!res.ok) throw new Error(body.error || "that photo couldn't be read");
-
-    if (body.enhanced) {
-      enhanced[url] = body.enhanced;
-      state[url] = { note: body.note };
-    } else {
-      // Judged and found to need nothing. Said out loud, because a photo that
-      // silently stays the same looks like a button that did not work.
-      delete enhanced[url];
-      state[url] = { note: body.note || "Nothing to correct." };
-    }
+    if (!res.ok) throw new Error(body.error || "that edit didn't work");
+    captures = body.images || [];
+    originals = body.originals || {};
+    delete busy[url];
+    render();
+    if (action === "enhance") note("Redrawn. Revert if it came out wrong.");
   } catch (err) {
-    state[url] = { error: err.message };
+    delete busy[url];
+    render();
+    note(err.message);
   }
-  render();
 }
 
-async function revert(url) {
-  try {
-    await fetch(`/studio/api/leads/${lead}/enhance/revert`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ photo: url }),
-    });
-    delete enhanced[url];
-    state[url] = { note: "Back to the original." };
-  } catch (err) {
-    state[url] = { error: err.message };
-  }
-  render();
+/* ---------- the cropper ---------- */
+
+let cropUrl = null;
+let box = null;          // [x0, y0, x1, y1] in image pixels
+let natural = { w: 0, h: 0 };
+let dragging = false;
+
+const overlay = () => el("en-crop");
+const cropImg = () => el("en-crop-img");
+const cropCanvas = () => el("en-crop-canvas");
+
+function openCrop(url) {
+  cropUrl = url;
+  box = null;
+  const img = cropImg();
+  img.onload = () => {
+    natural = { w: img.naturalWidth, h: img.naturalHeight };
+    sizeCanvas();
+  };
+  img.src = url;
+  overlay().hidden = false;
 }
 
-/* One at a time, deliberately. Thirty parallel requests is how a free tier
-   starts returning 429s, and the grid filling in steadily reads as progress
-   where thirty spinners read as a hang. */
-el("en-all").addEventListener("click", async () => {
-  const button = el("en-all");
-  button.disabled = true;
-  const todo = photos.filter((url) => !enhanced[url]);
-  let corrected = 0;
-  for (let i = 0; i < todo.length; i += 1) {
-    note(`Reading ${i + 1} of ${todo.length}…`);
-    await enhance(todo[i]);
-    if (enhanced[todo[i]]) corrected += 1;
+function closeCrop() {
+  overlay().hidden = true;
+  cropUrl = null;
+  box = null;
+}
+
+function sizeCanvas() {
+  const rect = cropImg().getBoundingClientRect();
+  const canvas = cropCanvas();
+  canvas.width = Math.round(rect.width);
+  canvas.height = Math.round(rect.height);
+  drawBox();
+}
+
+function toImage(clientX, clientY) {
+  const rect = cropImg().getBoundingClientRect();
+  return [
+    Math.max(0, Math.min(natural.w, ((clientX - rect.left) / rect.width) * natural.w)),
+    Math.max(0, Math.min(natural.h, ((clientY - rect.top) / rect.height) * natural.h)),
+  ];
+}
+
+function drawBox() {
+  const canvas = cropCanvas();
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!box) {
+    el("en-crop-size").textContent = `${natural.w} × ${natural.h}`;
+    return;
   }
-  note(corrected
-    ? `${corrected} of ${todo.length} needed correcting.`
-    : `All ${todo.length} were already right.`);
-  button.disabled = false;
+
+  const rect = cropImg().getBoundingClientRect();
+  const sx = rect.width / natural.w;
+  const sy = rect.height / natural.h;
+  const [x0, y0, x1, y1] = normalised();
+  const x = x0 * sx;
+  const y = y0 * sy;
+  const w = (x1 - x0) * sx;
+  const h = (y1 - y0) * sy;
+
+  // Everything outside the box dimmed, which is what makes a crop readable
+  // as "this is what you keep" rather than "this is a rectangle".
+  ctx.fillStyle = "rgba(10, 8, 6, 0.55)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(x, y, w, h);
+
+  ctx.strokeStyle = "#ef5a2b";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+
+  el("en-crop-size").textContent =
+    `${Math.round(x1 - x0)} × ${Math.round(y1 - y0)} of ${natural.w} × ${natural.h}`;
+}
+
+function normalised() {
+  const [ax, ay, bx, by] = box;
+  return [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)];
+}
+
+cropCanvas().addEventListener("mousedown", (e) => {
+  const [x, y] = toImage(e.clientX, e.clientY);
+  box = [x, y, x, y];
+  dragging = true;
+  drawBox();
+});
+window.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  const [x, y] = toImage(e.clientX, e.clientY);
+  box[2] = x;
+  box[3] = y;
+  drawBox();
+});
+window.addEventListener("mouseup", () => { dragging = false; });
+window.addEventListener("resize", () => { if (cropUrl) sizeCanvas(); });
+
+el("en-crop-reset").addEventListener("click", () => { box = null; drawBox(); });
+el("en-crop-cancel").addEventListener("click", closeCrop);
+el("en-crop-apply").addEventListener("click", () => {
+  if (!box) { note("Drag a box first."); return; }
+  const [x0, y0, x1, y1] = normalised();
+  if (x1 - x0 < 32 || y1 - y0 < 32) { note("That crop is too small."); return; }
+  const url = cropUrl;
+  closeCrop();
+  post("crop", url, { box: [x0, y0, x1, y1] });
+});
+
+// Escape closes it, because an overlay that can only be dismissed by finding
+// the right button is an overlay people get stuck in.
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && cropUrl) closeCrop();
 });
 
 render();

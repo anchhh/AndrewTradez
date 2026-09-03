@@ -47,20 +47,6 @@ def local_path_for(photo_url):
     return os.path.join("studio", "static", "uploads", name)
 
 
-def _corrected(db, job, photo_url):
-    """The enhanced file for this photo, or the photo itself.
-
-    Looked up per clip rather than once for the job, because a job can sit in
-    the queue while stage 3 is still working through the listing.
-    """
-    from models import Lead
-    from services.enhance import rendered_url
-
-    if not job.lead_id:
-        return photo_url
-    return rendered_url(db.session.get(Lead, job.lead_id), photo_url)
-
-
 def _update(db, job, **fields):
     for key, value in fields.items():
         setattr(job, key, value)
@@ -104,13 +90,7 @@ def _run(app, job_id):
                 db.session.commit()
 
                 try:
-                    # Stage 3's corrected version when there is one. The
-                    # ORIGINAL url stays on the clip: room labels, anchors and
-                    # the results page are all keyed by it, and swapping the
-                    # identity here would quietly unsort the listing. Only the
-                    # file that goes up to the model changes.
-                    source = _corrected(db, job, photo_url)
-                    path = local_path_for(source)
+                    path = local_path_for(photo_url)
                     if not os.path.exists(path):
                         raise VideoError(f"photo missing on disk: {os.path.basename(path)}")
 
@@ -131,10 +111,7 @@ def _run(app, job_id):
                     last_url = None
                     anchor = spec.get("anchor")
                     if anchor:
-                        # The anchor is the clip's last frame, so it gets the
-                        # same treatment: corrected file up, original url on
-                        # the record.
-                        anchor_path = local_path_for(_corrected(db, job, anchor))
+                        anchor_path = local_path_for(anchor)
                         if os.path.exists(anchor_path):
                             last_url = upload_image(anchor_path, cfg)
                             entry["anchor"] = anchor
