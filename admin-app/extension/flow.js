@@ -112,31 +112,29 @@ async function downloadBrief(urls) {
  * reveals exists.
  */
 async function fillFlowPage(prompt, files) {
-  /* Written against what the page actually reports, not against a guess.
+  /* Written against what the page reported, and then against what pressing
+   * "+" actually opened: an asset browser -- All Media, a search box, an
+   * "Upload media" button, and "No results found" on an empty library.
    *
-   *   FILE INPUTS (1)
-   *     [0] accept="image/*" visible=false
-   *         at div#__next > div.sc-…> input.sc-…
-   *   TYPABLE (1)
-   *     [0] div  w=566            <- contenteditable, not a textarea
-   *   CONTROLS NEAR THE PROMPT
-   *     "add_2Create"  "Agent"  "Nano Banana Pro…"  "arrow_forwardCreate"
+   * So attaching is TWO steps, and every earlier version did only the first.
+   * Upload puts the images in the library; they are attached to the prompt
+   * by being SELECTED in that browser afterwards. That is exactly why the
+   * files kept arriving in Flow and never on the chat.
    *
-   * One hidden input for the whole page means attaching is not a second
-   * upload -- it is the SAME input, reached through the composer's "+".
-   * Feeding it cold is what put the images in the library twice. So the
-   * order matters: press "+", take whatever it offers, and only then hand
-   * over the files.
-   *
-   * Every step is reported, so a failure says which one stopped rather than
-   * leaving another round of guessing.
+   * The sequence: type the prompt, open the browser with "+", press its
+   * Upload media, hand over the files, wait for the thumbnails to appear,
+   * click them, and confirm if there is anything to confirm. Every step is
+   * reported so a failure names the one that stopped.
    */
   const steps = [];
-  const found = { prompt: null, fileInput: null, added: 0, via: null, steps };
+  const found = { prompt: null, fileInput: null, added: 0, selected: 0, via: null, steps };
   const wait = (ms) => new Promise((done) => setTimeout(done, ms));
   const visible = (el) => el && el.offsetParent !== null;
   const labelOf = (el) =>
     ((el.getAttribute("aria-label") || "") + " " + (el.textContent || "")).trim();
+  const clickables = () =>
+    [...document.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"]')]
+      .filter(visible);
 
   // ---- the prompt: a contenteditable, so execCommand rather than .value
   const box = [
@@ -159,55 +157,48 @@ async function fillFlowPage(prompt, files) {
     }
     steps.push("prompt typed");
   } else {
-    steps.push("no prompt box found");
+    steps.push("no prompt box");
   }
 
-  // ---- the "+" beside the prompt. Its text is the icon ligature plus a
-  // label, which is why it reads as "add_2Create".
+  // ---- open the asset browser
   let scope = box ? box.parentElement : document.body;
   for (let up = 0; up < 5 && scope && scope !== document.body; up += 1) {
     scope = scope.parentElement;
   }
   const plus = [...(scope || document).querySelectorAll('button, [role="button"]')]
     .filter(visible)
-    // The label is an icon ligature run together with the button's
-    // text -- "add_2Create" -- so there is no word boundary after the
-    // icon to anchor on. Matching the start is what works.
-    .find((el) => /^\s*add(_\d+)?/i.test(labelOf(el)) ||
-                  /add reference|add image|attach/i.test(labelOf(el)));
+    .find((el) => /^\s*add(_\d+)?/i.test(labelOf(el)));
+
+  const imagesBefore = new Set([...document.querySelectorAll("img")]);
 
   if (plus) {
     plus.click();
-    steps.push(`pressed "${labelOf(plus).slice(0, 24)}"`);
-    await wait(700);
+    steps.push("opened the asset browser");
+    await wait(1200);
   } else {
-    steps.push("no + button found beside the prompt");
+    steps.push("no + beside the prompt");
   }
 
-  // ---- whatever that opened. Usually a menu with an upload item; taking it
-  // is what tells the app the files belong to the prompt.
-  const menuItem = [...document.querySelectorAll(
-    '[role="menuitem"], [role="option"], [role="dialog"] button, [role="menu"] button')]
-    .filter(visible)
-    .find((el) => /upload|computer|device|from file|browse|add image/i.test(labelOf(el)));
-
-  if (menuItem) {
-    menuItem.click();
-    steps.push(`chose "${labelOf(menuItem).slice(0, 24)}"`);
-    found.via = `the composer's "${labelOf(menuItem).slice(0, 24)}"`;
-    await wait(500);
-  } else if (plus) {
-    steps.push("no upload item in what the + opened");
-    found.via = "the composer's plus button";
+  // ---- its Upload media. Searched across the whole page, not only inside a
+  // role=dialog: the browser that opens is a panel with no such role, which
+  // is why the earlier version reported "no upload item".
+  const uploader = clickables()
+    .find((el) => /upload/i.test(labelOf(el)) && !/uploads$/i.test(labelOf(el).trim()));
+  if (uploader) {
+    uploader.click();
+    steps.push('pressed "' + labelOf(uploader).slice(0, 20) + '"');
+    found.via = labelOf(uploader).slice(0, 20);
+    await wait(600);
+  } else {
+    steps.push("no upload control in the browser");
   }
 
-  // ---- and now the input, which by this point the composer is listening to.
+  // ---- hand over the files
   const input = [...document.querySelectorAll('input[type="file"]')]
     .find((el) => (el.getAttribute("accept") || "").includes("image")) ||
     document.querySelector('input[type="file"]');
-
   if (!input) {
-    steps.push("no file input on the page at all");
+    steps.push("no file input at all");
     return found;
   }
 
@@ -222,7 +213,35 @@ async function fillFlowPage(prompt, files) {
   });
   input.files = data.files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
-  steps.push(`${found.added} files handed to the input`);
+  steps.push(found.added + " files uploaded");
+
+  // ---- and now the half that was missing: the uploaded images have to be
+  // SELECTED in the browser before they belong to the prompt. Waited for
+  // rather than assumed, because an upload takes as long as it takes.
+  let fresh = [];
+  for (let tries = 0; tries < 30 && fresh.length < found.added; tries += 1) {
+    await wait(1000);
+    fresh = [...document.querySelectorAll("img")].filter(
+      (img) => !imagesBefore.has(img) && visible(img));
+  }
+  steps.push(fresh.length + " thumbnails appeared");
+
+  const targets = fresh.slice(0, found.added);
+  targets.forEach((img) => {
+    const pick = img.closest('button, [role="option"], [role="checkbox"], label') || img;
+    pick.click();
+    found.selected += 1;
+  });
+  if (found.selected) steps.push(found.selected + " selected");
+
+  // ---- confirm, if this browser asks for it
+  await wait(500);
+  const confirm = clickables().find((el) =>
+    /^\s*(add|done|select|insert|use|attach)\b/i.test(labelOf(el).replace(/^\w*_\d*/, "")));
+  if (confirm) {
+    confirm.click();
+    steps.push('confirmed with "' + labelOf(confirm).slice(0, 20) + '"');
+  }
 
   return found;
 }
@@ -260,8 +279,11 @@ async function fillFlow() {
     // The steps are the message. When this lands in the library again, the
     // line says which stage did not happen rather than claiming success.
     setFlowStatus((found.steps || []).join(" → ") +
-      ". Check whether they attached to the prompt or went to the library.",
-      "ok");
+      (found.selected
+        ? ". They should be on the prompt now — check, then send it yourself."
+        : ". Nothing got selected, so they are in the library rather than on " +
+          "the prompt."),
+      found.selected ? "ok" : "error");
   } catch (err) {
     setFlowStatus(err.message, "error");
   }
