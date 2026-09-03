@@ -29,6 +29,18 @@
           walls, roof and landscaping come out as they actually are. Crop
           first if the shot needs framing.</p>
       </div>
+      {# Flow cannot be handed a job -- no API, no prompt parameter, nothing
+         that attaches an image -- so this does the only three things that can
+         be done for you: copy the prompt, download the pictures in order, and
+         open Flow. #}
+      <div class="en-flow">
+        <span class="hint">Making it in Google Flow instead?</span>
+        <button type="button" class="btn-secondary btn-tiny" data-side="front"
+                id="en-flow-front">Front set &rarr; Flow</button>
+        <button type="button" class="btn-secondary btn-tiny" data-side="back"
+                id="en-flow-back">Back set &rarr; Flow</button>
+      </div>
+
       {% if references %}
         <div class="en-refs">
           <span class="hint">Matching against</span>
@@ -135,6 +147,8 @@
   window.__DEFAULT_REFS__ = {{ references | tojson }};
   window.__SLOTS__ = {{ slots | tojson }};
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+  window.__FLOW_URL__ = {{ flow_url | tojson }};
+  window.__PROMPT__ = {{ prompt | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_enhance.js') }}"></script>
 </body>

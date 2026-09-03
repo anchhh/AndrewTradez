@@ -251,6 +251,39 @@ MULTI_SLOTS = {shot["key"] for group in SHOT_PLAN for shot in group["shots"]
 MAX_PER_SLOT = 6
 
 
+# Where Google Flow lives. A link, because that is all it can be: Flow has
+# no public API and no documented URL parameter that pre-fills a prompt or
+# attaches an image. Anything claiming to "send" a job there would be
+# scraping a web tool.
+FLOW_URL = "https://labs.google/fx/tools/flow"
+
+
+def group_of(slot):
+    """Which group of the plan a slot belongs to."""
+    for group in SHOT_PLAN:
+        if any(shot["key"] == slot for shot in group["shots"]):
+            return group["key"]
+    return None
+
+
+def placed_by_group(lead):
+    """{group key: [urls]} in plan order, for handing to something else.
+
+    Grouped rather than flat because the front and the back are separate
+    briefs: a flight is generated from one or the other, and sending both
+    sets as one pile is how a back-garden shot gets the front door.
+    """
+    slots = slots_of(lead.drone_path or {})
+    out = {}
+    for key in CAPTURE_SLOTS:
+        group = group_of(key)
+        for url in slots.get(key) or []:
+            bucket = out.setdefault(group, [])
+            if url not in bucket:
+                bucket.append(url)
+    return out
+
+
 def placed(lead):
     """Everything put in a box, in plan order.
 

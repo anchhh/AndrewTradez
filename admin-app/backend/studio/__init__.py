@@ -1336,6 +1336,8 @@ def create_enhance():
         references=dronepath.placed(lead) or enhance.exterior_references(lead),
         models=enhance.MODELS,
         default_model=enhance._model_settings()[0],
+        flow_url=dronepath.FLOW_URL,
+        prompt=enhance.PROMPT,
         # Every photo on the listing, so the picker can offer the interior
         # ones too -- a capture of the back garden is better matched against
         # a photo of the back garden than against the front elevation.
@@ -3327,6 +3329,67 @@ def api_capture_revert(lead_id):
                     "images": dronepath.images_of(path),
                     "originals": path.get("originals") or {},
                     "primary": path.get("image")})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/flow-bundle")
+@login_required
+def api_flow_bundle(lead_id):
+    """Everything one Flow run needs, as a single download.
+
+    Flow cannot be handed a job. It has no public API and no URL parameter
+    that pre-fills a prompt or attaches an image, so "send this to Flow" can
+    only ever mean: open Flow, and have the prompt and the pictures already
+    in hand. This is the second half of that.
+
+    A zip rather than a page of links because Flow takes a drag of files, and
+    a folder of numbered images is a drag of files. The prompt rides along as
+    prompt.txt so the run is reproducible from the download alone.
+    """
+    import zipfile
+    from io import BytesIO
+
+    from services import dronepath, enhance
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    side = (request.args.get("side") or "front").strip().lower()
+    grouped = dronepath.placed_by_group(lead)
+    wanted = ([side] if side in grouped else
+              [key for key in ("front", "back", "neighbours") if key in grouped])
+    if not wanted:
+        return jsonify({"error": "Nothing is placed on the board yet, so "
+                                 "there is nothing to send."}), 400
+
+    # Neighbours go along with either side: they are context for the street,
+    # not a subject of their own, and a flight always happens in one.
+    if side in ("front", "back") and "neighbours" in grouped:
+        wanted = [side, "neighbours"]
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("prompt.txt", enhance.PROMPT)
+        count = 0
+        for group in wanted:
+            for i, url in enumerate(grouped.get(group) or [], start=1):
+                path = local_path_from_url(url)
+                if not path or not path.exists():
+                    continue
+                # Numbered in plan order, because the order they are added in
+                # Flow is the order they are weighed: the capture first, the
+                # references after it.
+                count += 1
+                bundle.write(path, "%02d-%s-%s" % (count, group, path.name))
+
+    if not count:
+        return jsonify({"error": "Those images are no longer on disk."}), 400
+
+    buffer.seek(0)
+    name = "%s-%s-flow.zip" % (
+        secure_filename((lead.address or "listing").lower().replace(" ", "-")), side)
+    return send_file(buffer, mimetype="application/zip",
+                     as_attachment=True, download_name=name)
 
 
 @studio_bp.route("/api/showcase/rebuild", methods=["POST"])

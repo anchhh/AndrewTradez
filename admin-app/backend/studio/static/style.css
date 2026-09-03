@@ -6409,3 +6409,13 @@ button.en-shot {
 .en-model strong { display: block; font-weight: 600; }
 .en-model .hint { font-size: 0.72rem; }
 .en-model:has(input:checked) { border-color: var(--accent); }
+
+/* The Google Flow handover. Sits with the reference strip because it is the
+   same material going somewhere else. */
+.en-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+}

@@ -115,6 +115,70 @@ async function post(action, url, extra = {}) {
   }
 }
 
+/* ---------- handing it to Google Flow ----------
+
+   Flow has no public API and no URL that pre-fills a prompt or attaches an
+   image, so nothing here "sends" a job to it. What it does is the three
+   things that can honestly be done: put the prompt on the clipboard,
+   download the images in the order they should be added, and open Flow.
+
+   Front and back are separate buttons because they are separate briefs. A
+   flight happens on one side of a house, and handing over both piles at once
+   is how a back-garden shot ends up with the front door. */
+
+async function toFlow(side) {
+  const flow = window.__FLOW_URL__;
+  const prompt = window.__PROMPT__ || "";
+
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(prompt);
+    copied = true;
+  } catch (err) {
+    // Clipboard access can be refused; the prompt is still on the page and
+    // in the download, so this is a smaller convenience rather than a
+    // failure.
+  }
+
+  // Fetched as a blob rather than navigated to. Pointing the window at the
+  // endpoint works right up until the session has expired, at which point the
+  // "download" is a redirect to the login page and the board you were working
+  // on is gone. This way that is an error message instead.
+  note("Bundling the " + side + " set…");
+  try {
+    const res = await fetch(`/studio/api/leads/${lead}/flow-bundle?side=${side}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `couldn't build the ${side} set`);
+    }
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = (res.headers.get("Content-Disposition") || "")
+      .split("filename=").pop().replace(/"/g, "") || `${side}-flow.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 10000);
+  } catch (err) {
+    note(err.message);
+    return;
+  }
+
+  window.open(flow, "_blank", "noopener");
+  note(copied
+    ? `Prompt copied and the ${side} set downloaded. Flow is open — drop the ` +
+      `images in and paste the prompt.`
+    : `The ${side} set downloaded. Flow is open; the prompt is in prompt.txt ` +
+      `inside the zip.`);
+}
+
+["front", "back"].forEach((side) => {
+  const button = el(`en-flow-${side}`);
+  if (button) button.addEventListener("click", () => toFlow(side));
+});
+
 /* ---------- the viewer, which is also the cropper ---------- */
 
 let viewUrl = null;
