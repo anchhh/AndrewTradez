@@ -324,23 +324,13 @@ function renderPhotos() {
    choice is still saved on the project, because it is what a returning visit
    opens on.  */
 
-function renderStyleCards() {
-  document.querySelectorAll(".style-card").forEach((card) => {
-    card.classList.toggle("selected", card.dataset.style === state.style);
-  });
-
-  /* The style was chosen on the way in, so offering the three cards again
-     here asks a question that is already answered -- and answering it
-     differently halfway through is how a drone job quietly became a
-     walkthrough. Back, at the top, is the way to change it. */
-  const grid = el("style-grid");
-  if (grid) {
-    const decided = !!project.style;
-    grid.hidden = decided;
-    const hint = grid.previousElementSibling;
-    if (hint && hint.classList.contains("hint")) hint.hidden = decided;
-  }
-}
+/* The style picker used to live here as well as on the way in, hidden once a
+   style was known. Hiding it was the right instinct and the condition was the
+   wrong one: it showed whenever the answer had been LOST -- an old render
+   with no style recorded, a project rebuilt from a lead -- which is exactly
+   when re-asking is most likely to change the job under you. The cards are
+   gone; the style is chosen at /studio/create/video and nowhere else. */
+function renderStyleCards() {}
 
 /* A drone flight is flown over the outside of the house. Interior photos are
    not a worse choice for it, they are the wrong material -- a push-in across
@@ -396,9 +386,7 @@ function applyStyle(style, { save = true, seed = true } = {}) {
   }).catch(() => {});
 }
 
-document.querySelectorAll(".style-card").forEach((card) => {
-  card.addEventListener("click", () => applyStyle(card.dataset.style));
-});
+
 
 /* ---------- what the layout says ----------
 
