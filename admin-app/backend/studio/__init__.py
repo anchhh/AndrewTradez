@@ -3400,6 +3400,13 @@ def api_generate_side(lead_id):
         except enhance.EnhanceError as exc:
             return jsonify({"error": str(exc)}), 400
 
+    # Reloaded before the write, because generating took a minute and the
+    # other side may have finished during it. Both sides live in one JSON
+    # column: this request read it before its own call started, and writing
+    # that stale copy back is how a finished back shot vanished while the
+    # front was recorded -- the picture was on disk, nothing pointed at it.
+    db.session.refresh(lead)
+
     path = dronepath.set_generated(lead, side, image)
     db.session.commit()
     return jsonify({"side": side, "image": image,
