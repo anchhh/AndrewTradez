@@ -105,20 +105,24 @@ async function downloadBrief(urls) {
 }
 
 /* Runs INSIDE the Flow page. It can see nothing from this panel's scope, so
- * everything it needs is passed in. */
-function fillFlowPage(prompt, files) {
-  const found = { prompt: null, fileInput: null, added: 0 };
+ * everything it needs is passed in.
+ *
+ * Async on purpose: attaching to the prompt sometimes means opening the
+ * composer's own picker first, and that needs a beat before the input it
+ * reveals exists.
+ */
+async function fillFlowPage(prompt, files) {
+  const found = { prompt: null, fileInput: null, added: 0, via: null };
+  const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-  // The prompt box. Flow's markup is not documented, so this tries the
-  // shapes a prompt box takes, prefers the widest visible one, and reports
-  // which it matched.
-  const candidates = [
+  const visible = (el) => el && el.offsetParent !== null;
+
+  // The prompt box: the widest visible thing you can type into.
+  const box = [
     ...document.querySelectorAll("textarea"),
     ...document.querySelectorAll('[contenteditable="true"]'),
     ...document.querySelectorAll('input[type="text"]'),
-  ].filter((el) => el.offsetParent !== null);
-
-  const box = candidates.sort(
+  ].filter(visible).sort(
     (a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0];
 
   if (box) {
@@ -140,11 +144,64 @@ function fillFlowPage(prompt, files) {
     }
   }
 
-  // The images. A file input is fed through DataTransfer, which is the only
-  // way to hand a page a File it did not choose itself.
-  const input = document.querySelector('input[type="file"]');
+  /* Which file input to feed.
+   *
+   * NOT simply the first one on the page: that is the library uploader, and
+   * feeding it puts the images in Flow's asset shelf rather than on the
+   * prompt -- which is exactly what happened the first time this ran. The
+   * one that matters belongs to the composer, so the search starts at the
+   * prompt box and walks outward, taking the nearest.
+   */
+  function inputNear(node) {
+    let scope = node;
+    for (let up = 0; scope && up < 8; up += 1) {
+      // Stop before the document itself. Walking as far as <body> finds
+      // EVERY file input on the page, including the library uploader, and
+      // then reports it as "the composer" -- which is exactly how the first
+      // run put the images in Flow's asset shelf instead of on the prompt.
+      if (scope === document.body || scope === document.documentElement) return null;
+      const input = [...scope.querySelectorAll('input[type="file"]')].pop();
+      if (input) return input;
+      scope = scope.parentElement;
+    }
+    return null;
+  }
+
+  let input = box ? inputNear(box.parentElement) : null;
+  if (input) found.via = "the composer";
+
+  // Still nothing: the composer's picker is usually behind a "+", and the
+  // input it owns may not exist until that is pressed.
+  if (!input && box) {
+    let scope = box.parentElement;
+    for (let up = 0; scope && up < 6 && !input; up += 1) {
+      const opener = [...scope.querySelectorAll('button, [role="button"]')]
+        .filter(visible)
+        .find((el) => /add|attach|upload|image|reference|\+/i.test(
+          (el.getAttribute("aria-label") || "") + " " + (el.textContent || "").trim()));
+      if (opener) {
+        opener.click();
+        await wait(600);
+        input = inputNear(box.parentElement);
+        if (input) found.via = `the "${(opener.getAttribute("aria-label") ||
+          opener.textContent || "+").trim().slice(0, 24)}" button`;
+      }
+      scope = scope.parentElement;
+    }
+  }
+
+  // Nothing near the prompt. The page-wide input is NOT used as a fallback:
+  // on Flow that is the library uploader, and quietly filling it looks like
+  // success while putting the images somewhere they do nothing. Better to
+  // say so and let the selector be fixed.
+  if (!input) {
+    found.via = null;
+  }
+
   if (input) {
     found.fileInput = input.getAttribute("accept") || "any";
+    // DataTransfer is the only way to hand a page a File it did not choose
+    // itself.
     const data = new DataTransfer();
     files.forEach((file) => {
       const binary = atob(file.data);
@@ -155,6 +212,14 @@ function fillFlowPage(prompt, files) {
     });
     input.files = data.files;
     input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // Some composers listen for a drop rather than for the input, so the
+    // same files are offered that way too. Harmless when unhandled.
+    const target = input.closest("form, [role='textbox']") || box || input;
+    ["dragenter", "dragover", "drop"].forEach((name) =>
+      target.dispatchEvent(new DragEvent(name, {
+        bubbles: true, cancelable: true, dataTransfer: data,
+      })));
   }
 
   return found;
@@ -180,15 +245,20 @@ async function fillFlow() {
     });
 
     const found = (result || {}).result || {};
-    if (!found.prompt && !found.fileInput) {
-      throw new Error("Couldn't find a prompt box or a file input on that " +
-        "page. Open the panel where you would normally type the prompt, " +
-        "then press Deploy again.");
+    if (!found.fileInput) {
+      throw new Error(found.prompt
+        ? `Typed the prompt into the ${found.prompt}, but couldn't find the ` +
+          `attachment box on the composer. Open its "+" yourself, then press ` +
+          `Deploy again.`
+        : "Couldn't find a prompt box or an attachment box on that page. " +
+          "Open the panel where you would normally type the prompt, then " +
+          "press Deploy again.");
     }
     setFlowStatus(
-      `${found.added} image${found.added === 1 ? "" : "s"} attached` +
+      `${found.added} image${found.added === 1 ? "" : "s"} attached via ` +
+        `${found.via || "an unknown input"}` +
         (found.prompt ? `, prompt typed into the ${found.prompt}` : "") +
-        ". Check it, then run it yourself.",
+        ". Check the attachments, then send it yourself.",
       "ok");
   } catch (err) {
     setFlowStatus(err.message, "error");
