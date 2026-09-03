@@ -1078,7 +1078,8 @@ STEP_FLOWS = {
     # drone shot is one flight between two frames of the same property. They
     # were sharing the shots step, which meant a drone run arrived at a
     # room-by-room picker that had nothing to do with it.
-    "drone": ["Listing", "Google Earth", "Crop", "Generate", "Drone shot", "Clips"],
+    "drone": ["Listing", "Google Earth", "Crop", "Generate", "Flight path",
+              "Drone shot", "Clips"],
     None: ["Listing", "Style & shots", "Clips"],
 }
 
@@ -1120,6 +1121,7 @@ STAGE_PAGES = {
     "earth": ("Google Earth", "/studio/create/video/earth"),
     "enhance": ("Crop", "/studio/create/video/crop"),
     "generate": ("Generate", "/studio/create/video/generate"),
+    "flight": ("Flight path", "/studio/create/video/flight"),
     "render": ("Style & shots", "/studio/create/render"),
     "drone": ("Drone shot", "/studio/create/video/drone"),
 }
@@ -1387,7 +1389,7 @@ def create_generate():
         slot_order=dronepath.CAPTURE_SLOTS,
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
         back_href="/studio/create/video/crop?lead_id=%s&style=drone%s" % (lead.id, tail),
-        next_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
+        next_href="/studio/create/video/flight?lead_id=%s&style=drone%s" % (lead.id, tail),
         steps=_steps(style, "Generate"),
         crumbs=_create_crumbs("generate", style=style, project_id=project_id))
 
@@ -1445,10 +1447,49 @@ def create_drone():
         rates=video.model_info(cfg).get("rates") or {},
         configured=bool(cfg.get("api_key")),
         config_error=cfg.get("config_error"),
-        back_href=("/studio/create/video/generate?lead_id=%s&style=drone" % lead.id
+        back_href=("/studio/create/video/flight?lead_id=%s&style=drone" % lead.id
                    + ("&project=%s" % quote(project_id) if project_id else "")),
         steps=_steps("drone", "Drone shot"),
         crumbs=_create_crumbs("drone", style="drone", project_id=project_id))
+
+
+@studio_bp.route("/create/video/flight")
+@login_required
+def create_flight():
+    """Stage 5: the line between the two shots.
+
+    The stage before this makes two pictures -- the front and the back -- and
+    the stage after turns them into a flight. What was missing between them
+    was the flight itself: which way the drone travels to get from one to the
+    other, over what, and whether it goes straight or comes round.
+
+    Drawn on an overhead, because that is the only view where a path is a
+    shape rather than a guess. The two ends are not free choices: A is the
+    front shot and B is the back one, because that is what a flyover of this
+    property is.
+    """
+    from services import dronepath
+
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    path = lead.drone_path or {}
+    project_id = request.args.get("project")
+    tail = "&project=%s" % quote(project_id) if project_id else ""
+
+    return render_template(
+        "create_flight.html", lead=lead,
+        made=dronepath.generated_of(path),
+        surfaces=dronepath.overheads(lead),
+        drawn=dronepath.flight_of(path),
+        described=dronepath.describe(path),
+        generate_href="/studio/create/video/generate?lead_id=%s&style=drone%s" % (lead.id, tail),
+        back_href="/studio/create/video/generate?lead_id=%s&style=drone%s" % (lead.id, tail),
+        next_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
+        steps=_steps("drone", "Flight path"),
+        crumbs=_create_crumbs("flight", style="drone", project_id=project_id))
 
 
 @studio_bp.route("/create/video/path")
@@ -3273,21 +3314,68 @@ def api_lead_drone_path(lead_id):
             return jsonify({"error": "That path has a point in it that "
                                      "isn't a coordinate."}), 400
 
-    existing = lead.drone_path or {}
-    path = {
+    # Merged into what is there, NOT written over it. This used to build a
+    # fresh dict carrying only the gallery, which was true when a drone_path
+    # was a line and a few pictures. It now also holds which box each capture
+    # was placed in and the two generated shots, and drawing a line was
+    # quietly deleting both.
+    path = dict(lead.drone_path or {})
+    path.update({
         "points": clean,
         "width": float(data.get("width") or 0) or None,
         "height": float(data.get("height") or 0) or None,
-        "image": (data.get("image") or "").strip() or None,
-        # Saving a path is not a statement about the other captures, so the
-        # gallery survives it.
-        "images": dronepath.images_of(existing),
+        "path_image": (data.get("image") or "").strip() or None,
         "references": [r for r in (data.get("references") or []) if isinstance(r, str)][:8],
         "saved_at": datetime.now(timezone.utc).isoformat(),
-    }
+    })
     lead.drone_path = path
     db.session.commit()
     return jsonify({"path": path, "described": dronepath.describe(path)})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/flight", methods=["POST", "DELETE"])
+@login_required
+def api_lead_flight(lead_id):
+    """The line from the front shot to the back one.
+
+    Its own endpoint rather than the old path one, because this writes a
+    flight and nothing else: the board, the captures and the two generated
+    shots are none of its business and it should not be able to touch them.
+    """
+    from extensions import db
+    from services import dronepath
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    if request.method == "DELETE":
+        path = dronepath.clear_flight(lead)
+        db.session.commit()
+        return jsonify({"flight": dronepath.flight_of(path), "described": ""})
+
+    data = request.get_json(silent=True) or {}
+    points = data.get("points")
+    if not isinstance(points, list):
+        return jsonify({"error": "That is not a path."}), 400
+
+    clean = []
+    for point in points[:400]:
+        try:
+            clean.append([float(point[0]), float(point[1])])
+        except (TypeError, ValueError, IndexError):
+            return jsonify({"error": "That path has a point in it that "
+                                     "isn't a coordinate."}), 400
+
+    try:
+        path = dronepath.set_flight(lead, (data.get("image") or "").strip(),
+                                    data.get("width"), data.get("height"), clean)
+    except dronepath.PathError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    db.session.commit()
+    return jsonify({"flight": dronepath.flight_of(path),
+                    "described": dronepath.describe(path)})
 
 
 def _capture_edit(lead_id, make_new):

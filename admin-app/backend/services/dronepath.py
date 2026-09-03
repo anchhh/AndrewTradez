@@ -350,6 +350,72 @@ def reference_count(lead, side):
     return min(len(ranked), MAX_REFERENCES), len(ranked)
 
 
+# What a flight is drawn ON. An overhead, always: a path is a shape from
+# above and a guess from anywhere else. Ranked so the property's own overhead
+# comes before the one that was filed under the neighbours, which is often
+# the same picture anyway.
+OVERHEAD_SLOTS = ("front_overhead", "back_overhead", "nb_overhead",
+                  "front_3d", "back_3d", "nb_3d")
+
+
+def overheads(lead):
+    """The captures worth drawing a path on, best first."""
+    slots = slots_of(lead.drone_path or {})
+    out = []
+    for key in OVERHEAD_SLOTS:
+        for url in slots.get(key) or []:
+            if url not in out:
+                out.append(url)
+    # Better a picture than an empty page: an unfiled capture still shows the
+    # plot, and someone who never used the board still has a flight to plan.
+    for url in images_of(lead.drone_path or {}):
+        if url not in out:
+            out.append(url)
+    return out
+
+
+def flight_of(path):
+    """The drawn line: {image, width, height, points}, or empty.
+
+    Kept at the top of the record rather than under a key of its own, because
+    describe() has read it from there since the first planner and a flight is
+    a flight however it was drawn.
+    """
+    path = path or {}
+    points = path.get("points") or []
+    if len(points) < 2:
+        return {}
+    return {"image": path.get("path_image") or path.get("image"),
+            "width": path.get("width"), "height": path.get("height"),
+            "points": points}
+
+
+def set_flight(lead, image, width, height, points):
+    """Record the line. Two points or more, in the drawing image's pixels."""
+    points = [[float(x), float(y)] for x, y in (points or [])]
+    if len(points) < 2:
+        raise PathError("a flight needs a start and an end")
+    if not (width and height):
+        raise PathError("that path has no picture to belong to")
+
+    path = dict(lead.drone_path or {})
+    path["points"] = points
+    path["width"] = float(width)
+    path["height"] = float(height)
+    # Named separately from the board's own primary image: which capture the
+    # LINE is in the coordinates of is a different question from which one the
+    # gallery leads with, and conflating them lost paths before.
+    path["path_image"] = image or None
+    return _stamped(lead, path)
+
+
+def clear_flight(lead):
+    path = dict(lead.drone_path or {})
+    for key in ("points", "width", "height", "path_image"):
+        path.pop(key, None)
+    return _stamped(lead, path)
+
+
 def generated_of(path):
     """{side: url} for the shots already made."""
     return dict((path or {}).get("generated") or {})

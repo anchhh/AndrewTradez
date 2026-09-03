@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Flight path</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Flight path</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  {% if not (made.front and made.back) %}
+    <section class="card">
+      <h2>The two ends are missing</h2>
+      <p class="hint">A flight goes from the front shot to the back one, so
+        both have to exist before there is a path to draw.
+        <a href="{{ generate_href }}">Generate them at the previous step</a>.</p>
+    </section>
+  {% else %}
+    <section class="card">
+      <div class="en-head">
+        <div>
+          <h2>Drag from the front to the back</h2>
+          <p class="hint">Press on <b>A</b> and drag to <b>B</b>. The two ends
+            are fixed: the flight opens on the front shot and lands on the
+            back one. What you are choosing is the route between them &mdash;
+            straight across, or round the side of the house &mdash; and that
+            becomes the camera direction in the next step's prompt.</p>
+        </div>
+      </div>
+
+      <div class="fp-layout">
+        <div class="fp-stage">
+          <div class="fp-toolbar">
+            <button type="button" class="btn-secondary btn-tiny" id="fp-clear">Clear the path</button>
+            <button type="button" class="btn-secondary btn-tiny" id="fp-straight">Straight line</button>
+            <span class="hint" id="fp-note"></span>
+          </div>
+
+          {# Three layers: the overhead, the line, and the two end markers.
+             Separate because the line is redrawn constantly and the
+             photograph underneath should never be touched by that. #}
+          <div class="fp-wrap" id="fp-wrap">
+            <img id="fp-image" alt="An overhead view of this property">
+            <canvas id="fp-canvas"></canvas>
+            <button type="button" class="fp-pin is-a" id="fp-pin-a" title="Where the flight opens — the front shot">
+              <img src="{{ made.front }}" alt=""><span>A</span>
+            </button>
+            <button type="button" class="fp-pin is-b" id="fp-pin-b" title="Where the flight lands — the back shot">
+              <img src="{{ made.back }}" alt=""><span>B</span>
+            </button>
+          </div>
+
+          {# Which overhead to draw on. The line is stored in this picture's
+             own pixels, so changing it is changing the drawing surface and
+             the path has to be redrawn. #}
+          <p class="gn-inputs-label hint">Draw on</p>
+          <div class="fp-views" id="fp-views"></div>
+        </div>
+
+        <aside class="fp-side">
+          <figure class="fp-end">
+            <span class="fp-end-tag">A &mdash; opens on</span>
+            <img src="{{ made.front }}" alt="The generated front shot">
+            <figcaption>The front</figcaption>
+          </figure>
+          <figure class="fp-end">
+            <span class="fp-end-tag">B &mdash; lands on</span>
+            <img src="{{ made.back }}" alt="The generated back shot">
+            <figcaption>The back</figcaption>
+          </figure>
+
+          <div class="fp-said">
+            <h3>What the next step will be told</h3>
+            <p class="hint" id="fp-described">{{ described or "Nothing drawn yet." }}</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ back_href }}">Back</a>
+    <a class="cta-btn" href="{{ next_href }}">Continue</a>
+  </div>
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__SURFACES__ = {{ surfaces | tojson }};
+  window.__DRAWN__ = {{ drawn | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_flight.js') }}"></script>
+</body>
+</html>
