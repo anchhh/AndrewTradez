@@ -211,9 +211,14 @@
 
     function openRender(id) {
       const run = runById(id);
-      if (isDrone(run)) {
-        window.location.href =
-          "/studio/create/video/rendering?job=" + id + "&style=drone";
+      if (isDrone(run) && run.lead_id) {
+        // The shelf, with this render marked -- coming back to a clip means
+        // wanting to watch it and the ones beside it. A render still going
+        // is the exception: that one wants the waiting page.
+        window.location.href = run.running
+          ? "/studio/create/video/rendering?job=" + id + "&style=drone"
+          : "/studio/create/video/clips?lead_id=" + run.lead_id
+            + "&style=drone&job=" + id;
         return;
       }
       go(new URLSearchParams({ job: id }));
@@ -225,7 +230,7 @@
       const mine = renders.filter((r) => String(r.lead_id) === String(id));
       if (mine.length && mine.every(isDrone)) {
         window.location.href =
-          "/studio/create/video/drone?lead_id=" + id + "&style=drone";
+          "/studio/create/video/clips?lead_id=" + id + "&style=drone";
         return;
       }
       go(new URLSearchParams({ lead: id }));

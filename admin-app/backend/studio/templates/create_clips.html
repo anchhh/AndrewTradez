@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Videos</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Videos</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  <section class="card">
+    <div class="en-head">
+      <div>
+        <h2>Every clip made for this property</h2>
+        <p class="hint" id="cl-note">Newest first. Whatever produced them
+          &mdash; drone, walkthrough or basic &mdash; they all end up
+          here.</p>
+      </div>
+    </div>
+
+    <div class="cl-grid" id="cl-grid"></div>
+
+    <p class="dp-empty" id="cl-empty" hidden>
+      Nothing rendered for this listing yet.
+      <a href="{{ shot_href }}">Make one at the previous step</a>.
+    </p>
+  </section>
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ back_href }}">Back</a>
+    <a class="btn-secondary" href="{{ profile_href }}">Open the lead</a>
+    <a class="cta-btn" href="{{ shot_href }}">Make another</a>
+  </div>
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__HIGHLIGHT__ = {{ (highlight or "") | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_clips.js') }}"></script>
+</body>
+</html>

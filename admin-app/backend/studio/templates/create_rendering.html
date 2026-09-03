@@ -34,6 +34,9 @@
 
     <div class="row action-row" id="rd-actions">
       <a class="btn-secondary" href="{{ back_href }}">Back to the shot</a>
+      {% if clips_href %}
+        <a class="btn-secondary" href="{{ clips_href }}">All videos</a>
+      {% endif %}
       {% if profile_href %}
         <a class="btn-secondary" href="{{ profile_href }}">Open the lead</a>
       {% endif %}
@@ -45,6 +48,7 @@
 <script>
   window.__JOB__ = {{ job | tojson }};
   window.__PROFILE__ = {{ (profile_href or "") | tojson }};
+  window.__CLIPS__ = {{ (clips_href or "") | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_rendering.js') }}"></script>
 </body>

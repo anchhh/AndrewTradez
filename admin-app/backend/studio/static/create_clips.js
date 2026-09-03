@@ -1,0 +1,103 @@
+/* Stage 7: the shelf.
+
+   Every clip this property has produced, whatever made it. Reads the same
+   endpoint the lead profile and the Create screen read, so there is one
+   answer to "what has been rendered" rather than three that can disagree.
+
+   A render opened from anywhere else lands here with its id in the query, so
+   the thing you came back for is the thing that is highlighted and scrolled
+   to -- rather than making you find it among its siblings. */
+
+const lead = window.__LEAD__;
+const highlight = String(window.__HIGHLIGHT__ || "");
+
+const el = (id) => document.getElementById(id);
+
+function esc(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+/* The server writes naive UTC and isoformat() omits the zone, which the
+   browser then reads as local time. Say Z when nothing else does. */
+function when(value) {
+  if (!value) return null;
+  const utc = /(?:Z|[+-]\d\d:?\d\d)$/.test(value) ? value : value + "Z";
+  const at = new Date(utc);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+function ago(value) {
+  const at = when(value);
+  if (!at) return "";
+  const mins = Math.round((Date.now() - at.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + " min ago";
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return hours + (hours === 1 ? " hour ago" : " hours ago");
+  return at.toLocaleDateString();
+}
+
+const STYLES = { drone: "Drone shot", walkthrough: "Walkthrough", basic: "Basic" };
+
+async function load() {
+  let runs = [];
+  try {
+    const res = await fetch("/studio/api/video/jobs");
+    if (!res.ok) throw new Error();
+    runs = ((await res.json()).renders || [])
+      .filter((r) => String(r.lead_id) === String(lead));
+  } catch (err) {
+    el("cl-note").textContent = "Couldn't reach the server to list the clips.";
+    return;
+  }
+
+  // One tile per clip, not per run: a run is bookkeeping and a clip is the
+  // thing being looked for.
+  const tiles = [];
+  runs.forEach((run) => {
+    (run.clips || []).forEach((clip) => {
+      if (!clip.video_url) return;
+      tiles.push({
+        url: clip.video_url,
+        job: run.id,
+        style: STYLES[run.style] || "Video",
+        cost: run.cost != null ? run.cost : run.estimated_cost,
+        model: run.model_label || "",
+        made: run.created_at,
+      });
+    });
+  });
+
+  if (!tiles.length) {
+    el("cl-empty").hidden = false;
+    el("cl-note").textContent = "Nothing rendered for this listing yet.";
+    return;
+  }
+
+  el("cl-grid").innerHTML = tiles.map((t) => `
+    <figure class="cl-tile${String(t.job) === highlight ? " is-here" : ""}"
+            id="cl-job-${t.job}">
+      <video src="${esc(t.url)}" controls playsinline preload="metadata"></video>
+      <figcaption>
+        <span class="cl-style">${esc(t.style)}</span>
+        <span class="cl-meta">${esc(ago(t.made))}${
+          t.cost != null ? " · $" + Number(t.cost).toFixed(2) : ""}${
+          t.model ? " · " + esc(t.model) : ""}</span>
+        <a class="btn-tiny" href="${esc(t.url)}" download>Download</a>
+      </figcaption>
+    </figure>`).join("");
+
+  el("cl-note").textContent =
+    tiles.length + (tiles.length === 1 ? " clip" : " clips")
+    + ", newest first — drone, walkthrough and basic together.";
+
+  // Scrolled to rather than merely marked: on a listing with a dozen clips,
+  // an outline below the fold is not an answer to "where is the one I just
+  // opened".
+  const here = highlight && el("cl-job-" + highlight);
+  if (here) here.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+load();

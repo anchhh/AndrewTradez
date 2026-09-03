@@ -1078,11 +1078,12 @@ STEP_FLOWS = {
     # drone shot is one flight between two frames of the same property. They
     # were sharing the shots step, which meant a drone run arrived at a
     # room-by-room picker that had nothing to do with it.
-    # No "Clips" at the end: the clip IS the drone shot, and a stage for the
-    # thing the previous stage produces is a stage that can only ever be
-    # already done by the time you reach it.
+    # The last stage is the shelf, not another decision: every clip this
+    # property has produced, in one place. It earns its number because it is
+    # where you come back TO -- opening a finished render lands here rather
+    # than on the page that started it.
     "drone": ["Listing", "Google Earth", "Crop", "Generate", "Flight path",
-              "Drone shot"],
+              "Drone shot", "Videos"],
     None: ["Listing", "Style & shots", "Clips"],
 }
 
@@ -1125,6 +1126,7 @@ STAGE_PAGES = {
     "enhance": ("Crop", "/studio/create/video/crop"),
     "generate": ("Generate", "/studio/create/video/generate"),
     "flight": ("Flight path", "/studio/create/video/flight"),
+    "clips": ("Videos", "/studio/create/video/clips"),
     "render": ("Style & shots", "/studio/create/render"),
     "drone": ("Drone shot", "/studio/create/video/drone"),
 }
@@ -1491,6 +1493,34 @@ def create_flight():
         crumbs=_create_crumbs("flight", style="drone", project_id=project_id))
 
 
+@studio_bp.route("/create/video/clips")
+@login_required
+def create_clips():
+    """Stage 7: every video this property has produced.
+
+    The end of the flow is a shelf rather than another decision. It is also
+    where a finished render opens: coming back to a clip means wanting to
+    watch it and the ones beside it, not wanting the form that made it.
+    """
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    style = (request.args.get("style") or "drone").strip().lower()
+    project_id = request.args.get("project")
+    tail = "&project=%s" % quote(project_id) if project_id else ""
+
+    return render_template(
+        "create_clips.html", lead=lead,
+        highlight=request.args.get("job"),
+        back_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
+        shot_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
+        profile_href="/studio/leads/%s" % lead.id,
+        steps=_steps(style, "Videos"),
+        crumbs=_create_crumbs("clips", style=style, project_id=project_id))
+
+
 @studio_bp.route("/create/video/rendering")
 @login_required
 def create_rendering():
@@ -1524,6 +1554,8 @@ def create_rendering():
         "create_rendering.html", lead=lead, job=job.to_dict(),
         back_href=("/studio/create/video/drone?lead_id=%s&style=drone" % job.lead_id
                    if job.lead_id else "/studio/create"),
+        clips_href=("/studio/create/video/clips?lead_id=%s&style=drone&job=%s"
+                    % (job.lead_id, job.id) if job.lead_id else None),
         profile_href="/studio/leads/%s" % job.lead_id if job.lead_id else None,
         steps=_steps(style, "Drone shot"),
         crumbs=_create_crumbs("drone", style=style))
