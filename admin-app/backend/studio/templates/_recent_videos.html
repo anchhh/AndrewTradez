@@ -1,0 +1,19 @@
+{# Everything already rendered, whatever style made it.
+
+   Both entry points show this: someone arriving at Video or Scenery is as
+   often coming back to a clip as starting a new one, and a render lives on
+   the job row rather than in a project, so without this the only way back to
+   one was the lead it belongs to. Style is deliberately not a filter -- the
+   question being answered is "where is that video", and nobody remembers
+   which of three cards they clicked to make it. #}
+<section class="card rv-card" id="rv-card" hidden>
+  <div class="en-head">
+    <div>
+      <h2>Your videos</h2>
+      <p class="hint" id="rv-note">Every clip you have rendered, newest
+        first &mdash; drone, walkthrough and basic together.</p>
+    </div>
+  </div>
+  <div class="rv-grid" id="rv-grid"></div>
+</section>
+<script src="{{ url_for('studio.static', filename='recent_videos.js') }}"></script>

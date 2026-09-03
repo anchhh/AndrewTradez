@@ -1491,6 +1491,44 @@ def create_flight():
         crumbs=_create_crumbs("flight", style="drone", project_id=project_id))
 
 
+@studio_bp.route("/create/video/rendering")
+@login_required
+def create_rendering():
+    """The last page: wait for the clip.
+
+    Its own page rather than a panel that unhides at the bottom of the drone
+    stage, because waiting is a different activity from deciding. The page
+    that made the choices is full of controls that must not be touched now,
+    and a render survives being navigated away from -- so the thing you come
+    back to should be the waiting, not the form.
+
+    Takes a job id, so it works for any render rather than only the drone
+    one.
+    """
+    from extensions import db
+    from models import VideoJob
+
+    try:
+        job_id = int(request.args.get("job") or 0)
+    except (TypeError, ValueError):
+        job_id = 0
+
+    job = db.session.get(VideoJob, job_id) if job_id else None
+    if job is None or job.owner_id != session["user_id"]:
+        return redirect(url_for("studio.create", style="drone"))
+
+    lead = get_owned_lead(job.lead_id) if job.lead_id else None
+    style = (request.args.get("style") or "drone").strip().lower()
+
+    return render_template(
+        "create_rendering.html", lead=lead, job=job.to_dict(),
+        back_href=("/studio/create/video/drone?lead_id=%s&style=drone" % job.lead_id
+                   if job.lead_id else "/studio/create"),
+        profile_href="/studio/leads/%s" % job.lead_id if job.lead_id else None,
+        steps=_steps(style, "Drone shot"),
+        crumbs=_create_crumbs("drone", style=style))
+
+
 @studio_bp.route("/create/video/path")
 @login_required
 def create_path():

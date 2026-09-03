@@ -6774,3 +6774,37 @@ button.gn-review-shot {
 .dr-route { position: relative; line-height: 0; }
 .dr-route img { width: 100%; border-radius: 9px; display: block; }
 .dr-route canvas { position: absolute; inset: 0; pointer-events: none; }
+
+/* Waiting for a render. The page is the wait, so it gets the room. */
+.rd-stage { display: grid; gap: 10px; justify-items: center; padding: 34px 20px; }
+.rd-phase { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rd-stage .gn-bar { width: min(420px, 90%); }
+.rd-video { width: 100%; border-radius: 12px; display: block; }
+
+/* Everything rendered so far, on the way in to Video or Scenery. */
+.rv-card { margin-top: 22px; }
+.rv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.rv-tile {
+  display: block;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  background: #000;
+}
+.rv-tile:hover { border-color: var(--accent); }
+.rv-tile video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.rv-name {
+  display: block;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  background: var(--cream, #efe8dd);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

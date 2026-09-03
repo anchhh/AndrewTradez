@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Rendering</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title" id="rd-title">Rendering the shot</h1>
+      <p class="sub">{{ lead.full_address if lead else "Your video" }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  <section class="card">
+    {# The whole page is the wait. A render survives being navigated away
+       from, so what you come back to should be this rather than a form full
+       of controls that must not be touched now. #}
+    <div class="rd-stage" id="rd-stage">
+      <p class="rd-phase" id="rd-phase">Starting…</p>
+      <span class="gn-bar"><i id="rd-bar" style="width:2%"></i></span>
+      <p class="hint" id="rd-sub">A clip takes a couple of minutes. You can
+        close this page &mdash; the render carries on without it, and this
+        link brings you back to it.</p>
+    </div>
+
+    <div id="rd-result"></div>
+
+    <div class="row action-row" id="rd-actions">
+      <a class="btn-secondary" href="{{ back_href }}">Back to the shot</a>
+      {% if profile_href %}
+        <a class="btn-secondary" href="{{ profile_href }}">Open the lead</a>
+      {% endif %}
+      <button type="button" class="btn-secondary" id="rd-cancel">Stop the render</button>
+    </div>
+  </section>
+</div>
+
+<script>
+  window.__JOB__ = {{ job | tojson }};
+  window.__PROFILE__ = {{ (profile_href or "") | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_rendering.js') }}"></script>
+</body>
+</html>

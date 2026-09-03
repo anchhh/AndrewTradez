@@ -122,11 +122,7 @@ el("dr-review-go").addEventListener("click", () => {
 async function generate() {
   const button = el("dr-go");
   button.disabled = true;
-  note("");
-  el("dr-running").hidden = false;
-  el("dr-run-title").textContent = "Generating the shot";
-  el("dr-run-sub").textContent =
-    "One clip. This takes a couple of minutes — you can leave the page.";
+  note("Starting the render…");
 
   try {
     const res = await fetch("/studio/api/video/drone", {
@@ -145,39 +141,14 @@ async function generate() {
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "the shot couldn't be started");
-    poll(body.job_id);
+    // Waiting is a different activity from deciding, and this page is full
+    // of controls that must not be touched now. The render survives being
+    // navigated away from, so go to the page that is only the wait.
+    window.location.href = "/studio/create/video/rendering?job=" + body.job_id
+      + "&style=drone";
   } catch (err) {
     button.disabled = false;
-    el("dr-running").hidden = true;
     note(err.message);
-  }
-}
-
-/* Polled rather than pushed, the same way the shots step does it: generation
-   runs on a background thread and the page has to survive being left. */
-async function poll(jobId) {
-  try {
-    const res = await fetch("/studio/api/video/jobs/" + jobId);
-    const job = await res.json();
-    const clip = (job.clips || [])[0] || {};
-
-    if (job.status === "completed" && clip.url) {
-      el("dr-run-title").textContent = "Done";
-      el("dr-run-sub").textContent = "";
-      el("dr-result").innerHTML =
-        '<video src="' + clip.url + '" controls playsinline class="dr-video"></video>';
-      el("dr-go").disabled = false;
-      return;
-    }
-    if (job.status === "failed" || job.status === "cancelled") {
-      el("dr-run-title").textContent = "That didn't work";
-      el("dr-run-sub").textContent = job.error || clip.error || "";
-      el("dr-go").disabled = false;
-      return;
-    }
-    setTimeout(() => poll(jobId), 4000);
-  } catch (err) {
-    setTimeout(() => poll(jobId), 6000);
   }
 }
 

@@ -14,6 +14,14 @@ FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"
 log = logging.getLogger(__name__)
 
 
+# How long a job may go without a heartbeat before a boot treats it as
+# abandoned. Comfortably longer than a poll interval and comfortably shorter
+# than a person's patience -- the cost of being wrong in one direction is a
+# job that says "running" forever, and in the other a live render killed by
+# an unrelated script.
+STALE_AFTER = __import__("datetime").timedelta(minutes=10)
+
+
 def _add_missing_columns(db):
     """Add columns the models declare but an existing table lacks.
 
@@ -100,12 +108,25 @@ def create_app():
         # Jobs run on background threads inside this process, so closing the
         # app mid-run kills them with the row still saying "running". Nothing
         # would ever move it, and the page would poll a job that no longer
-        # exists. A job in that state at boot cannot be running -- the process
-        # that owned it is gone -- so say what happened.
+        # exists.
+        #
+        # But "at boot" is not the same as "this is the only process". Any
+        # script that imports this module runs create_app(), and this sweep
+        # was reading every live render in the REAL server as abandoned and
+        # marking it failed -- twice, both times while a paid generation was
+        # actually still running on Atlas. So a job is only abandoned if it
+        # has also gone quiet: the worker touches its row on every poll, so a
+        # running job is never more than a few seconds stale.
+        from datetime import datetime, timedelta, timezone
+
         from models import StagingJob, VideoJob
 
+        quiet_since = datetime.now(timezone.utc).replace(tzinfo=None) - STALE_AFTER
+
         for model, label in ((StagingJob, "Staging"), (VideoJob, "Video")):
-            stale = model.query.filter(model.status.in_(("queued", "running"))).all()
+            stale = model.query.filter(
+                model.status.in_(("queued", "running")),
+                model.updated_at < quiet_since).all()
             for job in stale:
                 job.status = "failed"
                 job.error = (

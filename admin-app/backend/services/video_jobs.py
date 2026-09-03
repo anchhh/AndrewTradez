@@ -12,6 +12,7 @@ way to find out something is wrong.
 import logging
 import os
 import threading
+from datetime import datetime, timezone
 
 from services.video import (
     VideoError,
@@ -133,7 +134,16 @@ def _run(app, job_id):
                     job.clips = clips
                     db.session.commit()
 
-                    state = wait_for_clip(prediction_id, cfg)
+                    # A heartbeat while it waits. Generation is minutes of
+                    # silence between two commits, and "the row has not been
+                    # touched" was being read at boot as "the process that
+                    # owned it is gone" -- which killed live renders whenever
+                    # anything else imported the app.
+                    def alive(_state=None, _job=job):
+                        _job.updated_at = datetime.now(timezone.utc)
+                        db.session.commit()
+
+                    state = wait_for_clip(prediction_id, cfg, on_tick=alive)
 
                     filename = f"job{job.id}-clip{index}-{prediction_id[:8]}.mp4"
                     dest = os.path.join(CLIPS_DIRNAME, filename)
