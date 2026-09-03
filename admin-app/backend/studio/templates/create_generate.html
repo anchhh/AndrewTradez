@@ -113,10 +113,11 @@
 
     <div class="gn-review-body">
       <div class="gn-review-col">
-        <h4 class="gn-review-h">The prompt</h4>
-        <p class="hint">Editable, for this run. It reads the way it does
-          because it was rewritten against results &mdash; the long careful
-          version made a worse picture than this one.</p>
+        <h4 class="gn-review-h">The prompt <span class="hint" id="gn-review-side"></span></h4>
+        <p class="hint">The front and the back get different wording: which
+          face of the house this is a view of is the thing the result gets
+          wrong, so it is said at the top and again at the bottom. Editable
+          for this run.</p>
         <textarea id="gn-review-prompt" class="gn-review-prompt"
                   spellcheck="false" rows="18"></textarea>
         <button type="button" class="btn-secondary btn-tiny gn-review-reset"
@@ -127,8 +128,9 @@
 
       <div class="gn-review-col">
         <h4 class="gn-review-h">The images <span class="hint" id="gn-review-count"></span></h4>
-        <p class="hint">In this order. The first is the one being redrawn;
-          the rest are what it matches against.</p>
+        <p class="hint">Everything on the board goes in &mdash; this side,
+          the other side of the same house, the neighbours &mdash; in this
+          order. The first is the one being redrawn.</p>
         <div class="gn-review-shots" id="gn-review-shots"></div>
         <p class="hint" id="gn-review-model"></p>
       </div>
@@ -154,7 +156,11 @@
   window.__GENERATED__ = {{ generated | tojson }};
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
   window.__SLOTS__ = {{ slots | tojson }};
-  window.__PROMPT__ = {{ prompt | tojson }};
+  {# The plan's order, sent explicitly: tojson sorts keys, so reading the
+     order off the slots object gets alphabetical -- which labelled a front
+     overhead as "Back", because back_overhead sorts first. #}
+  window.__SLOT_ORDER__ = {{ slot_order | tojson }};
+  window.__PROMPTS__ = {{ prompts | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_generate.js') }}"></script>
 </body>

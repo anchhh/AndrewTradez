@@ -20,15 +20,19 @@ const lead = window.__LEAD__;
 const sides = window.__SIDES__ || [];
 const shotLabels = window.__SHOT_LABELS__ || {};
 const slots = window.__SLOTS__ || {};
+const slotOrder = window.__SLOT_ORDER__ || Object.keys(slots);
 
-const defaultPrompt = window.__PROMPT__ || "";
+const defaultPrompts = window.__PROMPTS__ || {};
 
 let generated = window.__GENERATED__ || {};
-/* One prompt, shared by both columns: it is the same job twice, and having
-   edited it for the front only to find the back still on the old wording is
-   a trap rather than a feature. Lives for the visit -- an edit is a thing
-   you are trying, not a setting. */
-let prompt = defaultPrompt;
+/* Edited wording, per side, for the visit. Per side because the two
+   prompts are not the same text any more: the front's says FRONT twice and
+   the back's says BACK, and carrying an edit across would quietly hand the
+   back the front's rule. An edit is a thing you are trying, not a setting,
+   so it does not outlive the page. */
+const edits = {};
+
+const promptFor = (side) => edits[side] || defaultPrompts[side] || "";
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { el("gn-note").textContent = text || ""; };
@@ -40,10 +44,21 @@ function escapeHtml(value) {
   }[c]));
 }
 
-/* What a picture is, from the box it was placed in at stage 2. */
+/* What a picture is, from the boxes it was placed in at stage 2.
+
+   Boxes, plural: one capture is often three of them at once -- an oblique
+   can be the front's 3D, the back's and the neighbours' -- and it is sent
+   once. Walked in the plan's order rather than the object's, because the
+   object arrives alphabetically sorted and that named a front overhead
+   "Back". */
+function boxesOf(url) {
+  return slotOrder
+    .filter((key) => (slots[key] || []).includes(url))
+    .map((key) => shotLabels[key] || "Capture");
+}
+
 function nameOf(url) {
-  const slot = Object.keys(slots).find((key) => (slots[key] || []).includes(url));
-  return shotLabels[slot] || "Capture";
+  return boxesOf(url)[0] || "Capture";
 }
 
 /* ---------- full size ---------- */
@@ -144,8 +159,15 @@ function review(sideKey) {
 
   const all = inputsOf(side);
   el("gn-review-title").textContent = `Generate the ${side.label.toLowerCase()}`;
-  el("gn-review-prompt").value = prompt;
-  el("gn-review-count").textContent = `— all ${all.length}`;
+  el("gn-review-side").textContent = `— the ${side.key}`;
+  el("gn-review-prompt").value = promptFor(sideKey);
+
+  // The ceiling is the model's, so it is stated rather than hidden: someone
+  // who filled every box should not have to wonder why nine went.
+  el("gn-review-count").textContent = side.over
+    ? `— ${all.length} of ${side.placed + 1}; the model takes ${all.length}, `
+      + `so the last ${side.over} on the board do not go`
+    : `— all ${all.length}`;
 
   const model = document.querySelector('input[name="gn-model"]:checked');
   const label = model ? model.closest(".en-model").querySelector("strong") : null;
@@ -154,11 +176,24 @@ function review(sideKey) {
     : "";
 
   el("gn-review-shots").innerHTML = all.map((url, i) => {
-    const name = i === 0 ? "Base — redrawn" : nameOf(url);
+    const boxes = boxesOf(url);
+    const name = i === 0 ? "Base — redrawn" : (boxes[0] || "Capture");
+    // Said rather than hidden: the same picture in three boxes is still one
+    // picture, and the count on the board will not match the count here.
+    // The base says what it is doing, so its second line says where it came
+    // from instead; the rest say how many other boxes hold the same picture,
+    // because the board's count and this one will not match otherwise.
+    const also = i === 0
+      ? `<span class="gn-review-also">${escapeHtml(boxes[0] || "")}</span>`
+      : boxes.length > 1
+        ? `<span class="gn-review-also">also in ${boxes.length - 1} other ${
+            boxes.length === 2 ? "box" : "boxes"}</span>`
+        : "";
     return `
-      <figure class="gn-review-shot${i === 0 ? " is-base" : ""}">
+      <figure class="gn-review-shot${i === 0 ? " is-base" : ""}"
+              title="${escapeHtml(boxes.join(" · ") || "Capture")}">
         <img src="${url}" alt="">
-        <figcaption><b>${i + 1}</b> ${escapeHtml(name)}</figcaption>
+        <figcaption><b>${i + 1}</b> ${escapeHtml(name)}${also}</figcaption>
       </figure>`;
   }).join("");
 
@@ -172,7 +207,8 @@ function closeReview() {
 
 el("gn-review-cancel").addEventListener("click", closeReview);
 el("gn-review-reset").addEventListener("click", () => {
-  el("gn-review-prompt").value = defaultPrompt;
+  if (pending) delete edits[pending];
+  el("gn-review-prompt").value = promptFor(pending);
 });
 el("gn-review").addEventListener("click", (e) => {
   if (e.target.id === "gn-review") closeReview();
@@ -183,9 +219,10 @@ window.addEventListener("keydown", (e) => {
 
 el("gn-review-go").addEventListener("click", () => {
   const sideKey = pending;
-  // Remembered before the box closes, so the next confirmation opens on the
-  // wording that just ran rather than throwing the edit away.
-  prompt = el("gn-review-prompt").value.trim() || defaultPrompt;
+  // Remembered before the box closes, so the next confirmation on this side
+  // opens on the wording that just ran rather than throwing the edit away.
+  const typed = el("gn-review-prompt").value.trim();
+  if (typed) edits[sideKey] = typed; else delete edits[sideKey];
   closeReview();
   if (sideKey) generate(sideKey);
 });
@@ -205,7 +242,7 @@ async function generate(sideKey) {
       body: JSON.stringify({
         side: sideKey,
         model: (document.querySelector('input[name="gn-model"]:checked') || {}).value,
-        prompt: prompt,
+        prompt: promptFor(sideKey),
       }),
     });
     const body = await res.json();

@@ -277,34 +277,27 @@ SIDES = ("front", "back")
 # real problem. What was actually wrong was the ORDER -- the real photographs
 # of the house sat fourth and later, behind street views. Ordered properly,
 # more context helps, and the truncation drops what matters least.
-MAX_REFERENCES = 6
+MAX_REFERENCES = 9
 
-# How many photographs of the OTHER side ride along. They are worth having --
-# the siding and shingle are the same all the way round -- and they are worth
-# rationing, because the first attempt with the whole board redrew a back
-# elevation as the front door.
-MAX_OTHER_SIDE = 2
+# Nothing is held back any more. There used to be a hard ration on how many
+# photographs of the OTHER side could ride along, because the first attempt at
+# merging both sides redrew a back elevation as the front door. The prompt is
+# what fixes that -- it now names the side out loud, at the top and again at
+# the bottom, and says a photograph of the other face is a swatch and not the
+# view. With that in place the ration was solving a problem twice, badly.
 
 
-def base_for(lead, side):
-    """The capture a side's shot is built ON, and everything to match against.
+def _ordered(lead, side):
+    """The base, and every placed image ranked by how much it decides.
 
-    The base is that side's oblique: it already looks like a photograph taken
-    from the air, so the model has least to invent from it.
-
-    The references are the WHOLE board, both sides. A house is one building
-    -- the siding, the shingle and the stone are the same at the back as at
-    the front -- so the front elevations are evidence about the back, and
-    withholding them was leaving the back to be guessed. The prompt is what
-    keeps that honest: geometry comes from the first image, materials come
-    from the photographs.
-
-    Order carries the weight, because the list is truncated at the model's
-    ceiling and what falls off the end should be the least useful. This
-    side's real photographs first -- they are this house, from the angle
-    being drawn -- then this side's other captures, then the other side's
-    photographs, then its captures, then the neighbours, which are context
-    for the street rather than the subject.
+    Ranked rather than filtered, because the model takes ten and a full board
+    runs to more: whatever falls off the end has to be the least useful thing
+    on it. This side's own photographs first -- this house, from the face
+    being drawn -- then this side's other captures, then the other side of
+    the same building, which is the same siding and the same shingle. The
+    neighbours come last: they are context for the street rather than
+    evidence about the subject, and if anything is going to be dropped it
+    should be somebody else's roof.
     """
     slots = slots_of(lead.drone_path or {})
     other = "back" if side == "front" else "front"
@@ -322,24 +315,39 @@ def base_for(lead, side):
                     out.append(url)
         return out
 
-    # This side, then the neighbours, then a short tail from the other side.
-    # The tail is capped hard and comes last for a reason: the first attempt
-    # at merging both sides in full turned a back elevation into the front
-    # of the house. The front photographs are the sharpest images in the set,
-    # and given enough of them the model follows them instead of the base.
     mine = collect(["%s_reference" % side, "%s_3d" % side,
                     "%s_overhead" % side, "%s_street" % side])
+    theirs = collect(["%s_reference" % other, "%s_3d" % other,
+                      "%s_overhead" % other, "%s_street" % other])
     nearby = collect(["nb_3d", "nb_overhead", "nb_street"])
-    tail = collect(["%s_reference" % other])[:MAX_OTHER_SIDE]
 
-    # The tail gets reserved room rather than whatever is left. On a board
-    # where the same capture sits in several boxes -- which is normal, an
-    # oblique is often the front 3D and the neighbours' 3D at once -- this
-    # side and the neighbours filled the whole cap and the other side's
-    # photographs never went at all. The merge was configured and not
-    # happening.
-    room = max(1, MAX_REFERENCES - MAX_OTHER_SIDE)
-    return base, (mine + nearby)[:room] + tail
+    ranked = []
+    for url in mine + theirs + nearby:
+        if url not in ranked:
+            ranked.append(url)
+    return base, ranked
+
+
+def base_for(lead, side):
+    """The capture a side's shot is built ON, and what to match it against.
+
+    The base is that side's oblique: it already looks like a photograph taken
+    from the air, so the model has least to invent from it. The references
+    are the whole board -- both sides and the neighbours -- cut only where
+    the model's own ceiling cuts it.
+    """
+    base, ranked = _ordered(lead, side)
+    return base, ranked[:MAX_REFERENCES]
+
+
+def reference_count(lead, side):
+    """(sent, placed) -- how much of the board fits, and how much there is.
+
+    Worth saying on the page rather than quietly truncating: someone who has
+    filled every box deserves to know that three of them did not go.
+    """
+    _, ranked = _ordered(lead, side)
+    return min(len(ranked), MAX_REFERENCES), len(ranked)
 
 
 def generated_of(path):

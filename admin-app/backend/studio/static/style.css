@@ -6594,3 +6594,4 @@ button.en-shot {
   .gn-review-prompt { max-height: 30vh; }
 }
 .gn-review-col > .gn-review-reset { justify-self: start; }
+.gn-review-also { display: block; opacity: 0.72; font-size: 0.6rem; }

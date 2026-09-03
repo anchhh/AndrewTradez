@@ -65,9 +65,40 @@ def _reflow(text):
                     for block in text.split(sep) if block.strip())
 
 
-PROMPT = _reflow("""Use the attached satellite and aerial views of this property,
-together with the ground photographs of the same home, to produce a
+# Which face of the house is being drawn. Now that the whole board goes in,
+# including photographs of the other side, this is the rule doing the work
+# the old ration used to do -- and it says it twice, at the top of the prompt
+# and again as the last line, because that is where a long instruction is
+# actually read.
+SIDE_RULES = {
+    "front": {
+        "name": "FRONT",
+        "other": "back",
+        "shows": "the street and the driveway in frame, the front door and "
+                 "the garage facing the camera, the front yard and the "
+                 "approach in the foreground",
+        "never": "no back garden, no patio, no rear deck, no back fence line",
+    },
+    "back": {
+        "name": "BACK",
+        "other": "front",
+        "shows": "the garden and whatever sits in it -- lawn, patio, deck, "
+                 "fence line -- in the foreground, the rear elevation facing "
+                 "the camera, and the street only in the distance behind the "
+                 "house",
+        "never": "no front door, no driveway, no garage doors, no street "
+                 "frontage in the foreground",
+    },
+}
+
+
+PROMPT_TEMPLATE = """Use the attached satellite and aerial views of this
+property, together with the ground photographs of the same home, to produce a
 realistic drone photograph of it from above.
+
+THIS SHOT IS THE %(name)s OF THE HOUSE. It shows %(shows)s. It does not show
+the %(other)s of the building: %(never)s -- not in the distance, not at the
+edges, not in a corner of the frame.
 
 The first image is the view to work from: stay over the property, looking at
 what it is looking at. THE SUBJECT IS THE HOUSE IN THE CENTRE OF THAT FRAME.
@@ -81,21 +112,39 @@ second roof over the garage. Every roof plane on the house -- the main roof,
 the garage, the porch below the windows -- is the same shingle in the same
 colour; from above the lower ones are simply in more shadow.
 
-A few of those photographs show the OTHER side of the same house. They are
-colour and material swatches only. Take the siding, the shingle, the stone
-and the trim from them, and take nothing else: not the layout, not the
-orientation, not a single feature.
+Several of the attached images show the %(other)s of this same house, and
+several show the houses either side of it. They are colour and material
+swatches only. Take the siding, the shingle, the stone and the trim from
+them, and take nothing else: not the layout, not the orientation, not a
+single feature. A %(other)s elevation among the references is NOT the view
+being drawn.
 
-THE FIRST IMAGE DECIDES WHAT IS WHERE. If it shows the back of the house,
-the result shows the back of the house -- garden below, street beyond, no
-front door and no driveway anywhere in it. If it shows the front, the result
-shows the front. Where the road runs, which way the roof faces and what sits
-in the foreground are all read from the first image and from nothing else.
+Geometry comes from the first image and from nothing else: where the road
+runs, which way the roof faces, and what sits in the foreground.
 
 The result is a real photograph: sharp, detailed, naturally lit.
 
 Do not include Google Earth's interface, and do not include its map labels --
-no floating house numbers over the roofs, no street names along the roads.""")
+no floating house numbers over the roofs, no street names along the roads.
+
+The camera is over the %(name)s of the house, looking at the %(name)s."""
+
+
+def prompt_for(side):
+    """The wording for one side. Falls back to the front rather than failing.
+
+    Two prompts rather than one with an "if it shows the back" clause. The
+    clause was there because the code did not know which side it was drawing;
+    it does, and asking a model to work out from the picture what the caller
+    already knew was spending its attention on the wrong question.
+    """
+    rules = SIDE_RULES.get(side) or SIDE_RULES["front"]
+    return _reflow(PROMPT_TEMPLATE % rules)
+
+
+# The front's wording, kept under the old name for anything that just wants
+# to see what these look like.
+PROMPT = prompt_for("front")
 
 
 def exterior_references(lead, limit=MAX_REFERENCES):
@@ -179,7 +228,7 @@ MAX_PROMPT = 6000
 
 
 def enhance_capture(lead, url, references=None, cfg=None, model=None,
-                    prompt=None):
+                    prompt=None, side=None):
     """Redraw one Earth capture as a photograph of this house.
 
     `references` is what to match against -- this property's other captures
@@ -187,7 +236,11 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None,
     because which side of a house a view shows is obvious to a person and
     guesswork here, and the board's own order otherwise.
 
-    `prompt` overrides the default wording for this one run. The page shows
+    `side` decides the default wording: which face of the house this is a
+    view of is the thing the result gets wrong, and it is known here rather
+    than something the model should be working out from the picture.
+
+    `prompt` overrides that wording for this one run. The page shows
     the real text before it spends anything, and a prompt you can read but
     not change is a strange thing to show someone -- especially this one,
     which is only what it is because it was rewritten against results.
@@ -220,7 +273,7 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None,
 
     # The capture first: Atlas passes the list straight through and the model
     # treats the first image as the subject. Everything after it is context.
-    wording = (prompt or "").strip() or PROMPT
+    wording = (prompt or "").strip() or prompt_for(side)
     if len(wording) > MAX_PROMPT:
         raise EnhanceError("that prompt is too long to send")
 

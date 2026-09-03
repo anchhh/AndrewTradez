@@ -1364,18 +1364,25 @@ def create_generate():
     sides = []
     for key in dronepath.SIDES:
         base, references = dronepath.base_for(lead, key)
+        sent, placed = dronepath.reference_count(lead, key)
         sides.append({"key": key, "label": key.title(), "note": notes[key],
-                      "base": base, "references": references})
+                      "base": base, "references": references,
+                      # What did not fit. The model takes ten including the
+                      # base, and a full board is larger than that, so this
+                      # is said out loud rather than silently dropped.
+                      "over": max(0, placed - sent), "placed": placed})
 
     return render_template(
         "create_generate.html", lead=lead,
         sides=sides,
         generated=dronepath.generated_of(path),
-        prompt=enhance.PROMPT,
+        prompts=dict((key, enhance.prompt_for(key))
+                     for key in dronepath.SIDES),
         models=atlas_image.MODELS,
         default_model=atlas_image.MODEL,
         slots=dronepath.slots_of(path),
         shot_labels=dronepath.SHOT_LABELS,
+        slot_order=dronepath.CAPTURE_SLOTS,
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
         back_href="/studio/create/video/crop?lead_id=%s&style=drone%s" % (lead.id, tail),
         next_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
@@ -3379,7 +3386,7 @@ def api_generate_side(lead_id):
             image = enhance.enhance_capture(
                 lead, base, references=references,
                 model=(data.get("model") or "").strip() or None,
-                prompt=data.get("prompt"))
+                prompt=data.get("prompt"), side=side)
         except enhance.EnhanceError as exc:
             return jsonify({"error": str(exc)}), 400
 
