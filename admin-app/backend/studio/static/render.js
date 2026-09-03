@@ -1205,9 +1205,14 @@ function finish(job) {
   // Stitching is the next arrow in the chain and does not exist yet; saying so
   // beats implying these are a finished video.
   // Back's destination named here rather than on the button, so the button
-  // can stay the word people scan for.
-  const back = "Back goes to the shots, where you can change them and render "
-    + "again.";
+  // can stay the word people scan for -- and it has to name the RIGHT one:
+  // arriving from a property's videos, Back returns there rather than to a
+  // shot picker for a render that is already finished.
+  const cameFromClips =
+    new URLSearchParams(location.search).get("from") === "clips";
+  const back = cameFromClips
+    ? "Back returns to this property's videos."
+    : "Back goes to the shots, where you can change them and render again.";
   el("rn-results-note").textContent = clips.length > 1
     ? "These are separate clips — stitching them into one video isn't built "
       + "yet. " + back
@@ -1735,7 +1740,15 @@ function backToShots() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-el("rn-again").addEventListener("click", backToShots);
+el("rn-again").addEventListener("click", () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get("from") === "clips" && params.get("lead_id")) {
+    window.location.href = "/studio/create/video/clips?lead_id="
+      + encodeURIComponent(params.get("lead_id"));
+    return;
+  }
+  backToShots();
+});
 // Backwards only, like Scenery's, and never mid-render.
 document.querySelectorAll("#steps .step").forEach((li) => {
   li.addEventListener("click", (e) => {
