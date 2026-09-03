@@ -6909,3 +6909,28 @@ a.cl-style:hover { text-decoration: underline; }
   outline: 2px solid var(--accent);
   outline-offset: 6px;
 }
+
+/* Anchors wearing button classes.
+   .btn-secondary only ever set colours and a border -- padding, radius and
+   "not underlined" came from the base `button` rule, which an <a> never
+   matched. So every link built as a secondary button rendered as underlined
+   text inside a thin empty box. */
+a.btn-secondary,
+a.btn-tiny {
+  display: inline-block;
+  text-decoration: none;
+  font-family: inherit;
+  line-height: 1.2;
+}
+a.btn-secondary {
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* The accent twin of .cta-btn, for the action that carries on rather than
+   the one that goes back. Its hover is the inverse of the black one's, so
+   the pair swap rather than both landing on the same colour. */
+.cta-btn.is-accent { background: var(--accent); color: #fff; }
+.cta-btn.is-accent:hover { background: var(--ink); color: var(--cream); }
