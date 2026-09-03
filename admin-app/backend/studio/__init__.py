@@ -1067,6 +1067,62 @@ def _carry():
     return "?" + query, "?" + query + "&"
 
 
+STYLE_NAMES = {"basic": "Basic", "walkthrough": "Walkthrough", "drone": "Drone"}
+
+
+def _create_crumbs(here, style=None, project_id=None):
+    """The Create trail, as [(label, href_or_None)] ending on where you are.
+
+    A href of None marks the current page. Every earlier crumb keeps the lead
+    or project, so going back two screens does not lose the listing you were
+    working on.
+    """
+    keep = {k: v for k, v in request.args.items() if k in ("lead_id", "project")}
+    # The render page names it `lead`, everything upstream names it
+    # `lead_id`. Without this the trail from a render dropped the listing and
+    # sent you back to an empty Create.
+    if "lead_id" not in keep and request.args.get("lead"):
+        keep["lead_id"] = request.args["lead"]
+    if project_id and "project" not in keep:
+        keep["project"] = project_id
+
+    def link(path, **extra):
+        query = dict(keep, **{k: v for k, v in extra.items() if v})
+        return path + ("?" + urlencode(query) if query else "")
+
+    trail = [("Create", link("/studio/create"))]
+
+    if here == "choose":
+        return [("Create", None)]
+
+    if here == "scenery":
+        trail.append(("Staging", None))
+        return trail
+
+    # The video branch.
+    trail.append(("Video", link("/studio/create/video")))
+    if here == "style":
+        trail[-1] = ("Video", None)
+        return trail
+
+    name = STYLE_NAMES.get(style)
+    if name:
+        trail.append((name, link("/studio/create/video/listing", style=style)))
+
+    if here == "listing":
+        if name:
+            trail[-1] = (name, None)
+        else:
+            trail.append(("Listing", None))
+        return trail
+
+    if here == "render":
+        if not name:
+            trail.append(("Listing", link("/studio/create/video/listing")))
+        trail.append(("Shots", None))
+    return trail
+
+
 @studio_bp.route("/create")
 @login_required
 def create_choose():
@@ -1075,7 +1131,7 @@ def create_choose():
 
     carry, _ = _carry()
     return render_template("create_choose.html", showcase=showcase.status(),
-                           carry=carry)
+                           carry=carry, crumbs=_create_crumbs("choose"))
 
 
 @studio_bp.route("/create/video")
@@ -1089,6 +1145,7 @@ def create_video_style():
     carry, carry_amp = _carry()
     return render_template(
         "create_style.html", carry=carry, carry_amp=carry_amp,
+        crumbs=_create_crumbs("style"),
         styles=[
             ("basic", "Basic", "Simple photo-to-video pans, quick and clean"),
             ("walkthrough", "Walkthrough", "Steady room-to-room glide, a classic listing tour"),
@@ -1123,7 +1180,8 @@ def create():
         style = None
 
     return render_template("create.html", project=project, prefill=prefill,
-                           showcase=showcase.status(), chosen_style=style)
+                           showcase=showcase.status(), chosen_style=style,
+                           crumbs=_create_crumbs("listing", style=style))
 
 
 @studio_bp.route("/create/style")
@@ -1219,7 +1277,10 @@ def create_render():
             project["photo_rooms"] = lead.photo_rooms or {}
 
     return render_template("render.html", project=project, job_id=job_id,
-                           lead_renders=lead_renders)
+                           lead_renders=lead_renders,
+                           crumbs=_create_crumbs("render",
+                                                 style=project.get("style"),
+                                                 project_id=project.get("id")))
 
 
 @studio_bp.route("/dashboard")
@@ -1268,7 +1329,8 @@ def scenery():
     from services import showcase
 
     return render_template("scenery.html", prefill=prefill,
-                           showcase=showcase.status())
+                           showcase=showcase.status(),
+                           crumbs=_create_crumbs("scenery"))
 
 
 @studio_bp.route("/outreach")

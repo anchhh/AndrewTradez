@@ -1002,6 +1002,26 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .task-tab.active .task-tab-count { background: var(--accent); color: #fff; }
 
+/* Where you are in Create, and a way back to any earlier point. Sits above
+   the page title, so it reads as position rather than as a control on the
+   page's content. */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+}
+.crumb {
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 2px 0;
+}
+.crumb:hover { color: var(--accent); text-decoration: underline; }
+.crumb.is-current { color: var(--ink); font-weight: 700; }
+.crumb-sep { color: var(--line); }
+
 /* The chooser page, where the two cards are the whole page. */
 .task-cards.is-full .task-card { aspect-ratio: 16 / 10; }
 

@@ -1,0 +1,20 @@
+{# Where you are in Create, and a way back to any earlier point.
+
+   The numbered steps inside a page move within one flow; this moves between
+   the pages the flow is made of -- the chooser, the style screen, the
+   listing. Both are needed, and neither does the other's job.
+
+   Every crumb carries the lead or project you are working on, so going back
+   two screens does not lose the listing. #}
+{% if crumbs %}
+<nav class="crumbs" aria-label="Where you are">
+  {% for label, href in crumbs %}
+    {% if href %}
+      <a class="crumb" href="{{ href }}">{{ label }}</a>
+      <span class="crumb-sep" aria-hidden="true">/</span>
+    {% else %}
+      <span class="crumb is-current" aria-current="page">{{ label }}</span>
+    {% endif %}
+  {% endfor %}
+</nav>
+{% endif %}
