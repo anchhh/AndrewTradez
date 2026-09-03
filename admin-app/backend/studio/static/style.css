@@ -6031,11 +6031,13 @@ button.en-shot {
   color: var(--ink-soft);
 }
 
-/* The capture plan: three groups of shots to go and get. Laid out as a
-   checklist rather than prose because it is a list of errands. */
+/* The capture plan: three groups of shots, each a box to drop an image
+   into. A board rather than a list, because what is missing should be
+   obvious at a glance and what is placed should be visible as the picture
+   it is. */
 .ge-plan {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 14px;
   margin: 12px 0 6px;
 }
@@ -6046,36 +6048,95 @@ button.en-shot {
   background: var(--cream-soft, #f6f2ea);
 }
 .ge-plan-group h3 { margin: 0 0 2px; font-size: 0.9rem; }
-.ge-plan-group ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
-.ge-plan-shot { display: flex; gap: 8px; align-items: flex-start; font-size: 0.8rem; }
-.ge-plan-shot strong { display: block; font-weight: 600; }
-.ge-plan-shot .hint { font-size: 0.72rem; }
-/* An empty circle for a shot still to take, filled once it is labelled. */
-.ge-tick {
-  flex: 0 0 auto;
-  width: 17px;
-  height: 17px;
-  margin-top: 1px;
-  border-radius: 50%;
-  border: 1.5px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: #fff;
-}
-.ge-plan-shot.is-done .ge-tick { background: #2f7a4f; border-color: #2f7a4f; }
-.ge-plan-shot.is-done strong { color: var(--ink); }
+.ge-boxes { display: grid; gap: 8px; margin-top: 10px; }
 
-.ge-slot {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: inherit;
-  font-size: 0.72rem;
-  padding: 4px 5px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--ink);
+.ge-box {
+  position: relative;
+  min-height: 74px;
+  border: 2px dashed var(--line);
+  border-radius: 9px;
+  padding: 8px 9px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.45);
 }
+.ge-box-label { font-size: 0.8rem; font-weight: 600; }
+.ge-box-hint { font-size: 0.7rem; color: var(--ink-soft); line-height: 1.35; }
+
+/* Filled: the capture fills the box and the labels sit over it, so a full
+   board reads as pictures rather than as text. */
+.ge-box.is-filled {
+  border-style: solid;
+  border-color: var(--accent);
+  padding: 0;
+  min-height: 118px;
+  overflow: hidden;
+  align-content: end;
+}
+.ge-box.is-filled img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ge-box.is-filled .ge-box-label,
+.ge-box.is-filled .ge-box-hint {
+  position: relative;
+  color: #fff;
+  padding: 0 9px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.ge-box.is-filled .ge-box-label { padding-top: 26px; }
+.ge-box.is-filled .ge-box-hint { padding-bottom: 8px; }
+.ge-box.is-filled::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 60%;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.62));
+}
+
+/* Mid-drag. Named on the box rather than done with :hover, because a drag
+   does not produce hover on every browser. */
+.ge-box.is-over { border-color: var(--accent); background: rgba(239, 90, 43, 0.09); }
+
+/* The listing-backed rows are status, not targets, so they do not look like
+   somewhere to drop something. */
+.ge-box.is-listing { border-style: solid; border-color: var(--line); min-height: 0; }
+.ge-box.is-listing.is-filled {
+  border-color: #2f7a4f;
+  background: rgba(47, 122, 79, 0.08);
+  min-height: 0;
+  padding: 8px 9px;
+  align-content: center;
+}
+.ge-box.is-listing.is-filled .ge-box-label,
+.ge-box.is-listing.is-filled .ge-box-hint {
+  color: var(--ink);
+  padding: 0;
+  text-shadow: none;
+}
+.ge-box.is-listing.is-filled::before { content: none; }
+
+.ge-box-x {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ge-box-x:hover { background: var(--accent); }
+
+.ge-shot[draggable="true"] { cursor: grab; }
+.ge-shot.is-dragging { opacity: 0.45; }
+
