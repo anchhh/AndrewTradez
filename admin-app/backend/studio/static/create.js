@@ -170,7 +170,10 @@ async function applyPrefill(prefill) {
 
   await adoptLeadPhotos(prefill);
 
-  if (prefill.address) {
+  // Not on a drone run: the view comes from Google Earth at the next stage,
+  // and fetching a satellite one behind a hidden card spends a request on a
+  // picture nothing shows.
+  if (prefill.address && window.__CHOSEN_STYLE__ !== "drone") {
     await fetchSatelliteView();
   }
 

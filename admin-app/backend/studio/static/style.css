@@ -5802,3 +5802,15 @@ gmp-map-3d {
   padding: 1px 6px;
   margin-left: 4px;
 }
+
+/* Nothing captured to draw on yet. Sits where the image would be, because
+   that is where you are looking when you find it missing. */
+.dp-empty {
+  margin: 0;
+  padding: 40px 20px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}

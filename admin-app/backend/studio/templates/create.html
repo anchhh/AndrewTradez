@@ -105,7 +105,10 @@
     </div>
   </section>
 
-  <section class="card">
+  {# A drone run captures its view from Google Earth at the next stage, so a
+     satellite overhead fetched here is a second, worse picture of the same
+     thing. Other styles still use it as reference context. #}
+  <section class="card"{% if lead_only %} hidden{% endif %}>
     <h2>2. Overhead / satellite view</h2>
     <p class="hint">Reference context for drone-style and aerial video generation. Auto-fetched from the listing's address (Options 1 and 2) — or provide one manually if you used manual upload.</p>
     <div id="satellite-preview" class="satellite-preview hidden">
@@ -123,7 +126,7 @@
   </section>
 
   <section class="card">
-    <h2>3. Your photos & videos for this listing</h2>
+    <h2>{% if lead_only %}2{% else %}3{% endif %}. Your photos &amp; videos for this listing</h2>
     <p class="hint">These are the assets that will drive the generated videos.</p>
     <div class="photo-toolbar">
       <span id="photo-count" class="photo-count"></span>

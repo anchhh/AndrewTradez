@@ -11,10 +11,14 @@ and it is worth being exact about which:
     the canvas would be tainted. So a "capture" button over an embedded map
     has nothing to capture.
 
-What replaces them is better anyway: the app FETCHES the overhead itself, so
-there is no screenshot step, the framing is consistent, and the same image
-can be recovered later. A screenshot from Earth can still be uploaded when
-the 3D oblique view is wanted, which keeps the manual route open.
+So the screenshot is taken outside the app and handed back to it. The Google
+Earth stage is that handover: a link out searched for the full address, and
+somewhere to drop what comes back. It is stored against the lead, so the
+flight planner two screens later opens on it rather than asking again.
+
+The app used to fetch a satellite overhead of its own as a substitute. That
+is gone: once Earth supplies the view, a second and worse picture of the
+same roof is only something to tell apart from the real one.
 
 The drawn line then becomes prompt text. It cannot become anything else: the
 video model accepts a first frame, a last frame and words -- there is no
@@ -43,14 +47,28 @@ def full_address(lead):
     name in a great many towns. The city and state are already on the lead;
     leaving them out is how a flight gets planned over the wrong house.
     """
-    parts = [(lead.address or "").strip()]
-    town = ", ".join(p for p in [(lead.city or "").strip(),
-                                 (lead.state or "").strip()] if p)
-    if town:
-        parts.append(town)
-    if (lead.zip_code or "").strip():
-        parts.append(lead.zip_code.strip())
-    return " ".join(p for p in parts if p).strip()
+    street = (lead.address or "").strip().rstrip(",")
+    city = (lead.city or "").strip()
+    state = (lead.state or "").strip()
+    postcode = (lead.zip_code or "").strip()
+
+    # Some leads arrive with the whole address already in the street field.
+    # Appending the city again turns "Greeley" into "Greeley, Greeley", which
+    # is a worse search than the street on its own.
+    lower = street.lower()
+    parts = [street]
+    if city and city.lower() not in lower:
+        parts.append(city)
+    if state and state.lower() not in lower:
+        parts.append(state)
+
+    # Comma between the parts, space before the postcode -- how the address is
+    # written, and how Earth's search expects to read it:
+    # "8732 15th Street Rd, Greeley, Colorado 80634".
+    line = ", ".join(p for p in parts if p)
+    if postcode and postcode not in line:
+        line += " " + postcode
+    return line.strip()
 
 
 def earth_url(address, lat=None, lon=None):
@@ -126,30 +144,3 @@ def describe(path):
     if curved:
         parts.append("curving as you go rather than travelling straight")
     return ", ".join(parts) + ". Hold that heading; do not reverse or circle back."
-
-
-def overhead_for(lead):
-    """An overhead image of this lead's address, saved and returned as a URL.
-
-    Esri, keyless and free -- the same source the projects already use. A
-    Google Static Maps image would look more familiar, but that API is not
-    enabled on this project's key, and an overhead is an overhead.
-    """
-    from studio import UPLOAD_DIR, fetch_satellite_image, geocode_address
-
-    coords = geocode_address(lead.address or "")
-    if not coords:
-        raise PathError("that address could not be placed on a map")
-
-    blob = fetch_satellite_image(coords[0], coords[1])
-    if not blob:
-        raise PathError("no overhead imagery came back for that address")
-
-    name = "overhead-lead%s.png" % lead.id
-    (UPLOAD_DIR / name).write_bytes(blob)
-    return {
-        "url": "/studio/static/uploads/%s" % name,
-        "lat": coords[0],
-        "lon": coords[1],
-        "earth_url": earth_url(full_address(lead), coords[0], coords[1]),
-    }

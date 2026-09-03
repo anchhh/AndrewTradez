@@ -2947,21 +2947,6 @@ def _clip_owner_job(job_id):
     return job
 
 
-@studio_bp.route("/api/leads/<int:lead_id>/overhead", methods=["POST"])
-@login_required
-def api_lead_overhead(lead_id):
-    """Fetch an overhead of this listing to plan a flight on."""
-    from services import dronepath
-
-    lead = get_owned_lead(lead_id)
-    if lead is None:
-        return jsonify({"error": "Lead not found."}), 404
-    try:
-        return jsonify(dronepath.overhead_for(lead))
-    except dronepath.PathError as exc:
-        return jsonify({"error": str(exc)}), 400
-
-
 @studio_bp.route("/api/leads/<int:lead_id>/drone-path", methods=["GET", "POST"])
 @login_required
 def api_lead_drone_path(lead_id):

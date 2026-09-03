@@ -161,6 +161,7 @@ el("dp-save").addEventListener("click", () => {
 /* ---------- the overhead ---------- */
 
 function useImage(src) {
+  el("dp-empty").hidden = true;
   img.onload = () => {
     natural = { w: img.naturalWidth, h: img.naturalHeight };
     sizeCanvas();
@@ -168,18 +169,12 @@ function useImage(src) {
   img.src = src;
 }
 
-async function loadOverhead() {
-  note("Fetching an overhead…");
-  try {
-    const res = await fetch(`/studio/api/leads/${lead}/overhead`, { method: "POST" });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || "no overhead available");
-    useImage(body.url);
-    if (body.earth_url) el("dp-earth").href = body.earth_url;
-    note("");
-  } catch (err) {
-    note(err.message + " — you can upload your own overhead instead.");
-  }
+/* No image yet. The app used to fetch a satellite overhead here; the Google
+   Earth stage supplies the view now, and a second, worse one fetched behind
+   it was just another picture to tell apart from the real one. */
+function noImage() {
+  el("dp-empty").hidden = false;
+  note("");
 }
 
 /* An Earth screenshot, or any other overhead. Uploaded through the same
@@ -254,5 +249,5 @@ function renderRefs() {
       if (saved.image) { useImage(saved.image); return; }
     }
   } catch (err) { /* a missing saved path just means drawing a new one */ }
-  loadOverhead();
+  noImage();
 })();

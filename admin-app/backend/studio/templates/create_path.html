@@ -24,7 +24,7 @@
         <button type="button" class="btn-secondary btn-tiny" id="dp-clear">Clear</button>
         <button type="button" class="btn-secondary btn-tiny" id="dp-undo">Undo point</button>
         <label class="btn-secondary btn-tiny dp-upload">
-          Use my own overhead
+          Use my own image
           <input type="file" id="dp-image" accept="image/*" hidden>
         </label>
         <a class="btn-secondary btn-tiny" id="dp-earth" href="#" target="_blank"
@@ -36,9 +36,17 @@
          photograph, so Clear cannot damage it and a new overhead does not
          have to repaint the path. #}
       <div class="dp-canvas-wrap" id="dp-wrap">
-        <img id="dp-image-el" alt="Overhead view of this property">
+        <img id="dp-image-el" alt="The captured view of this property">
         <canvas id="dp-canvas"></canvas>
       </div>
+
+      {# Nothing captured yet. The Earth stage is where a view comes from, so
+         this points back at it rather than quietly fetching a lesser one. #}
+      <p class="dp-empty" id="dp-empty" hidden>
+        No view captured for this property yet.
+        <a href="/studio/create/video/earth?lead_id={{ lead.id }}">Capture one
+          from Google Earth</a>, or use your own image above.
+      </p>
       <p class="hint">Click to place points along the path. The first point is
         where the flight starts.</p>
     </section>
