@@ -62,8 +62,10 @@ function madeAt(run) {
   if (run.style === "drone") {
     return "/studio/create/video/drone?lead_id=" + lead + "&style=drone";
   }
-  return "/studio/create/render?lead=" + lead
-    + "&from=clips&run=" + run.id;
+  // `run` marks which one to scroll to. Nothing else: the page behaves the
+  // same however you reached it, so there is nothing to tell it about where
+  // the click came from.
+  return "/studio/create/render?lead=" + lead + "&run=" + run.id;
 }
 
 async function load() {

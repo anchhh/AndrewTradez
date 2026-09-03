@@ -1205,14 +1205,11 @@ function finish(job) {
   // Stitching is the next arrow in the chain and does not exist yet; saying so
   // beats implying these are a finished video.
   // Back's destination named here rather than on the button, so the button
-  // can stay the word people scan for -- and it has to name the RIGHT one:
-  // arriving from a property's videos, Back returns there rather than to a
-  // shot picker for a render that is already finished.
-  const cameFromClips =
-    new URLSearchParams(location.search).get("from") === "clips";
-  const back = cameFromClips
-    ? "Back returns to this property's videos."
-    : "Back goes to the shots, where you can change them and render again.";
+  // can stay the word people scan for. It is the same destination however
+  // you arrived: Back is one step back in this process, and the way to the
+  // shelf is the All videos button beside it.
+  const back = "Back goes to the shots, where you can change them and render "
+    + "again.";
   el("rn-results-note").textContent = clips.length > 1
     ? "These are separate clips — stitching them into one video isn't built "
       + "yet. " + back
@@ -1314,14 +1311,10 @@ async function openLeadRenders(leadId) {
     }
   }
 
-  const cameFromClips =
-    new URLSearchParams(location.search).get("from") === "clips";
   el("rn-results-note").textContent =
     "Separate clips from separate runs — stitching them into one video isn't "
-    + "built yet. "
-    + (cameFromClips
-       ? "Back returns to this property's videos."
-       : "Back goes to the shots, where you can change them and render again.");
+    + "built yet. Back goes to the shots, where you can change them and "
+    + "render again.";
 }
 
 /* ---------- trashing a clip ----------
@@ -1763,16 +1756,7 @@ function backToShots() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-el("rn-again").addEventListener("click", () => {
-  const params = new URLSearchParams(location.search);
-  const lead = params.get("lead_id") || params.get("lead");
-  if (params.get("from") === "clips" && lead) {
-    window.location.href = "/studio/create/video/clips?lead_id="
-      + encodeURIComponent(lead);
-    return;
-  }
-  backToShots();
-});
+el("rn-again").addEventListener("click", backToShots);
 // Backwards only, like Scenery's, and never mid-render.
 document.querySelectorAll("#steps .step").forEach((li) => {
   li.addEventListener("click", (e) => {
