@@ -1,9 +1,15 @@
-/* The videos already made, on the way in.
+/* The videos already made, on the way in to Video or Scenery.
 
-   Reads the same endpoint the lead profile reads, so there is one answer to
-   "what has been rendered" rather than two that can disagree. No style
-   filter: a person looking for a clip remembers the house, not which of
-   three cards they clicked a week ago. */
+   Grouped by property, not laid out flat. Eleven clips of two houses as
+   eleven tiles is a wall of near-identical thumbnails -- five of them the
+   same driveway from the same height -- and picking one out of it means
+   reading the caption under each. The question being answered here is "which
+   house", and only then "which clip"; a listing with six clips is one thing
+   to scan past, not six.
+
+   So each property is one card, and it opens that lead's profile, where its
+   clips already live alongside everything else about it. This page does not
+   try to be a second gallery. */
 
 (async function recentVideos() {
   const card = document.getElementById("rv-card");
@@ -14,6 +20,24 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 
+  /* Naive UTC without a zone reads as local time in the browser. */
+  function when(value) {
+    if (!value) return null;
+    const utc = /(?:Z|[+-]\d\d:?\d\d)$/.test(value) ? value : value + "Z";
+    const at = new Date(utc);
+    return Number.isNaN(at.getTime()) ? null : at;
+  }
+
+  function ago(at) {
+    if (!at) return "";
+    const mins = Math.round((Date.now() - at.getTime()) / 60000);
+    if (mins < 60) return "latest just now";
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return "latest today";
+    const days = Math.round(hours / 24);
+    return days === 1 ? "latest yesterday" : "latest " + days + " days ago";
+  }
+
   let runs = [];
   try {
     const res = await fetch("/studio/api/video/jobs");
@@ -23,34 +47,62 @@
     return;  // nothing rendered, or nothing reachable: show no section
   }
 
-  // One tile per clip rather than per run: a run is bookkeeping, a clip is
-  // the thing being looked for.
-  const tiles = [];
+  // One entry per property. A render with no lead behind it -- photos from a
+  // pasted link or an upload -- has nowhere to group under and no profile to
+  // open, so those keep their own card and open the render itself.
+  const homes = new Map();
   runs.forEach((run) => {
-    (run.clips || []).forEach((clip) => {
-      if (!clip.video_url) return;
-      tiles.push({
-        url: clip.video_url,
-        address: run.address || "No listing",
+    const clips = (run.clips || []).filter((c) => c.video_url);
+    if (!clips.length) return;
+    const key = run.lead_id ? "lead:" + run.lead_id : "run:" + run.id;
+    let home = homes.get(key);
+    if (!home) {
+      home = {
         lead: run.lead_id,
-        when: run.created_at,
-      });
-    });
+        job: run.id,
+        name: run.address || "No listing",
+        poster: clips[0].video_url,
+        clips: 0,
+        latest: null,
+        styles: new Set(),
+      };
+      homes.set(key, home);
+    }
+    home.clips += clips.length;
+    if (run.style) home.styles.add(run.style);
+    const made = when(run.created_at);
+    if (made && (!home.latest || made > home.latest)) {
+      home.latest = made;
+      home.poster = clips[0].video_url;
+    }
   });
 
-  if (!tiles.length) return;
+  const list = [...homes.values()].sort(
+    (a, b) => (b.latest ? b.latest.getTime() : 0) - (a.latest ? a.latest.getTime() : 0));
+  if (!list.length) return;
 
-  grid.innerHTML = tiles.slice(0, 24).map((t) => {
+  const STYLES = { drone: "drone", walkthrough: "walkthrough", basic: "basic" };
+
+  grid.innerHTML = list.map((home) => {
+    const href = home.lead
+      ? "/studio/leads/" + home.lead
+      : "/studio/create/render?job=" + home.job;
+    const kinds = [...home.styles].map((s) => STYLES[s]).filter(Boolean);
     // #t=0.5 so the poster frame is half a second in: the first frame of a
     // drone shot is often the sky.
-    const open = t.lead ? "/studio/leads/" + t.lead : t.url;
-    return '<a class="rv-tile" href="' + esc(open) + '">' +
-      '<video src="' + esc(t.url) + '#t=0.5" preload="metadata" muted></video>' +
-      '<span class="rv-name">' + esc(t.address) + "</span></a>";
+    return '<a class="rv-tile" href="' + esc(href) + '">' +
+      '<video src="' + esc(home.poster) + '#t=0.5" preload="metadata" muted></video>' +
+      '<span class="rv-name">' + esc(home.name) + "</span>" +
+      '<span class="rv-sub">' + home.clips +
+      (home.clips === 1 ? " clip" : " clips") +
+      (kinds.length ? " · " + esc(kinds.join(", ")) : "") +
+      (home.latest ? " · " + esc(ago(home.latest)) : "") + "</span></a>";
   }).join("");
 
+  const clips = list.reduce((n, h) => n + h.clips, 0);
   document.getElementById("rv-note").textContent =
-    tiles.length + (tiles.length === 1 ? " clip" : " clips") +
-    ", newest first — drone, walkthrough and basic together.";
+    list.length + (list.length === 1 ? " property" : " properties") + ", " +
+    clips + (clips === 1 ? " clip" : " clips") +
+    " — open one to see its videos on the lead.";
   card.hidden = false;
 }());

@@ -6838,3 +6838,18 @@ button.gn-review-shot {
 .cl-tile.is-here { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.22); }
 /* Forward without spending, beside the button that does. */
 .dr-onward { font-weight: 600; }
+
+/* One card per property rather than one per clip: eleven near-identical
+   driveways is a wall to read, not a list to scan. */
+.rv-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.rv-sub {
+  display: block;
+  padding: 0 8px 7px;
+  background: var(--cream, #efe8dd);
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rv-name { padding-bottom: 2px; font-weight: 600; color: var(--ink); }
