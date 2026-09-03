@@ -747,8 +747,15 @@ def describe(path):
         last = bearing(points[-2], points[-1])
         curved = bool(first and last and first != last)
 
-    parts = ["FLIGHT PATH, planned on an overhead view of this property: fly "
-             "%s across the plot" % heading]
+    # Not "planned on an overhead view", which was a dangling reference: the
+    # video model is given a first frame, a last frame and words, and never
+    # sees the overhead the line was drawn on. Pointing at a picture that is
+    # not in the request is worse than not pointing at all.
+    #
+    # What replaces it is the framing the route actually deserves -- an
+    # instruction to a pilot, in a pilot's terms.
+    parts = ["FLY THIS ROUTE, the way a drone operator filming this property "
+             "would: %s across the plot" % heading]
     if span < 0.25:
         parts.append("a short distance only")
     elif span > 0.6:
