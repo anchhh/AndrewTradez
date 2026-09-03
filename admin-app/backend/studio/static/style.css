@@ -5749,38 +5749,43 @@ gmp-map-3d {
 .ge-card .ge-step:first-child { margin-top: 0; }
 
 /* The whole of step 1 is one link out, so it is sized like the step it is
-   rather than tucked into a sentence. */
-.ge-button {
-  display: block;
-  margin: 12px 0 4px;
-  padding: 26px 20px;
-  border-radius: 12px;
-  background: var(--panel, #f4efe6);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  text-align: center;
-  font-size: 1.5rem;
-  font-weight: 800;
-  text-decoration: none;
-}
-.ge-button:hover { border-color: var(--accent); color: var(--accent); }
+   rather than tucked into a sentence -- and dressed as the thing it opens.
+   Google Blue on white, Google's own type stack, Google's own icon: a button
+   that looks like where it goes is easier to find than one that matches the
+   page it sits on.
 
-.ge-drop {
+   The typeface is named, not fetched. Product Sans and Google Sans are
+   Google's own and not distributable; Roboto is Apache-licensed and often
+   already installed alongside Chrome. Nothing here loads a remote
+   stylesheet, which is also true of every other font in this app. */
+.ge-button {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   margin: 12px 0 4px;
-  padding: 30px 20px;
-  border: 2px dashed var(--line);
-  border-radius: 12px;
-  color: var(--ink-soft);
-  cursor: pointer;
+  padding: 20px;
+  border-radius: 10px;
+  background: #1a73e8;          /* Google Blue 600, their primary button */
+  border: 1px solid #1a73e8;
+  color: #fff;
   text-align: center;
+  font-family: 'Google Sans', 'Product Sans', Roboto, Arial, sans-serif;
+  font-size: 1.28rem;
+  font-weight: 500;             /* Google's buttons are medium, not heavy */
+  letter-spacing: 0.01em;
+  text-decoration: none;
 }
-.ge-drop:hover, .ge-drop.is-over { border-color: var(--accent); color: var(--accent); }
+.ge-button:hover { background: #1b66c9; border-color: #1b66c9; color: #fff; }
+.ge-button-mark {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border-radius: 6px;
+  background: #fff;             /* the mark has its own ground, not the blue */
+  flex-shrink: 0;
+}
 
-/* Several captures of one property, side by side. Sized so three or four
-   fit without scrolling: they are being compared, not read. */
 .ge-shots {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));

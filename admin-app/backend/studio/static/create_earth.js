@@ -3,9 +3,10 @@
 
    The capture cannot happen in the page. Earth refuses to be framed
    (X-Frame-Options: SAMEORIGIN) and a cross-origin frame cannot be
-   screenshotted anyway, so the screenshot is taken outside and handed back
-   here. What this page does is make that round trip short and store the
-   result where the flight planner will look for it. */
+   screenshotted anyway, so the screenshot is taken outside -- by the
+   extension, which is the only thing here that can read another tab -- and
+   sent straight to this listing. This page opens Earth at the address and
+   shows what has come back. */
 
 const lead = window.__LEAD__;
 const el = (id) => document.getElementById(id);
@@ -64,53 +65,6 @@ async function change(action, url) {
     note(err.message);
   }
 }
-
-async function upload(file) {
-  const form = new FormData();
-  form.append("photos", file);
-  const res = await fetch("/studio/api/upload", { method: "POST", body: form });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body.error || "that image couldn't be saved");
-  const url = (body.photos || [])[0];
-  // Uploads are de-duplicated by image hash, so the same capture twice comes
-  // back with nothing rather than an error.
-  if (!url) throw new Error("that screenshot is already on this listing");
-  return url;
-}
-
-async function take(files) {
-  const chosen = [...(files || [])];
-  if (!chosen.length) return;
-  note(chosen.length > 1 ? `Saving ${chosen.length} screenshots…` : "Saving…");
-  let added = 0;
-  for (const file of chosen) {
-    try {
-      await change("add", await upload(file));
-      added += 1;
-    } catch (err) {
-      note(err.message);
-    }
-  }
-  if (added) {
-    note(added > 1
-      ? `${added} views saved. Draw the flight path on one of them at the next step.`
-      : "Saved. Draw the flight path on it at the next step.");
-  }
-}
-
-el("ge-file").addEventListener("change", (e) => take(e.target.files));
-const drop = el("ge-drop");
-["dragenter", "dragover"].forEach((name) =>
-  drop.addEventListener(name, (e) => {
-    e.preventDefault();
-    drop.classList.add("is-over");
-  }));
-["dragleave", "drop"].forEach((name) =>
-  drop.addEventListener(name, (e) => {
-    e.preventDefault();
-    drop.classList.remove("is-over");
-  }));
-drop.addEventListener("drop", (e) => take(e.dataTransfer.files));
 
 /* A capture made on an earlier visit, so coming back does not look like
    nothing happened. */

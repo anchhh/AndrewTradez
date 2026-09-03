@@ -27,20 +27,23 @@
     {# Earth cannot be embedded: it sends X-Frame-Options: SAMEORIGIN. A link
        out is the whole of what is possible, so it is made the size of the
        thing it is. #}
+    {# Google's own icon, from Google's own favicon service, the same way the
+       extension shows a Zillow or Redfin mark beside their tabs. Nominative
+       use of a trademark to point at the thing it names -- and fetched at
+       runtime rather than copied into a public repo. #}
     <a class="ge-button" href="{{ earth_url }}" target="_blank" rel="noopener">
-      Open Google Earth
+      <img class="ge-button-mark"
+           src="https://www.google.com/s2/favicons?domain=earth.google.com&amp;sz=64"
+           alt="" width="28" height="28" loading="lazy">
+      <span>Open Google Earth</span>
     </a>
 
     <h2 class="ge-step">Step 2: Capture the view</h2>
     <p class="hint">Screenshot Earth with the extension, then bring it back
-      here. Take as many views as the flight needs &mdash; a front angle, a
-      top-down, the run itself. One of them is the one the path gets drawn
-      on, and you choose which.</p>
-    <label class="ge-drop" id="ge-drop">
-      <input type="file" id="ge-file" accept="image/*" multiple hidden>
-      <span id="ge-drop-text">Drop screenshots here, or click to choose them</span>
-    </label>
-
+      here with the Create tab. Take as many views as the flight needs
+      &mdash; a front angle, a top-down, the run itself. They appear below;
+      one of them is the one the path gets drawn on, and you choose
+      which.</p>
     {# Several views of one property: a front angle, a top-down, the line the
        flight takes. One of them is drawn on, and which one is a choice --
        marked rather than assumed, because the path lives in that picture's
