@@ -1264,6 +1264,11 @@ def create_enhance():
         captures=dronepath.images_of(path),
         originals=path.get("originals") or {},
         references=enhance.exterior_references(lead),
+        # Every photo on the listing, so the picker can offer the interior
+        # ones too -- a capture of the back garden is better matched against
+        # a photo of the back garden than against the front elevation.
+        photos=lead.photo_urls or [],
+        rooms=lead.photo_rooms or {},
         configured=gemini_image.is_configured(),
         back_href=back,
         next_href="/studio/create/render?" + tail,
@@ -3142,8 +3147,10 @@ def api_capture_enhance(lead_id):
     exterior shots."""
     from services import enhance
 
-    return _capture_edit(lead_id,
-                         lambda lead, image, data: enhance.enhance_capture(lead, image))
+    return _capture_edit(
+        lead_id,
+        lambda lead, image, data: enhance.enhance_capture(
+            lead, image, references=data.get("references")))
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/captures/crop", methods=["POST"])

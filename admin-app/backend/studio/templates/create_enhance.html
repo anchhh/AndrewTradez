@@ -62,22 +62,48 @@
   </div>
 </div>
 
-{# The cropper. A full-size overlay rather than an inline box: framing a shot
-   means looking at it, and a 230px thumbnail is not looking at it. #}
-<div class="en-crop" id="en-crop" hidden>
+{# The viewer. One overlay for looking at a capture properly and for every
+   edit that starts with looking at it -- cropping a 230px thumbnail is not
+   framing a shot. Dragging on it draws a crop box; the buttons act on the
+   capture whether or not one is drawn. #}
+<div class="en-crop" id="en-view" hidden>
   <div class="en-crop-panel">
     <div class="en-crop-head">
-      <span>Drag a box over the part you want to keep.</span>
+      <span id="en-view-name"></span>
+      <span>Drag a box to crop &mdash; or just look.</span>
       <span class="en-crop-size" id="en-crop-size"></span>
     </div>
     <div class="en-crop-stage" id="en-crop-stage">
-      <img id="en-crop-img" alt="The capture being cropped">
+      <img id="en-crop-img" alt="The capture, full size">
       <canvas id="en-crop-canvas"></canvas>
     </div>
     <div class="en-crop-actions">
-      <button type="button" class="btn-secondary btn-tiny" id="en-crop-reset">Start over</button>
-      <button type="button" class="btn-secondary" id="en-crop-cancel">Cancel</button>
+      <button type="button" class="btn-secondary btn-tiny" id="en-crop-reset">Clear box</button>
+      <button type="button" class="btn-secondary btn-tiny" id="en-view-revert">Revert</button>
+      <span class="en-crop-spacer"></span>
+      <button type="button" class="btn-secondary" id="en-crop-cancel">Close</button>
+      <button type="button" class="btn-secondary" id="en-view-enhance">Enhance&hellip;</button>
       <button type="button" class="btn-send" id="en-crop-apply">Crop</button>
+    </div>
+  </div>
+</div>
+
+{# Which photographs the redraw matches against. Asked rather than assumed:
+   which side of the house a capture shows is obvious to a person looking at
+   it and guesswork for anything else. #}
+<div class="en-crop" id="en-pick" hidden>
+  <div class="en-crop-panel en-pick-panel">
+    <div class="en-crop-head">
+      <span>Which photos should it match? The building's colours, materials
+        and details come from these.</span>
+      <span class="en-crop-size" id="en-pick-count"></span>
+    </div>
+    <div class="en-pick-grid" id="en-pick-grid"></div>
+    <div class="en-crop-actions">
+      <button type="button" class="btn-secondary btn-tiny" id="en-pick-default">Exteriors only</button>
+      <span class="en-crop-spacer"></span>
+      <button type="button" class="btn-secondary" id="en-pick-cancel">Cancel</button>
+      <button type="button" class="btn-send" id="en-pick-go">Enhance</button>
     </div>
   </div>
 </div>
@@ -86,7 +112,10 @@
   window.__LEAD__ = {{ lead.id | tojson }};
   window.__CAPTURES__ = {{ captures | tojson }};
   window.__ORIGINALS__ = {{ originals | tojson }};
-  window.__CAN_ENHANCE__ = {{ (configured and references | length > 0) | tojson }};
+  window.__CAN_ENHANCE__ = {{ configured | tojson }};
+  window.__PHOTOS__ = {{ photos | tojson }};
+  window.__ROOMS__ = {{ rooms | tojson }};
+  window.__DEFAULT_REFS__ = {{ references | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_enhance.js') }}"></script>
 </body>

@@ -5974,3 +5974,47 @@ gmp-map-3d {
   cursor: crosshair;
 }
 .en-crop-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* The thumbnail is the way into the viewer, so it has to be a button --
+   without resetting what a button looks like. */
+button.en-shot {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.en-crop-spacer { flex: 1 1 auto; }
+.en-crop-head { align-items: baseline; }
+
+/* Choosing what the redraw matches against. */
+.en-pick-panel { width: min(980px, 94vw); }
+.en-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 8px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.en-pick-item {
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream-soft, #f6f2ea);
+  cursor: pointer;
+  overflow: hidden;
+  display: block;
+  text-align: left;
+  font-family: inherit;
+}
+.en-pick-item img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.en-pick-item span {
+  display: block;
+  padding: 4px 6px;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+.en-pick-item.is-on { border-color: var(--accent); }
+.en-pick-item.is-on span { color: var(--accent); font-weight: 700; }

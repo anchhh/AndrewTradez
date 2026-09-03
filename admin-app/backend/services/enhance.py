@@ -42,45 +42,51 @@ class EnhanceError(Exception):
     """The capture could not be edited."""
 
 
-PROMPT = """EDIT THE FIRST IMAGE. Return the first image, redrawn. Do not
-return any of the other images.
+PROMPT = """Redraw this Google Earth screenshot as a real photograph of
+this house, at the highest quality you can produce.
 
-The first image is a screenshot of Google Earth's 3D view of a property.
-Make it look like a photograph taken from exactly that position.
+THE CAMERA DOES NOT MOVE. This is the rule that matters most. The result is
+shot from the same place as the screenshot: the same height, the same angle,
+the same distance, the same framing. An aerial view stays an aerial view --
+do not descend to the ground, do not swing round the building, do not
+re-centre it. Every roof, fence and driveway stays in the position it
+occupies in the screenshot.
 
-THE CAMERA DOES NOT MOVE. Whatever the first image is looking at, from
-whatever height and angle, the result looks at the same thing from the same
-height and the same angle, with the same things in the same places in the
-frame. If the first image looks straight down, the result looks straight
-down. If a house sits in the lower left of the first image, it sits in the
-lower left of the result.
+The first image is the screenshot. Every image after it is a photograph of
+THAT SAME HOUSE from the ground. They are the truth about the building, not
+a camera position to copy.
 
-The images after the first are photographs of THAT SAME HOUSE, taken from
-the ground. They are reference for what the building looks like, not
-pictures to return and not a camera position to copy. Take from them: the
-colour and material of the walls, the roof colour and pitch, the windows,
-the garage, the door, the driveway, the landscaping.
+MAKE IT A PHOTOGRAPH, from that same viewpoint:
+- sharp throughout, no blur, no smearing, no melted geometry
+- real materials with real texture: individual roof shingles, the grain and
+  seams of the siding, the courses of the brick, the boards of the fence
+- clean straight architectural edges: the roof line, the eaves, the window
+  frames, the garage door panels, the corners of the walls
+- real glass in the windows, with reflection and depth rather than flat grey
+- lawn that reads as grass, concrete that reads as concrete, gravel that
+  reads as stones
+- natural sunlight, with the shadows falling exactly where the screenshot's
+  fall
+- the crisp detail and colour of a professional drone photograph
 
-DO:
-- resolve the soft, melted 3D geometry into clean architecture, matching
-  what the reference photographs show
-- clean up smeared texture on the roof, the walls, the road and the grass
-- keep the lighting natural for the time of day already in the capture
+TAKE FROM THE REFERENCE PHOTOGRAPHS:
+- the colour and material of every wall
+- the roof colour and pitch
+- the trim, the front door, the garage door, the porch, the railings
+- the fencing, the driveway, the path, the planting and the ground cover
 
-DO NOT:
-- change the viewpoint, the angle, the height, the framing or the crop
-- change the layout of the plot, or move the house, the driveway, the fences
-  or the neighbouring buildings
-- add or remove buildings, vehicles, people, pools or trees
-- produce an illustration, a render or a painting: the result is a
-  photograph
-- add text, logos, watermarks or a border
+The screenshot may include Google Earth's own interface -- menus, a search
+box, a toolbar, a scale bar, a logo, a status line. None of it is part of
+the view. Render the landscape it covers instead; do not reproduce any of
+it, and do not leave a band of interface at any edge.
 
-If the reference photographs do not show a part of the building, leave that
-part as the first image has it rather than inventing it.
+Do not add or remove buildings, vehicles, people or trees. Do not add text,
+logos or watermarks, and do not copy a watermark out of the reference
+photographs. Do not produce an illustration, a painting or a 3D render.
 
-Again: the output is the FIRST image, from its own camera position, redrawn
-to look like a photograph."""
+This is a substantial upgrade, not a touch-up: the screenshot is soft and
+synthetic, the result is sharp and photographic. Do not return the first
+image unchanged -- and do not move the camera to achieve it."""
 
 
 def exterior_references(lead, limit=MAX_REFERENCES):
@@ -116,11 +122,16 @@ def _paths_for(urls):
     return paths
 
 
-def enhance_capture(lead, url, cfg=None):
+def enhance_capture(lead, url, references=None, cfg=None):
     """Redraw one Earth capture as a photograph of this house.
 
+    `references` is the listing photos to match against. Chosen by hand when
+    the caller passes them -- which side of the house a capture shows is
+    obvious to a person and guesswork here -- and the exterior shots by
+    default.
+
     Returns the saved URL of the new image. The capture it came from is left
-    on disk untouched -- reverting is a swap, not a restore.
+    on disk untouched: reverting is a swap, not a restore.
     """
     from studio import UPLOAD_DIR, local_path_from_url
 
@@ -128,7 +139,8 @@ def enhance_capture(lead, url, cfg=None):
     if not path or not path.exists():
         raise EnhanceError("that capture is not on disk any more")
 
-    references = _paths_for(exterior_references(lead))
+    chosen = [u for u in (references or []) if u in (lead.photo_urls or [])]
+    references = _paths_for(chosen or exterior_references(lead))
     if not references:
         raise EnhanceError(
             "this listing has no exterior photos, so there is nothing to "
