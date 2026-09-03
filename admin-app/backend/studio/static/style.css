@@ -6988,3 +6988,11 @@ a.btn-secondary {
 @media (max-width: 800px) {
   .ae-ends { grid-template-columns: minmax(0, 1fr); }
 }
+/* A sample of the style behind its card. */
+.style-card-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.style-card-media { overflow: hidden; }

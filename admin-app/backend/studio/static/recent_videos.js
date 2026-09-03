@@ -12,6 +12,53 @@
    one panel of it, and somebody who clicked a video thumbnail asked for the
    videos. This page does not try to be a second gallery. */
 
+/* A real clip behind each style card, newest first.
+
+   Drone takes either of the drone flow's two shots -- the aerial is one of
+   the sweeping establishing shots the card describes. Basic falls back to
+   any clip with no style recorded: those all came from the render page,
+   which is the basic and walkthrough tool, and this is a picture on a card
+   rather than a claim about the data. Walkthrough has none yet and stays
+   blank; an empty frame is the honest placeholder. */
+const CARD_CLIPS = {
+  drone: (run) => run.style === "drone" || run.style === "aerial",
+  basic: (run) => run.style === "basic" || !run.style,
+  walkthrough: (run) => run.style === "walkthrough",
+};
+
+function fillStyleCards(runs) {
+  document.querySelectorAll(".style-card[data-style]").forEach((card) => {
+    const wants = CARD_CLIPS[card.dataset.style];
+    const slot = card.querySelector(".style-card-media");
+    if (!wants || !slot) return;
+
+    let url = null;
+    for (const run of runs) {                       // newest first already
+      if (!wants(run)) continue;
+      const clip = (run.clips || []).find((c) => c.video_url);
+      if (clip) { url = clip.video_url; break; }
+    }
+    if (!url) return;                               // leave the blank frame
+
+    // Muted, looping, plays on hover: it is a sample of the style, not
+    // something to watch, and three cards playing at once with sound is a
+    // page nobody visits twice.
+    const video = document.createElement("video");
+    video.src = url;
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.className = "style-card-video";
+    slot.replaceChildren(video);
+    card.addEventListener("mouseenter", () => video.play().catch(() => {}));
+    card.addEventListener("mouseleave", () => {
+      video.pause();
+      video.currentTime = 0;
+    });
+  });
+}
+
 async function recentVideos() {
   const card = document.getElementById("rv-card");
   const grid = document.getElementById("rv-grid");
@@ -85,6 +132,10 @@ async function recentVideos() {
 
   // Anything rendering first: it is the only row on this page that changes
   // while you look at it.
+  // The style cards show one of your own clips rather than an empty
+  // rectangle. Same payload, so it costs nothing extra.
+  fillStyleCards(runs);
+
   const list = [...homes.values()].sort((a, b) => {
     if (!!b.running !== !!a.running) return b.running - a.running;
     return (b.latest ? b.latest.getTime() : 0) - (a.latest ? a.latest.getTime() : 0);

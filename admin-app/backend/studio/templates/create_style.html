@@ -23,7 +23,7 @@
      will fill, so adding one later changes nothing about the layout. #}
   <nav class="style-cards" aria-label="Video style">
     {% for key, name, note, href in styles %}
-      <a href="{{ href }}" class="style-card">
+      <a href="{{ href }}" class="style-card" data-style="{{ key }}">
         <span class="style-card-media" aria-hidden="true"></span>
         <span class="style-card-body">
           <span class="style-card-name">{{ name }}</span>
