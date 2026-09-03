@@ -1,25 +1,19 @@
-/* Stage 3: the editor for the Google Earth captures.
+/* The crop stage: framing the Earth captures.
 
-   Two edits, different in kind. Cropping is exact and instant: a rectangle
-   in the image's own pixels, applied by the server with PIL. Enhancing is a
-   model redrawing the capture from photographs of the house, which takes
-   about ten seconds and can come back wrong -- so both are undoable, and
-   Revert returns the capture as Earth gave it rather than the step before.
+   Cropping is exact and instant -- a rectangle in the image's own pixels,
+   applied by the server with PIL. No model is involved, and none should be:
+   framing a shot is not a judgement anything needs to make for you.
 
-   Which photographs it matches against is asked, not assumed. Which side of
-   the house a capture shows is obvious to a person looking at it and
-   guesswork for anything else, and matching a back-garden capture against
-   the front elevation is how a redraw puts the front door on the back wall.
+   It matters more than it looks. Earth screenshots arrive with menus down
+   one side and half the street in frame, and the generate stage works from
+   what is left -- a tight crop is most of the difference between a picture
+   of a house and a picture of a neighbourhood.
 
    Crop coordinates are held in image pixels, never screen pixels, so a box
    survives the overlay being a different size on a different monitor. Same
    reason the flight path is stored that way. */
 
 const lead = window.__LEAD__;
-const canEnhance = window.__CAN_ENHANCE__;
-const photos = window.__PHOTOS__ || [];
-const rooms = window.__ROOMS__ || {};
-const defaultRefs = window.__DEFAULT_REFS__ || [];
 const slots = window.__SLOTS__ || {};
 const shotLabels = window.__SHOT_LABELS__ || {};
 
@@ -43,12 +37,6 @@ function escapeHtml(value) {
   }[c]));
 }
 
-function roomLabel(url) {
-  const entry = rooms[url];
-  const label = entry && typeof entry === "object" ? entry.label : entry;
-  return label || "Unsorted";
-}
-
 /* ---------- the gallery ---------- */
 
 function render() {
@@ -68,8 +56,6 @@ function render() {
           <span class="en-buttons">
             <button type="button" class="btn-secondary btn-tiny" data-act="view"
                     ${working ? "disabled" : ""}>Full size</button>
-            <button type="button" class="btn-secondary btn-tiny" data-act="pick"
-                    ${working || !canEnhance ? "disabled" : ""}>Enhance…</button>
             ${edited ? `<button type="button" class="btn-tiny" data-act="revert"
                     ${working ? "disabled" : ""}>Revert</button>` : ""}
           </span>
@@ -82,7 +68,6 @@ function render() {
     const act = button.dataset.act;
     button.addEventListener("click", () => {
       if (act === "view") openView(url);
-      else if (act === "pick") openPicker(url);
       else post(act, url);
     });
   });
@@ -92,9 +77,9 @@ function render() {
    shape: the whole gallery back. Patching the list locally from a partial
    reply is how two views of the same thing start disagreeing. */
 async function post(action, url, extra = {}) {
-  busy[url] = action === "enhance" ? "Redrawing…" : "Working…";
+  busy[url] = "Working…";
   render();
-  note(action === "enhance" ? "Redrawing — this takes a few seconds." : "");
+  note("");
   try {
     const res = await fetch(`/studio/api/leads/${lead}/captures/${action}`, {
       method: "POST",
@@ -107,77 +92,13 @@ async function post(action, url, extra = {}) {
     originals = body.originals || {};
     delete busy[url];
     render();
-    note(action === "enhance" ? "Redrawn. Revert if it came out wrong." : "");
+    note("");
   } catch (err) {
     delete busy[url];
     render();
     note(err.message);
   }
 }
-
-/* ---------- handing it to Google Flow ----------
-
-   Flow has no public API and no URL that pre-fills a prompt or attaches an
-   image, so nothing here "sends" a job to it. What it does is the three
-   things that can honestly be done: put the prompt on the clipboard,
-   download the images in the order they should be added, and open Flow.
-
-   Front and back are separate buttons because they are separate briefs. A
-   flight happens on one side of a house, and handing over both piles at once
-   is how a back-garden shot ends up with the front door. */
-
-async function toFlow(side) {
-  const flow = window.__FLOW_URL__;
-  const prompt = window.__PROMPT__ || "";
-
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(prompt);
-    copied = true;
-  } catch (err) {
-    // Clipboard access can be refused; the prompt is still on the page and
-    // in the download, so this is a smaller convenience rather than a
-    // failure.
-  }
-
-  // Fetched as a blob rather than navigated to. Pointing the window at the
-  // endpoint works right up until the session has expired, at which point the
-  // "download" is a redirect to the login page and the board you were working
-  // on is gone. This way that is an error message instead.
-  note("Bundling the " + side + " set…");
-  try {
-    const res = await fetch(`/studio/api/leads/${lead}/flow-bundle?side=${side}`);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `couldn't build the ${side} set`);
-    }
-    const blob = await res.blob();
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = (res.headers.get("Content-Disposition") || "")
-      .split("filename=").pop().replace(/"/g, "") || `${side}-flow.zip`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(href), 10000);
-  } catch (err) {
-    note(err.message);
-    return;
-  }
-
-  window.open(flow, "_blank", "noopener");
-  note(copied
-    ? `Prompt copied and the ${side} set downloaded. Flow is open — drop the ` +
-      `images in and paste the prompt.`
-    : `The ${side} set downloaded. Flow is open; the prompt is in prompt.txt ` +
-      `inside the zip.`);
-}
-
-["front", "back"].forEach((side) => {
-  const button = el(`en-flow-${side}`);
-  if (button) button.addEventListener("click", () => toFlow(side));
-});
 
 /* ---------- the viewer, which is also the cropper ---------- */
 
@@ -194,7 +115,6 @@ function openView(url) {
   box = null;
   el("en-view-name").textContent = captureName(url);
   el("en-view-revert").hidden = !originals[url];
-  el("en-view-enhance").disabled = !canEnhance;
   const img = cropImg();
   img.onload = () => {
     natural = { w: img.naturalWidth, h: img.naturalHeight };
@@ -287,11 +207,6 @@ el("en-view-revert").addEventListener("click", () => {
   closeView();
   post("revert", url);
 });
-el("en-view-enhance").addEventListener("click", () => {
-  const url = viewUrl;
-  closeView();
-  openPicker(url);
-});
 el("en-crop-apply").addEventListener("click", () => {
   if (!box) { note("Drag a box first."); return; }
   const [x0, y0, x1, y1] = normalised();
@@ -301,73 +216,12 @@ el("en-crop-apply").addEventListener("click", () => {
   post("crop", url, { box: [x0, y0, x1, y1] });
 });
 
-/* ---------- choosing what it matches against ---------- */
-
-let pickUrl = null;
-let chosen = new Set();
-
-function openPicker(url) {
-  pickUrl = url;
-  chosen = new Set([...captures.filter((u) => u !== url), ...defaultRefs]);
-  renderPicker();
-  el("en-pick").hidden = false;
-}
-
-function renderPicker() {
-  // The other captures first, and preselected. Sending the top-down
-  // satellite alongside the oblique view is what tells the model the shape
-  // of the plot -- one view leaves it guessing at the half it cannot see,
-  // which is the difference between a good redraw and a great one.
-  const others = captures.filter((url) => url !== pickUrl);
-  const tile = (url, label) => `
-    <button type="button" class="en-pick-item${chosen.has(url) ? " is-on" : ""}"
-            data-url="${url}">
-      <img src="${url}" alt="">
-      <span>${escapeHtml(label)}</span>
-    </button>`;
-
-  el("en-pick-grid").innerHTML =
-    (others.length
-      ? `<p class="en-pick-head">Other views of this property</p>` +
-        others.map((url) => tile(url, captureName(url))).join("")
-      : "") +
-    `<p class="en-pick-head">Photos of the house</p>` +
-    photos.map((url) => tile(url, roomLabel(url))).join("");
-
-  el("en-pick-grid").querySelectorAll(".en-pick-item").forEach((button) => {
-    button.addEventListener("click", () => {
-      const url = button.dataset.url;
-      if (chosen.has(url)) chosen.delete(url); else chosen.add(url);
-      renderPicker();
-    });
-  });
-
-  // Said out loud because more is not better here: past a handful the
-  // capture stops being clearly the subject among the images sent.
-  const n = chosen.size;
-  el("en-pick-count").textContent =
-    n ? `${n} selected${n > 6 ? " — that's a lot" : ""}` : "none selected";
-  el("en-pick-go").disabled = !n;
-}
-
-el("en-pick-default").addEventListener("click", () => {
-  chosen = new Set([...captures.filter((u) => u !== pickUrl), ...defaultRefs]);
-  renderPicker();
-});
-el("en-pick-cancel").addEventListener("click", () => { el("en-pick").hidden = true; });
-el("en-pick-go").addEventListener("click", () => {
-  const url = pickUrl;
-  const references = [...chosen];
-  const model = (document.querySelector('input[name="en-model"]:checked') || {}).value;
-  el("en-pick").hidden = true;
-  post("enhance", url, { references, model });
-});
-
 // Escape closes whichever overlay is open, because an overlay that can only
 // be dismissed by finding the right button is one people get stuck in.
 window.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  if (!el("en-pick").hidden) el("en-pick").hidden = true;
+  // Innermost first: the lightbox opens on top of the cropper.
+  if (!el("ge-lightbox").hidden) closeZoom();
   else if (viewUrl) closeView();
 });
 

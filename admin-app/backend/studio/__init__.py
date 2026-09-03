@@ -1078,7 +1078,7 @@ STEP_FLOWS = {
     # drone shot is one flight between two frames of the same property. They
     # were sharing the shots step, which meant a drone run arrived at a
     # room-by-room picker that had nothing to do with it.
-    "drone": ["Listing", "Google Earth", "Enhance", "Drone shot", "Clips"],
+    "drone": ["Listing", "Google Earth", "Crop", "Generate", "Drone shot", "Clips"],
     None: ["Listing", "Style & shots", "Clips"],
 }
 
@@ -1118,7 +1118,8 @@ STYLE_NAMES = {"basic": "Basic", "walkthrough": "Walkthrough", "drone": "Drone"}
 STAGE_PAGES = {
     "listing": ("Listing", "/studio/create/video/listing"),
     "earth": ("Google Earth", "/studio/create/video/earth"),
-    "enhance": ("Enhance", "/studio/create/video/enhance"),
+    "enhance": ("Crop", "/studio/create/video/crop"),
+    "generate": ("Generate", "/studio/create/video/generate"),
     "render": ("Style & shots", "/studio/create/render"),
     "drone": ("Drone shot", "/studio/create/video/drone"),
 }
@@ -1179,7 +1180,8 @@ def _create_crumbs(here, style=None, project_id=None):
     # Back is one step rather than a jump to the beginning.
     stage = STAGE_OF.get(here, here)
     labels = STEP_FLOWS.get(style if style == "drone" else None)
-    order = [key for key in ("listing", "earth", "enhance", "render", "drone")
+    order = [key for key in ("listing", "earth", "enhance", "generate",
+                             "render", "drone")
              if STAGE_PAGES[key][0] in labels]
 
     if stage not in order:
@@ -1297,7 +1299,8 @@ def create_earth():
         crumbs=_create_crumbs("earth", style="drone"))
 
 
-@studio_bp.route("/create/video/enhance")
+@studio_bp.route("/create/video/crop")
+@studio_bp.route("/create/video/enhance")   # the name it had before it split
 @login_required
 def create_enhance():
     """Stage 3: correct the photographs before anything is made from them.
@@ -1315,7 +1318,7 @@ def create_enhance():
     style = (request.args.get("style") or "drone").strip().lower()
     project_id = request.args.get("project")
     tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
-    onward = ("/studio/create/video/drone?lead_id=%s&style=drone" % lead.id
+    onward = ("/studio/create/video/generate?lead_id=%s&style=drone" % lead.id
               + ("&project=%s" % quote(project_id) if project_id else "")
               if style == "drone" else "/studio/create/render?" + tail)
     back = ("/studio/create/video/earth?lead_id=%s" % lead.id
@@ -1325,7 +1328,7 @@ def create_enhance():
 
     path = lead.drone_path or {}
     return render_template(
-        "create_enhance.html", lead=lead,
+        "create_crop.html", lead=lead,
         captures=dronepath.images_of(path),
         originals=path.get("originals") or {},
         slots=dronepath.slots_of(path),
@@ -1346,8 +1349,56 @@ def create_enhance():
         configured=gemini_image.is_configured(),
         back_href=back,
         next_href=onward,
-        steps=_steps(style, "Enhance"),
+        steps=_steps(style, "Crop"),
         crumbs=_create_crumbs("enhance", style=style))
+
+
+@studio_bp.route("/create/video/generate")
+@login_required
+def create_generate():
+    """Stage 4: the two shots a flight is built from.
+
+    Front and back, side by side, because that is the shape of the job: a
+    flyover starts on one and lands on the other. Everything placed on the
+    board at stage 2 feeds one of these two columns, with the neighbours in
+    both.
+    """
+    from services import dronepath, enhance, gemini_image
+
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    style = (request.args.get("style") or "drone").strip().lower()
+    project_id = request.args.get("project")
+    tail = "&project=%s" % quote(project_id) if project_id else ""
+    path = lead.drone_path or {}
+
+    notes = {"front": "Where the flight opens.",
+             "back": "Where it lands."}
+    sides = []
+    for key in dronepath.SIDES:
+        base, references = dronepath.base_for(lead, key)
+        sides.append({"key": key, "label": key.title(), "note": notes[key],
+                      "base": base, "references": references})
+
+    return render_template(
+        "create_generate.html", lead=lead,
+        sides=sides,
+        generated=dronepath.generated_of(path),
+        slots=dronepath.slots_of(path),
+        shot_labels=dronepath.SHOT_LABELS,
+        models=enhance.MODELS,
+        default_model=enhance._model_settings()[0],
+        configured=gemini_image.is_configured(),
+        flow_url=dronepath.FLOW_URL,
+        prompt=enhance.PROMPT,
+        earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
+        back_href="/studio/create/video/crop?lead_id=%s&style=drone%s" % (lead.id, tail),
+        next_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
+        steps=_steps(style, "Generate"),
+        crumbs=_create_crumbs("generate", style=style, project_id=project_id))
 
 
 @studio_bp.route("/create/video/drone")
@@ -1377,15 +1428,23 @@ def create_drone():
     # Placed first, in plan order, because those are the views someone has
     # already said something about. Everything else after, so a capture that
     # was never filed is still usable.
-    placed = dronepath.placed(lead)
-    rest = [u for u in dronepath.images_of(path) if u not in placed]
+    # The two generated shots first: they are what the previous stage exists
+    # to produce, and a flight between them is the default reading of this
+    # page. Everything placed on the board after, then anything unfiled.
+    made = dronepath.generated_of(path)
+    shots = [made[key] for key in dronepath.SIDES if made.get(key)]
+    placed = [u for u in dronepath.placed(lead) if u not in shots]
+    rest = [u for u in dronepath.images_of(path) if u not in shots + placed]
 
     return render_template(
         "create_drone.html", lead=lead,
-        frames=placed + rest,
-        labels={url: slots[0] for url, slots in
-                ((u, dronepath.slots_for(path, u)) for u in placed + rest) if slots},
-        shot_labels=dronepath.SHOT_LABELS,
+        frames=shots + placed + rest,
+        labels=dict(
+            {made[key]: key for key in dronepath.SIDES if made.get(key)},
+            **{url: slots[0] for url, slots in
+               ((u, dronepath.slots_for(path, u)) for u in placed + rest) if slots}),
+        shot_labels=dict(dronepath.SHOT_LABELS,
+                         front="Generated — front", back="Generated — back"),
         described=dronepath.describe(path),
         path_href="/studio/create/video/path?lead_id=%s&style=drone" % lead.id,
         moves=[{"key": key, "name": name, "note": note}
@@ -1395,7 +1454,7 @@ def create_drone():
         rates=video.model_info(cfg).get("rates") or {},
         configured=bool(cfg.get("api_key")),
         config_error=cfg.get("config_error"),
-        back_href=("/studio/create/video/enhance?lead_id=%s&style=drone" % lead.id
+        back_href=("/studio/create/video/generate?lead_id=%s&style=drone" % lead.id
                    + ("&project=%s" % quote(project_id) if project_id else "")),
         steps=_steps("drone", "Drone shot"),
         crumbs=_create_crumbs("drone", style="drone", project_id=project_id))
@@ -3298,6 +3357,53 @@ def api_capture_crop(lead_id):
     return _capture_edit(
         lead_id,
         lambda lead, image, data: enhance.crop_capture(lead, image, data.get("box") or []))
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/generate-side", methods=["POST", "DELETE"])
+@login_required
+def api_generate_side(lead_id):
+    """Make -- or discard -- the shot for one side of the property.
+
+    One image per side, replaced rather than accumulated: there is one front
+    of a house, and a gallery of attempts at it is a decision deferred rather
+    than a decision made. The previous file stays on disk, so discarding is a
+    swap and not a deletion.
+    """
+    from extensions import db
+    from services import dronepath, enhance, gemini_image
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    side = (data.get("side") or "").strip().lower()
+    if side not in dronepath.SIDES:
+        return jsonify({"error": "There is no such side."}), 400
+
+    if request.method == "DELETE":
+        path = dronepath.set_generated(lead, side, None)
+        db.session.commit()
+        return jsonify({"generated": dronepath.generated_of(path)})
+
+    base, references = dronepath.base_for(lead, side)
+    if not base:
+        return jsonify({"error": "Nothing is placed for the %s of this "
+                                 "property yet." % side}), 400
+
+    try:
+        url = enhance.enhance_capture(
+            lead, base, references=references,
+            model=(data.get("model") or "").strip() or None)
+    except gemini_image.GeminiNotConfigured as exc:
+        return jsonify({"error": str(exc)}), 400
+    except enhance.EnhanceError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    path = dronepath.set_generated(lead, side, url)
+    db.session.commit()
+    return jsonify({"side": side, "image": url,
+                    "generated": dronepath.generated_of(path)})
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/captures/revert", methods=["POST"])

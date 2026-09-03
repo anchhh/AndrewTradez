@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Crop</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Crop</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  <section class="card">
+    <div class="en-head">
+      <div>
+        <h2>Frame the captures</h2>
+        <p class="hint">Earth screenshots arrive with menus down one side and
+          half the street in shot. Crop each one to what the flight is
+          actually about &mdash; the generator works from what is left, so a
+          tight frame is most of the difference between a house and a
+          neighbourhood.</p>
+      </div>
+    </div>
+
+    <p class="hint" id="en-note"></p>
+    <div class="en-grid" id="en-grid"></div>
+
+    {% if not captures %}
+      <p class="dp-empty">No Earth captures yet.
+        <a href="{{ back_href }}">Capture some at the previous step</a>.</p>
+    {% endif %}
+  </section>
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ back_href }}">Back</a>
+    <a class="cta-btn" href="{{ next_href }}">Continue</a>
+  </div>
+</div>
+
+{# Full size. Every thumbnail here is small enough that telling one oblique
+   view from another is guesswork, which is exactly the judgement the next
+   stage depends on. #}
+<div class="ge-lightbox" id="ge-lightbox" hidden>
+  <button type="button" class="ge-lightbox-x" id="ge-lightbox-x"
+          aria-label="Close">&times;</button>
+  <img id="ge-lightbox-img" alt="Full size">
+</div>
+
+{# The cropper. A full-window overlay rather than an inline box: framing a
+   shot means looking at it, and a 230px thumbnail is not looking at it. #}
+<div class="en-crop" id="en-view" hidden>
+  <div class="en-crop-panel">
+    <div class="en-crop-head">
+      <span id="en-view-name"></span>
+      <span>Drag a box to crop &mdash; or just look.</span>
+      <span class="en-crop-size" id="en-crop-size"></span>
+    </div>
+    <div class="en-crop-stage" id="en-crop-stage">
+      <img id="en-crop-img" alt="The capture, full size">
+      <canvas id="en-crop-canvas"></canvas>
+    </div>
+    <div class="en-crop-actions">
+      <button type="button" class="btn-secondary btn-tiny" id="en-crop-reset">Clear box</button>
+      <button type="button" class="btn-secondary btn-tiny" id="en-view-revert">Revert</button>
+      <span class="en-crop-spacer"></span>
+      <button type="button" class="btn-secondary" id="en-crop-cancel">Close</button>
+      <button type="button" class="btn-send" id="en-crop-apply">Crop</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__CAPTURES__ = {{ captures | tojson }};
+  window.__ORIGINALS__ = {{ originals | tojson }};
+  window.__SLOTS__ = {{ slots | tojson }};
+  window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_crop.js') }}"></script>
+</body>
+</html>

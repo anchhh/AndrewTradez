@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Generate</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Generate</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  <section class="card">
+    <div class="en-head">
+      <div>
+        <h2>Two shots: the front and the back</h2>
+        <p class="hint">A flight starts on one and lands on the other, so this
+          stage makes exactly those two. Each column is built from the views
+          placed for that side, with the neighbours in both &mdash; a house is
+          rebuilt in its street, and without them the street gets invented
+          too.</p>
+      </div>
+
+      {# Which model redraws them. Flow has no API, so this is not an
+         integration with Flow: it is the model Flow uses, named as such. #}
+      <div class="en-models">
+        {% for model in models %}
+          <label class="en-model">
+            <input type="radio" name="en-model" value="{{ model.key }}"
+                   {{ 'checked' if model.key == default_model }}>
+            <span>
+              <strong>{{ model.label }}</strong>
+              <span class="hint">{{ model.note }}</span>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if not configured %}
+      <p class="rn-scope-note is-warn">Gemini isn't connected, so nothing can
+        be generated here. Add an API key to studio/gemini.json.</p>
+    {% endif %}
+
+    <p class="hint" id="gn-note"></p>
+
+    <div class="gn-columns">
+      {% for side in sides %}
+        <section class="gn-side" data-side="{{ side.key }}">
+          <header class="gn-side-head">
+            <h3>{{ side.label }}</h3>
+            <span class="hint">{{ side.note }}</span>
+          </header>
+
+          <div class="gn-result" id="gn-result-{{ side.key }}"></div>
+
+          <div class="gn-actions">
+            <button type="button" class="btn-send gn-go" data-side="{{ side.key }}"
+                    {{ 'disabled' if not side.base or not configured }}>
+              Generate the {{ side.label | lower }}
+            </button>
+            <button type="button" class="btn-secondary btn-tiny gn-flow"
+                    data-side="{{ side.key }}">Do it in Flow instead</button>
+          </div>
+
+          {% if side.base %}
+            <p class="gn-inputs-label hint">Built from</p>
+            <div class="gn-inputs" id="gn-inputs-{{ side.key }}"></div>
+          {% else %}
+            <p class="hint">Nothing placed for this side yet.
+              <a href="{{ earth_href }}">Fill its boxes at the Google Earth
+                step</a>.</p>
+          {% endif %}
+        </section>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ back_href }}">Back</a>
+    <a class="cta-btn" href="{{ next_href }}">Continue</a>
+  </div>
+</div>
+
+<div class="ge-lightbox" id="ge-lightbox" hidden>
+  <button type="button" class="ge-lightbox-x" id="ge-lightbox-x"
+          aria-label="Close">&times;</button>
+  <img id="ge-lightbox-img" alt="Full size">
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__SIDES__ = {{ sides | tojson }};
+  window.__GENERATED__ = {{ generated | tojson }};
+  window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+  window.__SLOTS__ = {{ slots | tojson }};
+  window.__FLOW_URL__ = {{ flow_url | tojson }};
+  window.__PROMPT__ = {{ prompt | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_generate.js') }}"></script>
+</body>
+</html>

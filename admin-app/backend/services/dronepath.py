@@ -266,6 +266,58 @@ def group_of(slot):
     return None
 
 
+# The two shots a flight is built from. One picture of the front and one of
+# the back: a flyover starts on one and lands on the other, and everything
+# else on the board exists to make those two right.
+SIDES = ("front", "back")
+
+
+def base_for(lead, side):
+    """The capture a side's generated shot is built ON, and its references.
+
+    The oblique first: it already looks like a photograph taken from the air,
+    so the model has less to invent than it would from a top-down. Everything
+    else placed for that side becomes reference, and the neighbours go in too
+    -- a house is rebuilt in its street, and without them the street is
+    invented as well.
+    """
+    slots = slots_of(lead.drone_path or {})
+    prefer = ["%s_3d" % side, "%s_overhead" % side, "%s_street" % side]
+
+    base = None
+    for key in prefer:
+        for url in slots.get(key) or []:
+            base = base or url
+
+    references = []
+    for key in CAPTURE_SLOTS:
+        if not (key.startswith(side + "_") or key.startswith("nb_")):
+            continue
+        for url in slots.get(key) or []:
+            if url != base and url not in references:
+                references.append(url)
+    return base, references
+
+
+def generated_of(path):
+    """{side: url} for the shots already made."""
+    return dict((path or {}).get("generated") or {})
+
+
+def set_generated(lead, side, url):
+    """Record the shot made for one side, or clear it with url=None."""
+    if side not in SIDES:
+        raise PathError("there is no such side")
+    path = dict(lead.drone_path or {})
+    made = generated_of(path)
+    if url:
+        made[side] = url
+    else:
+        made.pop(side, None)
+    path["generated"] = made
+    return _stamped(lead, path)
+
+
 def placed_by_group(lead):
     """{group key: [urls]} in plan order, for handing to something else.
 
