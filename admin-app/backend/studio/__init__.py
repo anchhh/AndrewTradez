@@ -1587,25 +1587,37 @@ def create_aerial():
     cfg = video.load_config()
     made = dronepath.generated_of(path)
 
-    # What it can open on: the widest views of the plot and its street. The
-    # neighbours' captures first -- they are the ones that show the property
-    # in a neighbourhood rather than filling the frame with it.
+    # What it can open on: the LISTING's own aerial photographs.
+    #
+    # Not the Earth captures. Those are satellite renderings cropped tight to
+    # the plot -- the material a flyover is rebuilt from, and the wrong thing
+    # to open a real establishing shot on. An agent's drone photograph of the
+    # street already looks like the first frame of this clip, and the only
+    # other image the shot needs is the one it lands on.
     slots = dronepath.slots_of(path)
-    wide = []
-    for key in ("nb_overhead", "nb_3d", "nb_street", "front_overhead",
-                "front_3d", "front_street"):
-        for url in slots.get(key) or []:
-            if url not in wide:
-                wide.append(url)
-    for url in dronepath.images_of(path):
-        if url not in wide:
-            wide.append(url)
+    rooms = lead.photo_rooms or {}
+
+    def room_of(url):
+        entry = rooms.get(url)
+        return (entry.get("room") if isinstance(entry, dict) else entry) or ""
+
+    photos = lead.photo_urls or []
+    wide = [u for u in photos if room_of(u) == "aerial"]
+    # None labelled aerial: offer the other outdoor photographs rather than an
+    # empty picker, and say which is which underneath.
+    fallback = not wide
+    if fallback:
+        wide = [u for u in photos
+                if room_of(u) in ("exterior_front", "outdoor_space")]
 
     return render_template(
         "create_aerial.html", lead=lead,
         **_shot_tabs(lead.id, shot="aerial", project_id=project_id),
         wide=wide,
-        opening=dronepath.aerial_opening_of(path) or (wide[0] if wide else None),
+        fallback=fallback,
+        opening=(dronepath.aerial_opening_of(path)
+                 if dronepath.aerial_opening_of(path) in wide
+                 else (wide[0] if wide else None)),
         made=made,
         move=video.MOVE_NAMES.get(dronepath.AERIAL_MOVE),
         shot_labels=dronepath.SHOT_LABELS,
@@ -3598,7 +3610,8 @@ def api_lead_aerial(lead_id):
 
     data = request.get_json(silent=True) or {}
     opening = (data.get("opening") or "").strip()
-    allowed = set(dronepath.images_of(lead.drone_path or {}))
+    allowed = (set(lead.photo_urls or [])
+               | set(dronepath.images_of(lead.drone_path or {})))
     if opening and opening not in allowed:
         return jsonify({"error": "That view is not one of this property's "
                                  "captures."}), 400
@@ -4456,6 +4469,10 @@ def api_video_drone():
     # the front shot was being refused as somebody else's picture.
     captures = set(dronepath.images_of(path)) | set(
         dronepath.generated_of(path).values())
+    # The aerial opens on one of the listing's own photographs rather than a
+    # capture, so those count as frames for it.
+    if (data.get("shot") or "").strip().lower() == "aerial":
+        captures |= set(lead.photo_urls or [])
 
     start = (data.get("start") or "").strip()
     end = (data.get("end") or "").strip()

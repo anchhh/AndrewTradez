@@ -34,10 +34,11 @@
     </section>
   {% elif not wide %}
     <section class="card">
-      <h2>Nothing wide enough to open on</h2>
-      <p class="hint">Capture a view that shows the property in its street
-        &mdash; zoomed out, with the neighbours in it.
-        <a href="{{ earth_href }}">Take one from Google Earth</a>.</p>
+      <h2>Nothing to open on</h2>
+      <p class="hint">This shot opens on one of the listing's own aerial
+        photographs &mdash; a drone shot of the street or the plot from above
+        &mdash; and this listing has none, nor any other outdoor photograph.
+        Add some at the listing step.</p>
     </section>
   {% else %}
 
@@ -71,8 +72,14 @@
       </figure>
     </div>
 
-    <p class="gn-inputs-label hint">Opens on &mdash; pick the widest view that
-      still shows this house</p>
+    <p class="gn-inputs-label hint">
+      {% if fallback %}
+        Opens on &mdash; no aerial photographs on this listing, so these are
+        its other outdoor shots. One taken from the air works far better.
+      {% else %}
+        Opens on &mdash; this listing's aerial photographs
+      {% endif %}
+    </p>
     <div class="fp-views" id="ae-views"></div>
 
     <p class="hint"><b>{{ move }}.</b> It loses height and width together, so

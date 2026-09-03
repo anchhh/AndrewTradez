@@ -33,11 +33,14 @@ function esc(value) {
   }[c]));
 }
 
-/* What a capture is, from the box it was placed in. Walked in the plan's
-   order rather than the object's, which arrives alphabetically sorted. */
+/* What a picture is. These are the listing's own photographs now rather
+   than Earth captures, so the board's labels usually have nothing to say
+   about them -- but the slot lookup stays for the case where somebody's
+   saved choice predates that. */
 function nameOf(url) {
   const key = slotOrder.find((k) => (slots[k] || []).includes(url));
-  return shotLabels[key] || "Capture";
+  if (key) return shotLabels[key] || "Capture";
+  return "Listing photo";
 }
 
 /* ---------- what it opens on ---------- */
