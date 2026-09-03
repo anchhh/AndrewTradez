@@ -189,6 +189,23 @@
   }
   #flow-status.error { color: var(--accent); }
   #flow-status.ok { color: #2f7a4f; }
+  .flow-return { margin-top: 18px !important; }
+  .flow-drop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px 14px;
+    border: 2px dashed var(--line);
+    border-radius: 9px;
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  .flow-drop:hover, .flow-drop.is-over { border-color: var(--accent); color: var(--accent); }
+  #flow-return-status { margin: 9px 0 0; font-size: 0.74rem; color: var(--ink-soft); line-height: 1.4; }
+  #flow-return-status.error { color: var(--accent); }
+  #flow-return-status.ok { color: #2f7a4f; }
   .flow-shots { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .flow-shots img {
     width: 100%;
@@ -429,9 +446,20 @@
 
     <div id="flow-brief" class="flow-brief"></div>
 
-    <button type="button" id="btn-flow-fill">Put it into Flow</button>
+    <button type="button" id="btn-flow-fill">Deploy into Flow</button>
     <p id="flow-status"></p>
     <div id="flow-shots" class="flow-shots"></div>
+
+    <h2 class="flow-return">When Flow is done</h2>
+    <p class="hint">Download the shot from Flow, then drop it here. It goes
+      straight back to this listing as the front or back shot, and the drone step
+      will fly from it.</p>
+    <label class="flow-drop" id="flow-drop">
+      <input type="file" id="flow-return-file" accept="image/*" hidden>
+      <span id="flow-drop-text">Drop the finished shot here, or click to
+        choose it</span>
+    </label>
+    <p id="flow-return-status"></p>
   </section>
 
   <section id="create-panel" hidden>

@@ -52,6 +52,8 @@ _API_KEY_ROUTES = {
 _API_KEY_PATTERNS = (
     ("POST", re.compile(r"^/api/leads/\d+/earth-capture$")),
     ("GET", re.compile(r"^/api/leads/\d+/earth-captures$")),
+    # The finished Flow shot coming back.
+    ("POST", re.compile(r"^/api/leads/\d+/flow-result$")),
 )
 
 
