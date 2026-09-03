@@ -1,0 +1,22 @@
+{# One step back, and nothing else.
+
+   This was a breadcrumb trail. A trail tells you where you are, which nobody
+   asked for; what people reach for is Back. So it renders the previous page
+   only -- the last link in the trail the route built -- and the chooser,
+   which has no previous page, gets nothing.
+
+   The destination is named in the tooltip rather than the label: "Back" is
+   the word people scan for, and "Back to Video styles" is the word plus
+   homework. #}
+{% set steps = crumbs | selectattr('1') | list if crumbs else [] %}
+{% if steps %}
+  {% set previous = steps[-1] %}
+  <a class="create-back" href="{{ previous[1] }}"
+     title="Back to {{ previous[0] }}">
+    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+      <path d="M9.5 3.5 5 8l4.5 4.5" fill="none" stroke="currentColor"
+            stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Back
+  </a>
+{% endif %}

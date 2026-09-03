@@ -1002,25 +1002,24 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .task-tab.active .task-tab-count { background: var(--accent); color: #fff; }
 
-/* Where you are in Create, and a way back to any earlier point. Sits above
-   the page title, so it reads as position rather than as a control on the
-   page's content. */
-.crumbs {
-  display: flex;
+/* One step back, above the page title. Looks like the Projects page's back
+   button on purpose: same shape, same place, same word. */
+.create-back {
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin: 0 0 10px;
+  gap: 5px;
+  margin-bottom: 12px;
+  padding: 5px 12px 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream-soft);
   font-size: 0.8rem;
-}
-.crumb {
-  color: var(--ink-soft);
+  font-weight: 600;
+  color: var(--ink);
   text-decoration: none;
-  padding: 2px 0;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.crumb:hover { color: var(--accent); text-decoration: underline; }
-.crumb.is-current { color: var(--ink); font-weight: 700; }
-.crumb-sep { color: var(--line); }
+.create-back:hover { border-color: var(--ink-soft); background: #fff; }
 
 /* The chooser page, where the two cards are the whole page. */
 .task-cards.is-full .task-card { aspect-ratio: 16 / 10; }
