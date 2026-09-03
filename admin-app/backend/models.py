@@ -312,6 +312,12 @@ class VideoJob(db.Model):
     # What was asked for, kept so a result can be reproduced or judged later --
     # "the model changed the room" is only actionable if the prompt is known.
     model = db.Column(db.String(120), nullable=True)
+    # Which flow produced this render: "drone", "walkthrough", "basic". Kept
+    # so opening it again returns to the stage that made it -- a drone shot
+    # opened on the walkthrough page is a different tool with different
+    # controls, looking at the same clip. Null on rows made before this
+    # existed; the API infers those from the camera move.
+    style = db.Column(db.String(20), nullable=True)
     prompt = db.Column(db.Text, nullable=True)
     duration = db.Column(db.Integer, nullable=False, default=5)
     resolution = db.Column(db.String(20), nullable=False, default="720p")
@@ -380,6 +386,7 @@ class VideoJob(db.Model):
             "status": self.status,
             "error": self.error,
             "model": self.model,
+            "style": self.style,
             "prompt": self.prompt,
             "duration": self.duration,
             "resolution": self.resolution,

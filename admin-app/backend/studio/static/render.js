@@ -1254,7 +1254,9 @@ async function openLeadRenders(leadId) {
           <span class="rn-run-meta">${escapeHtml(run.model_label || "")}${
             cost != null ? " · $" + cost.toFixed(2) : ""}</span>
           <a class="btn-secondary btn-tiny"
-             href="/studio/create/render?job=${run.id}">Open on its own</a>
+             href="${run.style === "drone"
+               ? `/studio/create/video/rendering?job=${run.id}&style=drone`
+               : `/studio/create/render?job=${run.id}`}">Open on its own</a>
         </h3>
         <div class="rn-clip-grid">
           ${run.clips.map((clip, i) => `

@@ -196,8 +196,40 @@
       if (project) params.set("project", project);
       window.location.href = "/studio/create/render?" + params.toString();
     }
-    const openRender = (id) => go(new URLSearchParams({ job: id }));
-    const openLead = (id) => go(new URLSearchParams({ lead: id }));
+
+    /* A drone shot does not open on the render page. That page is the
+       walkthrough tool -- a photo grid, a move per clip, a room picker --
+       and none of it applies to one flight between two frames. Opening a
+       drone render there showed the right clip under the wrong controls,
+       with a Back button into a flow that never made it.
+
+       So a render goes back to the stage that produced it: drone renders to
+       the waiting page, which plays the clip and links on to the shot and
+       the lead; everything else to the render page as before. */
+    const isDrone = (r) => (r || {}).style === "drone";
+    const runById = (id) => renders.find((r) => String(r.id) === String(id));
+
+    function openRender(id) {
+      const run = runById(id);
+      if (isDrone(run)) {
+        window.location.href =
+          "/studio/create/video/rendering?job=" + id + "&style=drone";
+        return;
+      }
+      go(new URLSearchParams({ job: id }));
+    }
+
+    function openLead(id) {
+      // A home whose renders are ALL drone shots goes to the drone flow;
+      // a mixed home keeps the render page, which can show both.
+      const mine = renders.filter((r) => String(r.lead_id) === String(id));
+      if (mine.length && mine.every(isDrone)) {
+        window.location.href =
+          "/studio/create/video/drone?lead_id=" + id + "&style=drone";
+        return;
+      }
+      go(new URLSearchParams({ lead: id }));
+    }
 
     list.querySelectorAll(".vh-head").forEach((head) => {
       head.addEventListener("click", () => {

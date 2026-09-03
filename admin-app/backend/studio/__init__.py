@@ -3859,6 +3859,7 @@ def api_video_jobs():
     to browse back to.
     """
     from models import Lead, VideoJob
+    from services import dronepath
     from services.video import MODELS
 
     jobs = (
@@ -3894,10 +3895,19 @@ def api_video_jobs():
         # move. Callers skip the ones with nothing to show.
         if not delivered and not running:
             continue
+        # Rows made before the column existed have no style, and the camera
+        # move is the honest tell: the drone stage has only ever produced
+        # `drone_flight`, and nothing else does.
+        style = job.style
+        if not style:
+            moves = {(s or {}).get("move") for s in (job.specs or [])}
+            style = "drone" if dronepath.MOVE in moves else None
+
         out.append({
             "id": job.id,
             "lead_id": job.lead_id,
             "status": job.status,
+            "style": style,
             "running": running,
             "clips_total": max(len(job.specs), len(job.photos), len(job.clips)),
             "clips_done": len(delivered),
@@ -4151,6 +4161,10 @@ def api_video_generate():
             # rearranging itself.
             prompt=(data.get("prompt") or "").strip() or None,
             specs=specs,
+            # What the page was on when it asked. Walkthrough and basic are
+            # the same page in different clothes; either way it is not the
+            # drone flow, and that is the distinction this records.
+            style=(data.get("style") or "").strip().lower() or None,
             duration=duration,
             resolution=resolution,
         )
@@ -4252,7 +4266,7 @@ def api_video_drone():
     try:
         job = start_job(current_app._get_current_object(), session["user_id"],
                         [start], lead_id=lead.id, duration=seconds,
-                        prompt=wording or None,
+                        prompt=wording or None, style="drone",
                         resolution=resolution, specs=[spec])
     except VideoJobBusy as exc:
         return jsonify({"error": str(exc)}), 409

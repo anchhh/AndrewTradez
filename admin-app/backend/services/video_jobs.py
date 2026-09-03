@@ -196,7 +196,7 @@ def _run(app, job_id):
 
 
 def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
-              resolution="1080p", specs=None):
+              resolution="1080p", specs=None, style=None):
     """Create a job for these photos and run it in the background."""
     from extensions import db
     from models import VideoJob
@@ -210,6 +210,7 @@ def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
         owner_id=owner_id,
         status="queued",
         model=cfg["model"],
+        style=style or None,
         prompt=prompt or None,
         duration=duration,
         resolution=resolution,
