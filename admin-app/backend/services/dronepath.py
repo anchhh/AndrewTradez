@@ -41,34 +41,12 @@ class PathError(Exception):
 
 
 def full_address(lead):
-    """Street, city, state and postcode, as one line.
+    """Kept as a function because the callers here read like one.
 
-    Earth searches text, and "8732 15th Street Rd" on its own is a street
-    name in a great many towns. The city and state are already on the lead;
-    leaving them out is how a flight gets planned over the wrong house.
+    The assembly itself lives on the model, so a page showing the address and
+    a link searching for it cannot disagree about what it is.
     """
-    street = (lead.address or "").strip().rstrip(",")
-    city = (lead.city or "").strip()
-    state = (lead.state or "").strip()
-    postcode = (lead.zip_code or "").strip()
-
-    # Some leads arrive with the whole address already in the street field.
-    # Appending the city again turns "Greeley" into "Greeley, Greeley", which
-    # is a worse search than the street on its own.
-    lower = street.lower()
-    parts = [street]
-    if city and city.lower() not in lower:
-        parts.append(city)
-    if state and state.lower() not in lower:
-        parts.append(state)
-
-    # Comma between the parts, space before the postcode -- how the address is
-    # written, and how Earth's search expects to read it:
-    # "8732 15th Street Rd, Greeley, Colorado 80634".
-    line = ", ".join(p for p in parts if p)
-    if postcode and postcode not in line:
-        line += " " + postcode
-    return line.strip()
+    return lead.full_address
 
 
 def earth_url(address, lat=None, lon=None):

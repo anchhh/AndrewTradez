@@ -936,8 +936,8 @@ def _lead_prefill(lead_id):
 
     return {
         "lead_id": lead.id,
-        "name": lead.address,
-        "address": lead.address,
+        "name": lead.full_address,
+        "address": lead.full_address,
         "url": lead.listing_url,
         "source": lead.source,
         "photos": lead.photo_urls,
@@ -1356,8 +1356,8 @@ def create_render():
         project = {
             "id": None,
             "lead_id": lead.id,
-            "address": lead.address,
-            "name": lead.address,
+            "address": lead.full_address,
+            "name": lead.full_address,
             "photos": lead.photo_urls or [],
         }
 
@@ -1371,8 +1371,8 @@ def create_render():
                 project = {
                     "id": None,
                     "lead_id": lead.id,
-                    "address": lead.address,
-                    "name": lead.address,
+                    "address": lead.full_address,
+                    "name": lead.full_address,
                     "photos": lead.photo_urls or [],
                 }
 
@@ -1382,6 +1382,10 @@ def create_render():
         lead = get_owned_lead(int(project["lead_id"]))
         if lead is not None:
             project["photo_rooms"] = lead.photo_rooms or {}
+            # Projects saved before the address included the town still hold
+            # the street on its own. The lead is the record; the project is a
+            # copy of it, so the lead wins.
+            project["address"] = lead.full_address or project.get("address")
 
     # The style decides the stage bar, and a page opened straight from a lead
     # has no project to carry it -- so the query string is allowed to say.
@@ -2626,7 +2630,7 @@ def api_video_site():
         return jsonify({"error": "Lead not found."}), 404
 
     try:
-        analysis = site.analyse(lead.id, lead.address, lead.photo_urls or [],
+        analysis = site.analyse(lead.id, lead.full_address, lead.photo_urls or [],
                                 lead.photo_rooms or {},
                                 force=bool(data.get("force")))
     except Exception as exc:  # noqa: BLE001
@@ -3405,7 +3409,7 @@ def api_video_generate():
         if ext_lead is None:
             return jsonify({"error": "Lead not found."}), 404
         try:
-            site_data = site_svc.analyse(ext_lead.id, ext_lead.address,
+            site_data = site_svc.analyse(ext_lead.id, ext_lead.full_address,
                                          ext_lead.photo_urls or [],
                                          ext_lead.photo_rooms or {})
         except Exception as exc:  # noqa: BLE001

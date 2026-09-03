@@ -129,6 +129,36 @@ class Lead(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
     @property
+    def full_address(self):
+        """Street, city, state and postcode, written as one line.
+
+        `address` holds the street only, so anything showing or searching for
+        it alone was working with "8732 15th Street Rd" -- a street name that
+        exists in a great many towns. The rest was on the lead the whole
+        time; this puts it together in one place so every caller agrees.
+        """
+        street = (self.address or "").strip().rstrip(",")
+        city = (self.city or "").strip()
+        state = (self.state or "").strip()
+        postcode = (self.zip_code or "").strip()
+
+        # Some leads arrive with the whole address already in the street
+        # field. Appending the city again turns Greeley into Greeley, Greeley.
+        lower = street.lower()
+        parts = [street]
+        if city and city.lower() not in lower:
+            parts.append(city)
+        if state and state.lower() not in lower:
+            parts.append(state)
+
+        # Commas between the parts, a space before the postcode -- how an
+        # address is written: "8732 15th Street Rd, Greeley, Colorado 80634".
+        line = ", ".join(p for p in parts if p)
+        if postcode and postcode not in line:
+            line += " " + postcode
+        return line.strip()
+
+    @property
     def drone_path(self):
         try:
             return json.loads(self.drone_path_json) if self.drone_path_json else None
@@ -190,6 +220,7 @@ class Lead(db.Model):
             "times_seen": self.times_seen,
             "last_seen_at": self.last_seen_at.isoformat(),
             "address": self.address,
+            "full_address": self.full_address,
             "city": self.city,
             "state": self.state,
             "zip_code": self.zip_code,
