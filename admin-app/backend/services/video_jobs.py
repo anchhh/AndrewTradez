@@ -21,6 +21,7 @@ from services.video import (
     estimate_cost,
     load_config,
     prompt_for_clip,
+    upload_frame,
     submit_clip,
     upload_image,
     wait_for_clip,
@@ -95,7 +96,7 @@ def _run(app, job_id):
                     if not os.path.exists(path):
                         raise VideoError(f"photo missing on disk: {os.path.basename(path)}")
 
-                    image_url = upload_image(path, cfg)
+                    image_url = upload_frame(path, cfg)
                     # Move, length and resolution are all per clip now, so the
                     # prompt is too. job.prompt is used only when one was typed
                     # by hand for the whole run.
@@ -114,7 +115,7 @@ def _run(app, job_id):
                     if anchor:
                         anchor_path = local_path_for(anchor)
                         if os.path.exists(anchor_path):
-                            last_url = upload_image(anchor_path, cfg)
+                            last_url = upload_frame(anchor_path, cfg)
                             entry["anchor"] = anchor
 
                     prediction_id = submit_clip(

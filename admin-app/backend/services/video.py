@@ -897,6 +897,51 @@ def estimate_cost(seconds, cfg=None, resolution=None):
     return round(seconds * rate_for(resolution or "1080p", cfg), 3)
 
 
+# The longest side a clip's start or end frame is uploaded at.
+#
+# The generated shots are 5,482 wide and about 29 MB of PNG, and both of them
+# were being uploaded whole for every render. Kling documents a 10 MB ceiling
+# on the input image, and requests' `timeout` is a read timeout rather than a
+# budget for the whole transfer -- so a 29 MB upload trickling over a domestic
+# upstream never trips it and never finishes either. One render sat at
+# "running" for half an hour without ever reaching a prediction id.
+#
+# 1920 is not a compromise: the clip comes back at 1080p, so anything above
+# it was being thrown away by the model anyway. 29 MB becomes about 700 KB.
+FRAME_MAX_SIDE = 1920
+
+
+def upload_frame(path, cfg=None):
+    """Upload a clip's start or end frame, downscaled to what a clip needs.
+
+    Falls back to sending the original if the copy cannot be made -- a
+    resizing failure should cost quality, not the render.
+    """
+    import tempfile
+
+    from PIL import Image
+
+    try:
+        image = Image.open(path)
+        if max(image.size) <= FRAME_MAX_SIDE and os.path.getsize(path) < 8_000_000:
+            return upload_image(path, cfg)
+        image = image.convert("RGB")
+        image.thumbnail((FRAME_MAX_SIDE, FRAME_MAX_SIDE), Image.LANCZOS)
+        handle = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        image.save(handle.name, "JPEG", quality=92)
+        handle.close()
+    except Exception:  # noqa: BLE001 -- see docstring
+        return upload_image(path, cfg)
+
+    try:
+        return upload_image(handle.name, cfg)
+    finally:
+        try:
+            os.unlink(handle.name)
+        except OSError:
+            pass
+
+
 def upload_image(path, cfg=None):
     """Upload a local photo, returning the URL the model reads it from."""
     cfg = cfg or load_config()
