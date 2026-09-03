@@ -143,106 +143,7 @@
     color: #fff;
   }
 
-  #create-panel, #flow-panel { padding: 14px 16px; overflow-y: auto; }
-  #flow-panel h2 { margin: 0 0 4px; font-size: 0.86rem; }
-  #flow-panel p.hint {
-    margin: 0 0 12px;
-    font-size: 0.72rem;
-    color: var(--ink-soft);
-    line-height: 1.45;
-  }
-  .flow-brief {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 9px 10px;
-    margin-bottom: 12px;
-    font-size: 0.74rem;
-    line-height: 1.45;
-    background: var(--cream-soft);
-  }
-  .flow-brief strong { display: block; font-size: 0.8rem; }
-  .flow-brief .flow-prompt {
-    margin-top: 6px;
-    max-height: 88px;
-    overflow-y: auto;
-    color: var(--ink-soft);
-    white-space: pre-wrap;
-  }
-  #btn-flow-fill {
-    width: 100%;
-    font-family: inherit;
-    font-size: 0.82rem;
-    font-weight: 700;
-    padding: 11px 10px;
-    border: 0;
-    border-radius: 8px;
-    background: var(--accent);
-    color: #fff;
-    cursor: pointer;
-  }
-  #btn-flow-fill:disabled { opacity: 0.55; cursor: default; }
-  .flow-secondary {
-    width: 100%;
-    margin-top: 8px;
-    font-family: inherit;
-    font-size: 0.76rem;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--cream-soft);
-    color: var(--ink);
-    cursor: pointer;
-  }
-  /* What the page actually contains, for when the guesswork is wrong.
-     Selectable, because the point is to send it on. */
-  .flow-report {
-    width: 100%;
-    height: 190px;
-    margin-top: 10px;
-    font-family: ui-monospace, Menlo, monospace;
-    font-size: 0.66rem;
-    line-height: 1.4;
-    padding: 8px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: #fff;
-    color: var(--ink);
-    resize: vertical;
-  }
-  #flow-status {
-    margin: 10px 0 0;
-    font-size: 0.74rem;
-    color: var(--ink-soft);
-    line-height: 1.4;
-  }
-  #flow-status.error { color: var(--accent); }
-  #flow-status.ok { color: #2f7a4f; }
-  .flow-return { margin-top: 18px !important; }
-  .flow-drop {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 22px 14px;
-    border: 2px dashed var(--line);
-    border-radius: 9px;
-    color: var(--ink-soft);
-    font-size: 0.74rem;
-    text-align: center;
-    cursor: pointer;
-  }
-  .flow-drop:hover, .flow-drop.is-over { border-color: var(--accent); color: var(--accent); }
-  #flow-return-status { margin: 9px 0 0; font-size: 0.74rem; color: var(--ink-soft); line-height: 1.4; }
-  #flow-return-status.error { color: var(--accent); }
-  #flow-return-status.ok { color: #2f7a4f; }
-  .flow-shots { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .flow-shots img {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border-radius: 6px;
-    border: 1px solid var(--line);
-    display: block;
-  }
+  #create-panel { padding: 14px 16px; overflow-y: auto; }
   #create-panel h2 {
     margin: 0 0 4px;
     font-size: 0.86rem;
@@ -436,7 +337,6 @@
   <div class="modes">
     <button type="button" class="mode active" id="mode-lead">Lead</button>
     <button type="button" class="mode" id="mode-create">Create</button>
-    <button type="button" class="mode" id="mode-flow">Flow</button>
   </div>
 
   <!-- Everything below here belongs to Lead capture and is hidden, not
@@ -464,35 +364,6 @@
     the site you're on; switch it manually if it guessed wrong (re-parses
     instantly, no new page read).
   </div>
-
-  <section id="flow-panel" hidden>
-    <h2>Set up a Flow shot</h2>
-    <p class="hint">Studio writes down which shot it wants; this puts the
-      images and the prompt into the Flow tab you have open. Only the page
-      you are looking at is touched, and nothing is generated for you &mdash;
-      pressing Generate stays yours.</p>
-
-    <div id="flow-brief" class="flow-brief"></div>
-
-    <button type="button" id="btn-flow-fill">Deploy into Flow</button>
-    <button type="button" id="btn-flow-look" class="flow-secondary">
-      Look at the Flow page (presses +)
-    </button>
-    <p id="flow-status"></p>
-    <textarea id="flow-report" class="flow-report" hidden readonly></textarea>
-    <div id="flow-shots" class="flow-shots"></div>
-
-    <h2 class="flow-return">When Flow is done</h2>
-    <p class="hint">Download the shot from Flow, then drop it here. It goes
-      straight back to this listing as the front or back shot, and the drone step
-      will fly from it.</p>
-    <label class="flow-drop" id="flow-drop">
-      <input type="file" id="flow-return-file" accept="image/*" hidden>
-      <span id="flow-drop-text">Drop the finished shot here, or click to
-        choose it</span>
-    </label>
-    <p id="flow-return-status"></p>
-  </section>
 
   <section id="create-panel" hidden>
     <h2>Capture this page</h2>
@@ -572,6 +443,5 @@
   <script src="extractors.js"></script>
   <script src="parsers.js"></script>
   <script src="sidepanel.js"></script>
-  <script src="flow.js"></script>
 </body>
 </html>

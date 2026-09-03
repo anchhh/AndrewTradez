@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Estly Lead Clipper",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "description": "Capture the listing you're viewing straight into your Estly leads, and send a Google Earth view to a listing's flight plan, from a persistent side panel.",
   "action": {
     "default_title": "Estly Lead Clipper \u2014 click to capture this page",
@@ -40,8 +40,7 @@
     "*://*.redfin.com/*",
     "*://*.homes.com/*",
     "*://earth.google.com/*",
-    "*://*.google.com/maps/*",
-    "https://labs.google/*"
+    "*://*.google.com/maps/*"
   ],
   "options_page": "options.html"
 }

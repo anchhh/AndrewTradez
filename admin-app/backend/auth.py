@@ -43,17 +43,12 @@ _API_KEY_ROUTES = {
     # somewhere to put a screenshot of one of them. Both are scoped to the
     # account the key names, which is what /api/leads itself is not.
     ("GET", "/api/leads/mine"),
-    # The Flow tab: what Studio last asked to have set up, and clearing it.
-    ("GET", "/api/leads/flow-brief"),
-    ("DELETE", "/api/leads/flow-brief"),
 }
 
 # Same idea, for paths with an id in them.
 _API_KEY_PATTERNS = (
     ("POST", re.compile(r"^/api/leads/\d+/earth-capture$")),
     ("GET", re.compile(r"^/api/leads/\d+/earth-captures$")),
-    # The finished Flow shot coming back.
-    ("POST", re.compile(r"^/api/leads/\d+/flow-result$")),
 )
 
 

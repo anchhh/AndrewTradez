@@ -33,8 +33,9 @@ CONFIG_PATH = os.path.join(
 # reason, but the default is deliberately the free one.
 DEFAULT_MODEL = "gemini-2.5-flash-image"
 
-# Roughly what the free tier allows per day. Not enforced here -- Google
-# enforces it -- but used to warn before a run that would obviously exceed it.
+# Kept because the staging path still reads it when warning about a big
+# sweep. It is a rate-limit shape, not a free allowance: Google's image
+# models are all billed per image.
 FREE_TIER_DAILY_IMAGES = 500
 
 
@@ -87,11 +88,13 @@ def _explain(resp):
     # The two failures worth naming, because neither is a bug in this code and
     # each has a different fix.
     if resp.status_code == 429:
-        return (
-            "Gemini's free-tier limit is used up for today (about "
-            f"{FREE_TIER_DAILY_IMAGES} images). It resets at midnight Pacific. "
-            f"({message})"
-        )
+        # Not a free-tier cap, whatever this used to say. Google's image
+        # models have no free tier at all -- this is either the rate limit or
+        # an empty prepaid balance, and Google's own message says which. It
+        # is quoted rather than paraphrased for exactly that reason: the
+        # paraphrase sent someone looking for a daily reset that was never
+        # going to come.
+        return "Gemini refused the request: %s" % message
     if resp.status_code == 403:
         return (
             "Gemini refused the key. Check it is enabled for the Generative "

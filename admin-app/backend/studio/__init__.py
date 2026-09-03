@@ -1373,8 +1373,6 @@ def create_generate():
         generated=dronepath.generated_of(path),
         slots=dronepath.slots_of(path),
         shot_labels=dronepath.SHOT_LABELS,
-        flow_url=dronepath.FLOW_URL,
-        prompt=enhance.PROMPT,
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
         back_href="/studio/create/video/crop?lead_id=%s&style=drone%s" % (lead.id, tail),
         next_href="/studio/create/video/drone?lead_id=%s&style=drone%s" % (lead.id, tail),
@@ -3327,11 +3325,12 @@ def api_capture_crop(lead_id):
 @studio_bp.route("/api/leads/<int:lead_id>/generate-side", methods=["POST", "DELETE"])
 @login_required
 def api_generate_side(lead_id):
-    """Record -- or discard -- the shot Flow made for one side.
+    """Make -- or discard -- the shot for one side of the property.
 
-    The shot is not made here. It is made in Flow, by hand, and comes back as
-    a file; this is where it is filed against the property so the drone stage
-    can fly between the two.
+    Two ways in. Normally this generates: Nano Banana Pro is handed that
+    side's placed views and photographs and asked for one photograph back.
+    Passing an already-uploaded `image` files that instead, which is how a
+    shot made somewhere else gets in.
 
     One image per side, replaced rather than accumulated. There is one front
     of a house, and a gallery of attempts at it is a decision deferred rather
@@ -3339,7 +3338,7 @@ def api_generate_side(lead_id):
     swap and not a deletion.
     """
     from extensions import db
-    from services import dronepath
+    from services import dronepath, enhance, gemini_image
 
     lead = get_owned_lead(lead_id)
     if lead is None:
@@ -3355,14 +3354,26 @@ def api_generate_side(lead_id):
         db.session.commit()
         return jsonify({"generated": dronepath.generated_of(path)})
 
-    # An uploaded file, named by the upload endpoint. Anything else is
-    # refused: this value ends up as a video's first frame, so it is not a
-    # field to take on trust.
     image = (data.get("image") or "").strip()
-    if not image.startswith("/studio/static/uploads/"):
-        return jsonify({"error": "That image was not uploaded here."}), 400
-    if not local_path_from_url(image) or not local_path_from_url(image).exists():
-        return jsonify({"error": "That image is not on disk."}), 400
+    if image:
+        # A finished shot arriving from somewhere else. Checked rather than
+        # trusted: it has to be something the upload endpoint wrote and it
+        # has to still be there, because this becomes a video's first frame.
+        if not image.startswith("/studio/static/uploads/"):
+            return jsonify({"error": "That image was not uploaded here."}), 400
+        if not local_path_from_url(image) or not local_path_from_url(image).exists():
+            return jsonify({"error": "That image is not on disk."}), 400
+    else:
+        base, references = dronepath.base_for(lead, side)
+        if not base:
+            return jsonify({"error": "Nothing is placed for the %s of this "
+                                     "property yet." % side}), 400
+        try:
+            image = enhance.enhance_capture(lead, base, references=references)
+        except gemini_image.GeminiNotConfigured as exc:
+            return jsonify({"error": str(exc)}), 400
+        except enhance.EnhanceError as exc:
+            return jsonify({"error": str(exc)}), 400
 
     path = dronepath.set_generated(lead, side, image)
     db.session.commit()
@@ -3399,129 +3410,6 @@ def api_capture_revert(lead_id):
                     "images": dronepath.images_of(path),
                     "originals": path.get("originals") or {},
                     "primary": path.get("image")})
-
-
-@studio_bp.route("/api/leads/<int:lead_id>/flow-bundle")
-@login_required
-def api_flow_bundle(lead_id):
-    """Everything one Flow run needs, as a single download.
-
-    Flow cannot be handed a job. It has no public API and no URL parameter
-    that pre-fills a prompt or attaches an image, so "send this to Flow" can
-    only ever mean: open Flow, and have the prompt and the pictures already
-    in hand. This is the second half of that.
-
-    Two shapes, because a zip is not always the shorter path. Flow takes a
-    drag of files, and a zip has to be found, unzipped and then dragged --
-    three steps where loose files in the downloads bar are one. ?as=list
-    returns the manifest so the page can pull each file down individually;
-    the default stays a zip, which is the better thing to keep.
-    """
-    import zipfile
-    from io import BytesIO
-
-    from services import dronepath, enhance
-
-    lead = get_owned_lead(lead_id)
-    if lead is None:
-        return jsonify({"error": "Lead not found."}), 404
-
-    side = (request.args.get("side") or "front").strip().lower()
-    grouped = dronepath.placed_by_group(lead)
-    wanted = ([side] if side in grouped else
-              [key for key in ("front", "back", "neighbours") if key in grouped])
-    if not wanted:
-        return jsonify({"error": "Nothing is placed on the board yet, so "
-                                 "there is nothing to send."}), 400
-
-    # Neighbours go along with either side: they are context for the street,
-    # not a subject of their own, and a flight always happens in one.
-    if side in ("front", "back") and "neighbours" in grouped:
-        wanted = [side, "neighbours"]
-
-    # The same set either way, named the same way, so what is dragged into
-    # Flow is identical whichever route it took.
-    files = []
-    for group in wanted:
-        for url in grouped.get(group) or []:
-            path = local_path_from_url(url)
-            if path and path.exists():
-                files.append((group, url, path))
-
-    if not files:
-        return jsonify({"error": "Those images are no longer on disk."}), 400
-
-    if (request.args.get("as") or "").strip() == "list":
-        return jsonify({
-            "prompt": enhance.PROMPT,
-            "files": [{"url": url,
-                       "name": "%02d-%s-%s" % (i, group, path.name)}
-                      for i, (group, url, path) in enumerate(files, start=1)],
-        })
-
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
-        bundle.writestr("prompt.txt", enhance.PROMPT)
-        count = 0
-        for group in wanted:
-            for i, url in enumerate(grouped.get(group) or [], start=1):
-                path = local_path_from_url(url)
-                if not path or not path.exists():
-                    continue
-                # Numbered in plan order, because the order they are added in
-                # Flow is the order they are weighed: the capture first, the
-                # references after it.
-                count += 1
-                bundle.write(path, "%02d-%s-%s" % (count, group, path.name))
-
-    if not count:
-        return jsonify({"error": "Those images are no longer on disk."}), 400
-
-    buffer.seek(0)
-    name = "%s-%s-flow.zip" % (
-        secure_filename((lead.address or "listing").lower().replace(" ", "-")), side)
-    return send_file(buffer, mimetype="application/zip",
-                     as_attachment=True, download_name=name)
-
-
-@studio_bp.route("/api/leads/<int:lead_id>/flow-brief", methods=["POST"])
-@login_required
-def api_flow_brief(lead_id):
-    """Tell the extension which shot to set up in Flow next.
-
-    Studio cannot reach into Flow -- one origin cannot touch another's app --
-    so it writes down the intention and the extension, which is allowed to
-    touch both, picks it up.
-    """
-    from services import dronepath, enhance, flowbrief
-
-    lead = get_owned_lead(lead_id)
-    if lead is None:
-        return jsonify({"error": "Lead not found."}), 404
-
-    side = ((request.get_json(silent=True) or {}).get("side") or "").strip().lower()
-    if side not in dronepath.SIDES:
-        return jsonify({"error": "There is no such side."}), 400
-
-    grouped = dronepath.placed_by_group(lead)
-    order = [side] + (["neighbours"] if "neighbours" in grouped else [])
-    images = []
-    for group in order:
-        for url in grouped.get(group) or []:
-            if url not in images:
-                images.append(url)
-    if not images:
-        return jsonify({"error": "Nothing is placed for the %s of this "
-                                 "property yet." % side}), 400
-
-    brief = flowbrief.save(session["user_id"], {
-        "lead_id": lead.id,
-        "address": lead.full_address,
-        "side": side,
-        "prompt": enhance.PROMPT,
-        "images": [urljoin(request.host_url, url.lstrip("/")) for url in images],
-    })
-    return jsonify({"brief": brief})
 
 
 @studio_bp.route("/api/showcase/rebuild", methods=["POST"])

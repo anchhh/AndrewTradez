@@ -24,9 +24,10 @@
       <div>
         <h2>Two shots: the front and the back</h2>
         <p class="hint">A flight starts on one and lands on the other, so
-          these are the two pictures to make. Both are made in Google Flow:
-          each column hands it that side's images and the prompt, and takes
-          the result back when you have it.</p>
+          these are the two pictures to make. Each is generated from the
+          views placed for that side, with the neighbours in both &mdash; a
+          house is rebuilt in its street. Nano Banana Pro at 4K, about
+          25&cent; a shot.</p>
       </div>
     </div>
 
@@ -43,25 +44,21 @@
           <div class="gn-result" id="gn-result-{{ side.key }}"></div>
 
           <div class="gn-actions">
-            {# Step one: hand the side over. Flow has no API and no URL that
-               pre-fills a prompt or attaches an image, so this does the three
-               things that can be done -- copy the prompt, download the
-               images in order, open Flow. #}
-            <button type="button" class="btn-send gn-flow" data-side="{{ side.key }}"
+            <button type="button" class="btn-send gn-go" data-side="{{ side.key }}"
                     {{ 'disabled' if not side.base }}>
-              Open in Flow
+              Generate the {{ side.label | lower }}
             </button>
 
-            {# Step two: bring back what it made. #}
+            {# Still here, because a shot made elsewhere is still a shot. #}
             <label class="btn-secondary btn-tiny gn-upload">
-              Add the shot
+              Add one instead
               <input type="file" class="gn-file" data-side="{{ side.key }}"
                      accept="image/*" hidden>
             </label>
           </div>
 
           {% if side.base %}
-            <p class="gn-inputs-label hint">Flow gets these, in this order</p>
+            <p class="gn-inputs-label hint">Generated from these</p>
             <div class="gn-inputs" id="gn-inputs-{{ side.key }}"></div>
           {% else %}
             <p class="hint">Nothing placed for this side yet.
@@ -91,8 +88,6 @@
   window.__GENERATED__ = {{ generated | tojson }};
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
   window.__SLOTS__ = {{ slots | tojson }};
-  window.__FLOW_URL__ = {{ flow_url | tojson }};
-  window.__PROMPT__ = {{ prompt | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_generate.js') }}"></script>
 </body>

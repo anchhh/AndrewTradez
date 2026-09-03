@@ -1,22 +1,16 @@
-/* The generate stage: two shots, the front and the back, both made in
-   Google Flow.
+/* The generate stage: two shots, the front and the back.
 
-   Flow cannot be driven from here. It has no public API, and every path
-   under /fx/tools/flow returns the same client-side shell -- no project deep
-   link, no prompt parameter, nothing an image can be handed to. One origin
-   cannot reach into another's app, so a button that opens a project, fills
-   it and presses generate is not a thing a web page can do.
+   A flight starts on one and lands on the other, so those are the two
+   pictures worth making. Everything placed on the board at stage 2 feeds one
+   of the two columns: the oblique is what each is built ON, because it
+   already looks like a photograph taken from the air, then the rest of that
+   side, then the neighbours, which go into BOTH because a house is rebuilt
+   in its street.
 
-   What this does instead is make the manual version short: the prompt on the
-   clipboard, that side's images saved loose in the downloads bar in the
-   order they should be added, and Flow open. Loose rather than zipped,
-   because a zip has to be found and unzipped before it can be dragged --
-   three steps where files in the downloads bar are one.
-
-   Everything placed on the board at stage 2 feeds one of the two columns:
-   the oblique first, because it already looks like a photograph taken from
-   the air, then the rest of that side, then the neighbours, which go into
-   BOTH columns because a house is rebuilt in its street.
+   Generated here rather than in Google Flow. Flow made the shot that settled
+   which model to use, and driving its page from the extension got three
+   guesses deep without ever attaching to the prompt; the same model through
+   the API does it in one call.
 
    One image per side, replaced rather than accumulated. There is one front
    of a house, and a gallery of attempts at it is a decision deferred. */
@@ -82,7 +76,7 @@ function render() {
                <button type="button" class="btn-tiny" data-act="clear">Discard</button>
              </figcaption>
            </figure>`
-        : `<div class="gn-placeholder">Nothing back from Flow yet</div>`;
+        : `<div class="gn-placeholder">Not generated yet</div>`;
 
     result.querySelectorAll("[data-act]").forEach((button) =>
       button.addEventListener("click", () => {
@@ -103,90 +97,45 @@ function render() {
       button.addEventListener("click", () => zoom(button.dataset.url)));
   });
 
-  document.querySelectorAll(".gn-flow").forEach((button) => {
+  document.querySelectorAll(".gn-go").forEach((button) => {
     button.disabled = !!busy[button.dataset.side] ||
       !(sides.find((s) => s.key === button.dataset.side) || {}).base;
   });
 }
 
-/* ---------- handing one side to Flow ---------- */
+/* ---------- generating ---------- */
 
-function saveBlob(blob, name) {
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 10000);
-}
-
-async function toFlow(side) {
-  let copied = false;
+async function generate(sideKey) {
+  busy[sideKey] = "Generating…";
+  render();
+  // Said out loud because it is not fast and it is not free: 4K on Pro takes
+  // the better part of a minute and costs about a quarter.
+  note("Nano Banana Pro at 4K — this takes up to a minute.");
   try {
-    await navigator.clipboard.writeText(window.__PROMPT__ || "");
-    copied = true;
-  } catch (err) {
-    // Clipboard access can be refused; the prompt is still on this page.
-  }
-
-  // Tell the extension what this is, before anything else. Its Flow tab
-  // reads the brief and can put the images into Flow directly, which is the
-  // one thing this page cannot do for itself.
-  try {
-    await fetch(`/studio/api/leads/${lead}/flow-brief`, {
+    const res = await fetch(`/studio/api/leads/${lead}/generate-side`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ side }),
+      body: JSON.stringify({ side: sideKey }),
     });
-  } catch (err) {
-    // The downloads below still work without the extension, so this is a
-    // convenience that failed rather than a run that did.
-  }
-
-  note(`Fetching the ${side} set…`);
-  let manifest;
-  try {
-    // Fetched rather than navigated to: pointing the window at the endpoint
-    // works right up until the session has expired, at which point the
-    // "download" is a redirect to the login page and this page is gone.
-    const res = await fetch(
-      `/studio/api/leads/${lead}/flow-bundle?side=${side}&as=list`);
-    manifest = await res.json();
-    if (!res.ok) throw new Error(manifest.error || `couldn't build the ${side} set`);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "that didn't generate");
+    generated = body.generated || {};
+    note("Done. Discard it and run again if it came out wrong.");
   } catch (err) {
     note(err.message);
-    return;
   }
-
-  // One at a time and named in order. Chrome asks once per site before it
-  // will save several files; after that this is one confirmation for the
-  // whole set.
-  for (const file of manifest.files) {
-    try {
-      const image = await fetch(file.url);
-      saveBlob(await image.blob(), file.name);
-      await new Promise((done) => setTimeout(done, 250));
-    } catch (err) {
-      note(`Couldn't download ${file.name}.`);
-    }
-  }
-
-  window.open(window.__FLOW_URL__, "_blank", "noopener");
-  note(`${manifest.files.length} images saved in order` +
-       (copied ? ", the prompt is on your clipboard" : "") +
-       ", and the extension's Flow tab has the brief. Flow is open.");
+  delete busy[sideKey];
+  render();
 }
 
-document.querySelectorAll(".gn-flow").forEach((button) =>
-  button.addEventListener("click", () => toFlow(button.dataset.side)));
+document.querySelectorAll(".gn-go").forEach((button) =>
+  button.addEventListener("click", () => generate(button.dataset.side)));
 
 /* ---------- bringing the shot back ---------- */
 
-/* Uploaded through the same endpoint the rest of the app uses, so it lands
-   beside the listing's images rather than in a second place with its own
-   rules, then filed against this side. */
+/* A shot made somewhere else. Uploaded through the same endpoint the rest of
+   the app uses, so it lands beside the listing's images rather than in a
+   second place with its own rules, then filed against this side. */
 async function receive(sideKey, file) {
   if (!file) return;
   if (!/^image\//.test(file.type)) { note("That isn't an image."); return; }

@@ -1,18 +1,32 @@
 """
-The Earth captures: framing them, and describing what to do with them.
+The Earth captures: framing them, and turning them into photographs.
 
-Generating the shots themselves happens in Google Flow, by hand. That was a
-decision made after trying it here: Gemini's image models are reachable from
-this app and they do work, but the run that produced the shot actually
-wanted was made in Flow, and a second path that produces a worse version of
-the same thing is a second path to maintain and a bill to explain.
+Generation ran here, then moved to Google Flow by hand, and has come back.
+The detour was worth its cost in what it settled: the shot that was actually
+wanted came out of Nano Banana Pro, so that is the model this uses. Driving
+Flow's own page turned out to be three guesses deep and still landing in the
+asset library, and this does the same job in one call.
 
-So what is left here is everything around that. Cropping, which is exact and
-free and nothing a model should be involved in. The prompt, which travels to
-Flow in the bundle. And which photographs go with which capture, which is
-the judgement the whole board stage exists to record.
+Cropping stays what it always was -- exact, free, and nothing a model should
+be involved in.
 """
 import os
+
+from services import gemini_image
+
+# Nano Banana Pro, which is what made the shot that was wanted, at the
+# resolution the next stage needs: these become the first frame of a 1080p
+# clip, and 4K costs about ten cents more per image than 2K. Settings rather
+# than constants, because a model is a thing that gets superseded.
+MODEL = "gemini-3-pro-image"
+IMAGE_SIZE = "4K"
+
+
+def _model_settings(cfg=None, model=None):
+    cfg = cfg or gemini_image.load_config()
+    return (model or cfg.get("enhance_model") or MODEL,
+            cfg.get("enhance_image_size") or IMAGE_SIZE)
+
 
 MAX_REFERENCES = 4
 
@@ -102,6 +116,49 @@ def _paths_for(urls):
     return paths
 
 
+def enhance_capture(lead, url, references=None, cfg=None, model=None):
+    """Redraw one Earth capture as a photograph of this house.
+
+    `references` is the listing photos to match against. Chosen by hand when
+    the caller passes them -- which side of the house a capture shows is
+    obvious to a person and guesswork here -- and the exterior shots by
+    default.
+
+    Returns the saved URL of the new image. The capture it came from is left
+    on disk untouched: reverting is a swap, not a restore.
+    """
+    from studio import UPLOAD_DIR, local_path_from_url
+
+    path = local_path_from_url(url)
+    if not path or not path.exists():
+        raise EnhanceError("that capture is not on disk any more")
+
+    # References can be listing photographs OR this property's other captures.
+    # Sending the top-down satellite alongside the oblique view is what tells
+    # the model the shape of the plot; sending only one leaves it guessing at
+    # the half it cannot see. Anything not belonging to this lead is dropped
+    # rather than trusted.
+    from services import dronepath
+
+    allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
+    chosen = [u for u in (references or []) if u in allowed and u != url]
+    references = _paths_for(chosen or placed_references(lead))
+    if not references:
+        raise EnhanceError(
+            "this listing has no exterior photos, so there is nothing to "
+            "match the building against. Add some at the listing step first.")
+
+    model, image_size = _model_settings(cfg, model)
+    try:
+        blob = gemini_image.edit_with_references(
+            str(path), PROMPT, references, cfg=cfg,
+            model=model, image_size=image_size)
+    except gemini_image.GeminiError as exc:
+        raise EnhanceError(str(exc)) from exc
+
+    return _save(UPLOAD_DIR, path, blob, "enhanced")
+
+
 def crop_capture(lead, url, box):
     """Crop one capture to a box given in its own pixels.
 
@@ -145,3 +202,14 @@ def _name_for(path, suffix, ext):
         if base.endswith(known):
             base = base[: -len(known)]
     return "%s-%s%s" % (base, suffix, ext)
+
+
+def _save(upload_dir, source_path, blob, suffix):
+    import uuid
+
+    # A unique name rather than a predictable one: an edit has to be a NEW
+    # file every time, because the old one is still referenced by the gallery
+    # until the swap goes through, and by the browser's cache after it.
+    name = _name_for(source_path, "%s-%s" % (suffix, uuid.uuid4().hex[:8]), ".png")
+    (upload_dir / name).write_bytes(blob)
+    return "/studio/static/uploads/%s" % name
