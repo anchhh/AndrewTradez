@@ -1105,12 +1105,32 @@ def _steps(style, current):
 STYLE_NAMES = {"basic": "Basic", "walkthrough": "Walkthrough", "drone": "Drone"}
 
 
+# Where each stage sits in the run, and what it takes to link back to it.
+# Written next to STEP_FLOWS because they are the same sequence: the bar says
+# where you are, Back walks the same line in reverse. They disagreed before,
+# and Back from Enhance went to the listing step -- the start of the flow --
+# because the trail was built by style rather than by stage.
+STAGE_PAGES = {
+    "listing": ("Listing", "/studio/create/video/listing"),
+    "earth": ("Google Earth", "/studio/create/video/earth"),
+    "enhance": ("Enhance", "/studio/create/video/enhance"),
+    "render": ("Style & shots", "/studio/create/render"),
+}
+
+# The stage each page belongs to, for pages that are not stages themselves.
+# The flight planner is opened from the shots step and belongs behind it.
+STAGE_OF = {"path": "render"}
+
+
 def _create_crumbs(here, style=None, project_id=None):
     """The Create trail, as [(label, href_or_None)] ending on where you are.
 
-    A href of None marks the current page. Every earlier crumb keeps the lead
-    or project, so going back two screens does not lose the listing you were
-    working on.
+    Only the last linked entry is rendered -- as Back -- so what this really
+    decides is which page Back goes to. It walks the stage flow in reverse,
+    which is why the stage bar and the Back button always agree.
+
+    Every earlier crumb keeps the lead or project, so going back two screens
+    does not lose the listing you were working on.
     """
     keep = {k: v for k, v in request.args.items() if k in ("lead_id", "project")}
     # The render page names it `lead`, everything upstream names it
@@ -1123,6 +1143,10 @@ def _create_crumbs(here, style=None, project_id=None):
 
     def link(path, **extra):
         query = dict(keep, **{k: v for k, v in extra.items() if v})
+        # The shots step takes `lead`, not `lead_id`, and sending it the
+        # wrong one lands on an empty picker.
+        if path.endswith("/create/render") and "lead_id" in query:
+            query["lead"] = query.pop("lead_id")
         return path + ("?" + urlencode(query) if query else "")
 
     trail = [("Create", link("/studio/create"))]
@@ -1144,29 +1168,40 @@ def _create_crumbs(here, style=None, project_id=None):
     if name:
         trail.append((name, link("/studio/create/video/listing", style=style)))
 
-    if here == "earth":
-        trail.append(("Google Earth", None))
+    # Now the stages, in the order this style actually runs them, stopping at
+    # the one being shown. The last linked entry is the stage before it, so
+    # Back is one step rather than a jump to the beginning.
+    stage = STAGE_OF.get(here, here)
+    labels = STEP_FLOWS.get(style if style == "drone" else None)
+    order = [key for key in ("listing", "earth", "enhance", "render")
+             if STAGE_PAGES[key][0] in labels]
+
+    if stage not in order:
         return trail
 
-    if here == "enhance":
-        trail.append(("Enhance", None))
-        return trail
+    # A page that IS a stage links back through the ones before it. A page
+    # that merely belongs to one -- the flight planner, opened from the shots
+    # step -- links back through that stage too, because that is where it was
+    # opened from.
+    upto = order.index(stage) + (0 if here in STAGE_PAGES else 1)
+    for key in order[:upto]:
+        label, path = STAGE_PAGES[key]
+        # The listing step is already in the trail under the style's name
+        # when there is one; a second entry for it would make Back a
+        # no-op-looking link to the page it came from.
+        if key == "listing" and name:
+            continue
+        trail.append((label, link(path, style=style)))
 
-    if here == "path":
-        trail.append(("Flight path", None))
-        return trail
-
-    if here == "listing":
-        if name:
+    # And the page itself, unlinked, which marks where you are.
+    if here in STAGE_PAGES:
+        label = STAGE_PAGES[here][0]
+        if here == "listing" and name:
             trail[-1] = (name, None)
         else:
-            trail.append(("Listing", None))
-        return trail
-
-    if here == "render":
-        if not name:
-            trail.append(("Listing", link("/studio/create/video/listing")))
-        trail.append(("Shots", None))
+            trail.append((label, None))
+    else:
+        trail.append(({"path": "Flight path"}.get(here, here.title()), None))
     return trail
 
 
@@ -1466,8 +1501,11 @@ def create_render():
     return render_template("render.html", project=project, job_id=job_id,
                            lead_renders=lead_renders,
                            steps=_steps(style, "Style & shots"),
-                           crumbs=_create_crumbs("render",
-                                                 style=project.get("style"),
+                           # The same resolved style the bar uses. Passing
+                           # the project's alone sent Back to the listing
+                           # step whenever the page was opened straight from
+                           # a lead, which is the jump-to-the-start this was.
+                           crumbs=_create_crumbs("render", style=style,
                                                  project_id=project.get("id")))
 
 

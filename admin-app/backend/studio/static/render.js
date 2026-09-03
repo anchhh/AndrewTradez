@@ -365,16 +365,25 @@ function restrictToExterior() {
   }
 
   state.available = outside;
-  state.photos = onePerRoom();
+  // A restored selection is a decision; re-picking would throw it away and
+  // hand back the default. Only photos that are no longer offered are
+  // dropped.
+  state.photos = state.restored
+    ? state.photos.filter(isExterior)
+    : onePerRoom();
   if (!state.photos.length) state.photos = outside.slice(0, DEFAULT_CLIPS);
 }
 
-function applyStyle(style, { save = true } = {}) {
+function applyStyle(style, { save = true, seed = true } = {}) {
   state.style = style;
   const preset = (state.styleDefaults || {})[style];
   if (preset) {
     state.defaultMove = preset;
-    state.photos.forEach((url) => { state.moves[url] = preset; });
+    // Seeding is what clicking a style card is FOR, and exactly what
+    // re-applying a saved style on load must not do: it would overwrite the
+    // moves being restored with the style's default and undo the restore
+    // silently.
+    if (seed) state.photos.forEach((url) => { state.moves[url] = preset; });
   }
   renderStyleCards();
   renderClipMoves();
@@ -941,6 +950,12 @@ function rateFor(resolution) {
 }
 
 function renderCost() {
+  // Every path that changes a choice -- ticking a photo, setting a move, a
+  // length, a resolution, applying a style -- ends here, because all of them
+  // change the price. So this is the one place saving has to happen, rather
+  // than a call at each of the dozen sites that could forget one.
+  if (state.configured || state.photos.length) saveChoices();
+
   // Anchors are excluded: a photo used as a flyover's last frame is not a
   // second clip and must not be billed as one.
   const billable = renderablePhotos();
@@ -1475,6 +1490,47 @@ function onePerRoom() {
   }).slice(0, DEFAULT_CLIPS);
 }
 
+/* ---------- keeping the choices ----------
+
+   Ticking six photos, setting a move on each and choosing a length is ten
+   minutes of decisions, and every one of them lived in this page until now:
+   stepping back to fix a capture and returning threw the lot away.
+
+   Kept in the browser rather than on the server because it is a draft of an
+   intention, not a fact about the property -- the same reason the flight
+   path IS on the server. Keyed by project or lead so two listings do not
+   share one set of choices. */
+const SAVE_KEY = `estly.shots.${project.id || "lead" + (project.lead_id || "none")}`;
+
+function saveChoices() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      photos: state.photos,
+      moves: state.moves,
+      seconds: state.seconds,
+      quality: state.quality,
+      style: state.style,
+      anchorOverride: state.anchorOverride,
+      at: Date.now(),
+    }));
+  } catch (err) {
+    // A full or disabled store is not a reason to stop working.
+  }
+}
+
+function loadChoices() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+    if (!saved || !Array.isArray(saved.photos)) return null;
+    // Only photos still on the listing: one may have been deleted since,
+    // and a selection pointing at a missing file renders nothing.
+    saved.photos = saved.photos.filter((url) => state.available.includes(url));
+    return saved.photos.length ? saved : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 async function init() {
   // Only the photos the project actually selected -- and never a video file,
   // which is already moving and has nothing to animate.
@@ -1490,6 +1546,18 @@ async function init() {
   // No labels at all (a pasted link or a manual upload): fall back to a cap,
   // still in the order the photos arrived.
   if (!state.photos.length) state.photos = state.available.slice(0, DEFAULT_CLIPS);
+
+  // Anything chosen on a previous visit wins over the default selection: it
+  // was chosen, and the default was only ever a guess.
+  const saved = loadChoices();
+  if (saved) {
+    state.photos = saved.photos;
+    state.moves = saved.moves || {};
+    state.seconds = saved.seconds || {};
+    state.quality = saved.quality || {};
+    state.anchorOverride = saved.anchorOverride || {};
+    state.restored = true;
+  }
 
   el("rn-sub").textContent = project.address || project.name || el("rn-sub").textContent;
 
@@ -1523,7 +1591,9 @@ async function init() {
 
     // Re-applying the saved style seeds every clip, without saving it back --
     // opening the page is not a change.
-    if (project.style) applyStyle(project.style, { save: false });
+    if (project.style) {
+      applyStyle(project.style, { save: false, seed: !state.restored });
+    }
     state.photos.forEach((url) => {
       if (!state.moves[url]) state.moves[url] = state.defaultMove;
     });
@@ -1539,6 +1609,26 @@ async function init() {
   }
 
   renderCost();
+
+  // Said out loud. Coming back to a page that quietly kept your choices is
+  // good; coming back to one that seems to have invented a selection is
+  // unsettling, and the difference is a sentence.
+  if (state.restored) {
+    const note = el("rn-advice-note");
+    if (note) {
+      note.innerHTML =
+        `Picked up where you left off — ${state.photos.length} clip` +
+        `${state.photos.length === 1 ? "" : "s"}. ` +
+        `<button type="button" class="btn-tiny" id="rn-forget">Start over</button>`;
+      const forget = el("rn-forget");
+      if (forget) {
+        forget.addEventListener("click", () => {
+          try { localStorage.removeItem(SAVE_KEY); } catch (err) { /* nothing to clear */ }
+          window.location.reload();
+        });
+      }
+    }
+  }
 
   fetchAdvice();
   fetchSite();
