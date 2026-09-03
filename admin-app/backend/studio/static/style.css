@@ -6635,3 +6635,32 @@ button.gn-review-shot {
 .gn-review-drop:hover { background: var(--accent); }
 #gn-review-held { display: grid; gap: 6px; margin-top: 14px; }
 #gn-review-held-list { max-height: 24vh; }
+
+/* How far along a generation is. Three calls and two and a half minutes is
+   too long for a box that says nothing. */
+.gn-placeholder.is-working {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  justify-items: center;
+  padding: 20px;
+}
+.gn-working-label { font-weight: 600; color: var(--ink); }
+.gn-working-step { font-size: 0.72rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.gn-bar {
+  display: block;
+  width: min(280px, 80%);
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(12, 10, 8, 0.12);
+  overflow: hidden;
+}
+.gn-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  /* Slower than the poll, so the bar glides between readings rather than
+     stepping every two seconds. */
+  transition: width 2s linear;
+}

@@ -3334,6 +3334,56 @@ def api_capture_crop(lead_id):
         lambda lead, image, data: enhance.crop_capture(lead, image, data.get("box") or []))
 
 
+# What is running right now, keyed by lead and side. A generation is three
+# calls and two and a half minutes inside one request, so without this the
+# page has nothing to say for the whole of it.
+#
+# In memory on purpose: it describes a request that is still in flight in
+# THIS process, and it is worthless a moment after that request ends. If the
+# app is ever run under several workers this stops working -- a poll can land
+# on a worker that is not doing the generating -- and the honest fix then is
+# a shared store, not a bigger dictionary.
+_RUNNING = {}
+
+
+def _progress_key(lead_id, side):
+    return "%s:%s" % (lead_id, side)
+
+
+def _progress_snapshot(lead_id):
+    """{side: {phase, label, percent}} for whatever is running on this lead."""
+    import time
+
+    from services import enhance
+
+    total = float(sum(seconds for _, seconds in enhance.PHASES)) or 1.0
+    out = {}
+    for side in ("front", "back"):
+        run = _RUNNING.get(_progress_key(lead_id, side))
+        if not run:
+            continue
+        index = run["phase"]
+        label, seconds = enhance.PHASES[index]
+        done = sum(s for _, s in enhance.PHASES[:index])
+        # How far into THIS phase, capped so a slow call creeps rather than
+        # overruns into the next phase's share of the bar.
+        within = min(1.0, (time.time() - run["since"]) / float(seconds or 1))
+        percent = (done + within * seconds) / total * 100.0
+        out[side] = {"phase": index, "label": label,
+                     "percent": round(min(95.0, percent), 1),
+                     "steps": len(enhance.PHASES)}
+    return out
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/generate-progress")
+@login_required
+def api_generate_progress(lead_id):
+    """Where a running generation has got to. Empty when nothing is running."""
+    if get_owned_lead(lead_id) is None:
+        return jsonify({"error": "Lead not found."}), 404
+    return jsonify({"running": _progress_snapshot(lead_id)})
+
+
 @studio_bp.route("/api/leads/<int:lead_id>/generate-side", methods=["POST", "DELETE"])
 @login_required
 def api_generate_side(lead_id):
@@ -3393,10 +3443,23 @@ def api_generate_side(lead_id):
             # what arrives here is what was on screen -- edited or not. Sent
             # every time rather than only when changed: "what I saw" and
             # "what ran" are the same string or the confirmation was theatre.
-            image = enhance.enhance_capture(
-                lead, base, references=references,
-                model=(data.get("model") or "").strip() or None,
-                prompt=data.get("prompt"), side=side)
+            import time
+
+            key = _progress_key(lead_id, side)
+
+            def reached(index, _key=key):
+                _RUNNING[_key] = {"phase": index, "since": time.time()}
+
+            reached(0)
+            try:
+                image = enhance.enhance_capture(
+                    lead, base, references=references,
+                    model=(data.get("model") or "").strip() or None,
+                    prompt=data.get("prompt"), side=side, on_phase=reached)
+            finally:
+                # Cleared whether it worked or not: a bar that keeps climbing
+                # after a failure is worse than no bar.
+                _RUNNING.pop(key, None)
         except enhance.EnhanceError as exc:
             return jsonify({"error": str(exc)}), 400
 

@@ -25,6 +25,11 @@ const slotOrder = window.__SLOT_ORDER__ || Object.keys(slots);
 const defaultPrompts = window.__PROMPTS__ || {};
 
 let generated = window.__GENERATED__ || {};
+/* Where a running generation has got to, {side: {label, percent, phase}}.
+   Read from the server rather than guessed from a timer: the three calls
+   take 21, 70 and 50 seconds and a bar that moves at a constant rate spends
+   most of a run lying about the middle one. */
+let progress = {};
 /* Edited wording, per side, for the visit. Per side because the two
    prompts are not the same text any more: the front's says FRONT twice and
    the back's says BACK, and carrying an edit across would quietly hand the
@@ -106,8 +111,15 @@ function render() {
     const working = busy[side.key];
     const result = el(`gn-result-${side.key}`);
 
+    const at = progress[side.key];
     result.innerHTML = working
-      ? `<div class="gn-placeholder is-working">${escapeHtml(working)}</div>`
+      ? `<div class="gn-placeholder is-working">
+           <span class="gn-working-label">${escapeHtml(at ? at.label : working)}</span>
+           <span class="gn-bar"><i style="width:${at ? at.percent : 2}%"></i></span>
+           <span class="gn-working-step">${at
+             ? `step ${at.phase + 1} of ${at.steps} — ${Math.round(at.percent)}%`
+             : "starting…"}</span>
+         </div>`
       : made
         ? `<figure class="gn-made">
              <img src="${made}" alt="${escapeHtml(side.label)}">
@@ -311,11 +323,47 @@ el("gn-review-go").addEventListener("click", () => {
   if (sideKey) generate(sideKey);
 });
 
+/* ---------- how far along ---------- */
+
+/* One poll for the page, not one per side: both columns can be running and
+   they are one row in the same dictionary on the server. Started when a run
+   starts, stopped when nothing is running -- there is nothing to ask about
+   the rest of the time. */
+let ticker = null;
+
+async function poll() {
+  try {
+    const res = await fetch(`/studio/api/leads/${lead}/generate-progress`);
+    if (res.ok) {
+      progress = (await res.json()).running || {};
+      render();
+    }
+  } catch (err) {
+    // A dropped poll is not worth telling anyone about; the next one is 2s
+    // away and the generation is unaffected either way.
+  }
+}
+
+function watch() {
+  if (ticker) return;
+  ticker = setInterval(() => {
+    if (!Object.keys(busy).length) {
+      clearInterval(ticker);
+      ticker = null;
+      progress = {};
+      return;
+    }
+    poll();
+  }, 2000);
+  poll();
+}
+
 /* ---------- generating ---------- */
 
 async function generate(sideKey) {
   busy[sideKey] = "Generating…";
   render();
+  watch();
   // Said out loud because it is not fast and it is not free: three calls
   // now -- enlarge the capture, redraw it, restore the detail -- and the
   // middle one is the slow expensive one.
@@ -340,11 +388,33 @@ async function generate(sideKey) {
     note(err.message);
   }
   delete busy[sideKey];
+  delete progress[sideKey];
   render();
 }
 
 document.querySelectorAll(".gn-go").forEach((button) =>
   button.addEventListener("click", () => review(button.dataset.side)));
+
+/* A run already in flight when the page loads -- a reload mid-generation, or
+   the other side started in another tab. The request that started it is
+   somebody else's, but the progress belongs to the lead and the bar should
+   show it. */
+(async function resume() {
+  try {
+    const res = await fetch(`/studio/api/leads/${lead}/generate-progress`);
+    if (!res.ok) return;
+    const running = (await res.json()).running || {};
+    Object.keys(running).forEach((side) => { busy[side] = "Generating…"; });
+    if (Object.keys(busy).length) {
+      progress = running;
+      note("A generation is already running for this listing.");
+      render();
+      watch();
+    }
+  } catch (err) {
+    /* nothing running, or nothing to say about it */
+  }
+}());
 
 /* ---------- bringing the shot back ---------- */
 

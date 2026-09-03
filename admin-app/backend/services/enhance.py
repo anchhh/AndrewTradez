@@ -227,8 +227,17 @@ def _trimmed(path):
 MAX_PROMPT = 6000
 
 
+# What the three calls cost in time, measured rather than guessed: 21s to
+# enlarge a 1400px capture, 70s to redraw it at 4K, 50s to restore detail.
+# Used to weight a progress bar, so the bar moves at roughly the rate the
+# work does instead of at a constant rate that stalls on the slow part.
+PHASES = (("Sharpening the capture", 21),
+          ("Redrawing the house", 70),
+          ("Restoring the detail", 50))
+
+
 def enhance_capture(lead, url, references=None, cfg=None, model=None,
-                    prompt=None, side=None):
+                    prompt=None, side=None, on_phase=None):
     """Redraw one Earth capture as a photograph of this house.
 
     `references` is what to match against -- this property's other captures
@@ -287,12 +296,19 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None,
     except Exception:  # noqa: BLE001 -- framing is a preference, not a gate
         shape = None
 
+    say = on_phase or (lambda index: None)
+
+    say(0)
+    enlarged = _enlarged(path, cfg)
+
+    say(1)
     try:
-        blob = atlas_image.edit([_enlarged(path, cfg)] + references, wording,
+        blob = atlas_image.edit([enlarged] + references, wording,
                                 cfg=cfg, model=model, aspect=shape)
     except atlas_image.AtlasImageError as exc:
         raise EnhanceError(str(exc)) from exc
 
+    say(2)
     return _save(UPLOAD_DIR, path, _sharpened(blob, cfg), "enhanced")
 
 
