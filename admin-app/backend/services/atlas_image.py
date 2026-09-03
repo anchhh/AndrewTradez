@@ -63,6 +63,24 @@ RESOLUTION = "4k"
 # orders them, so the ones that fall off the end are the least important.
 MAX_IMAGES = 10
 
+# The shapes this model will return. Asked for nothing it picks its own, and
+# what it picked was wider on the vertical than the capture: a 1.92:1 crop
+# came back 1.58:1, which is the model adding sky and street the crop had
+# deliberately excluded. Pinning the nearest shape to the crop keeps the
+# framing that was chosen at the crop step -- and 16:9 is what the clip
+# wants anyway.
+ASPECTS = {"1:1": 1.0, "3:2": 1.5, "2:3": 2 / 3.0, "3:4": 0.75, "4:3": 4 / 3.0,
+           "4:5": 0.8, "5:4": 1.25, "9:16": 9 / 16.0, "16:9": 16 / 9.0,
+           "21:9": 21 / 9.0}
+
+
+def nearest_aspect(width, height):
+    """The listed shape closest to an image's own."""
+    if not width or not height:
+        return None
+    ratio = float(width) / float(height)
+    return min(ASPECTS, key=lambda key: abs(ASPECTS[key] - ratio))
+
 # Generation is a minute or two at 4K; the video path's own ceiling is longer
 # because a clip is longer.
 POLL_TIMEOUT = 300
@@ -96,7 +114,7 @@ def is_configured():
     return bool(video.load_config().get("api_key"))
 
 
-def edit(paths, prompt, cfg=None, on_tick=None, model=None):
+def edit(paths, prompt, cfg=None, on_tick=None, model=None, aspect=None):
     """Edit the first image, using the rest as reference. Returns bytes.
 
     Order matters and is the caller's business: Atlas passes the list
@@ -138,6 +156,8 @@ def edit(paths, prompt, cfg=None, on_tick=None, model=None):
     # a rejected request rather than an ignored field.
     if resolution:
         payload["resolution"] = resolution
+    if aspect in ASPECTS:
+        payload["aspect_ratio"] = aspect
 
     return _run(payload, cfg, on_tick=on_tick)
 

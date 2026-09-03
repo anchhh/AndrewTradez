@@ -277,9 +277,19 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None,
     if len(wording) > MAX_PROMPT:
         raise EnhanceError("that prompt is too long to send")
 
+    # The crop decides the framing, not the model. Whoever tightened the
+    # capture on the house at the previous step made a choice, and coming
+    # back with the street and half the sky in it throws that choice away.
+    from PIL import Image
+
+    try:
+        shape = atlas_image.nearest_aspect(*Image.open(str(path)).size)
+    except Exception:  # noqa: BLE001 -- framing is a preference, not a gate
+        shape = None
+
     try:
         blob = atlas_image.edit([_enlarged(path, cfg)] + references, wording,
-                                cfg=cfg, model=model)
+                                cfg=cfg, model=model, aspect=shape)
     except atlas_image.AtlasImageError as exc:
         raise EnhanceError(str(exc)) from exc
 
