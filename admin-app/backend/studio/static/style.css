@@ -5738,3 +5738,67 @@ gmp-map-3d {
   flex-wrap: wrap;
 }
 .rn-flight-text { flex: 1 1 220px; }
+
+/* ---------- the Google Earth stage ---------- */
+
+.ge-card { display: grid; gap: 6px; }
+.ge-step {
+  margin: 18px 0 2px;
+  font-size: 1.02rem;
+}
+.ge-card .ge-step:first-child { margin-top: 0; }
+
+/* The whole of step 1 is one link out, so it is sized like the step it is
+   rather than tucked into a sentence. */
+.ge-button {
+  display: block;
+  margin: 12px 0 4px;
+  padding: 26px 20px;
+  border-radius: 12px;
+  background: var(--panel, #f4efe6);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.ge-button:hover { border-color: var(--accent); color: var(--accent); }
+
+.ge-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0 4px;
+  padding: 30px 20px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: center;
+}
+.ge-drop:hover, .ge-drop.is-over { border-color: var(--accent); color: var(--accent); }
+
+.ge-shot { margin: 12px 0 4px; display: grid; gap: 8px; justify-items: start; }
+.ge-shot img {
+  max-width: 100%;
+  max-height: 380px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  display: block;
+}
+
+.ge-actions { margin-top: 18px; gap: 10px; }
+
+/* A stage that is numbered but not built yet. Dimmed rather than hidden --
+   the numbering is the promise, and a gap in it reads as a bug. */
+.step.is-soon { opacity: 0.55; }
+.step-soon {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-left: 4px;
+}

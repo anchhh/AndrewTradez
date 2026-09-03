@@ -1067,6 +1067,41 @@ def _carry():
     return "?" + query, "?" + query + "&"
 
 
+# The stages of a run, per style. A drone flight has two a walkthrough does
+# not: the Earth view the flight is planned on, and the enhancement pass over
+# the photographs it will be flown across. Written here rather than in the
+# templates because inserting a stage used to mean renumbering two lists of
+# hand-written <li>s and hoping they agreed.
+STEP_FLOWS = {
+    "drone": ["Listing", "Google Earth", "Enhance", "Style & shots", "Clips"],
+    None: ["Listing", "Style & shots", "Clips"],
+}
+
+# Stages that exist in the bar but not yet in the app. Marked rather than
+# hidden: the numbering is the promise, and a gap in it is worse than a
+# stage that says it is coming.
+STEPS_SOON = {"Enhance"}
+
+
+def _steps(style, current):
+    """The stage bar, as [{num, label, state, soon}].
+
+    `current` is the label of the stage being shown. Everything before it is
+    done, everything after is still to come.
+    """
+    labels = STEP_FLOWS.get(style if style == "drone" else None)
+    here = labels.index(current) if current in labels else 0
+    return [
+        {
+            "num": i + 1,
+            "label": label,
+            "state": "done" if i < here else ("current" if i == here else "todo"),
+            "soon": label in STEPS_SOON,
+        }
+        for i, label in enumerate(labels)
+    ]
+
+
 STYLE_NAMES = {"basic": "Basic", "walkthrough": "Walkthrough", "drone": "Drone"}
 
 
@@ -1108,6 +1143,10 @@ def _create_crumbs(here, style=None, project_id=None):
     name = STYLE_NAMES.get(style)
     if name:
         trail.append((name, link("/studio/create/video/listing", style=style)))
+
+    if here == "earth":
+        trail.append(("Google Earth", None))
+        return trail
 
     if here == "path":
         trail.append(("Flight path", None))
@@ -1162,6 +1201,33 @@ def create_video_style():
     return render_template(
         "create_style.html", carry=carry, carry_amp=carry_amp,
         crumbs=_create_crumbs("style"), styles=styles)
+
+
+@studio_bp.route("/create/video/earth")
+@login_required
+def create_earth():
+    """Stage 2 of a drone run: get a view of the property from Earth.
+
+    Needs a lead, because the whole stage is one address. Without one there
+    is nothing to search for, so it sends you back to pick a listing.
+    """
+    from services import dronepath
+
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    project_id = request.args.get("project")
+    tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
+
+    return render_template(
+        "create_earth.html", lead=lead,
+        earth_url=dronepath.earth_url(dronepath.full_address(lead)),
+        back_href="/studio/create/video/listing?style=drone&lead_id=%s" % lead.id,
+        next_href="/studio/create/render?" + tail,
+        steps=_steps("drone", "Google Earth"),
+        crumbs=_create_crumbs("earth", style="drone"))
 
 
 @studio_bp.route("/create/video/path")
@@ -1221,6 +1287,7 @@ def create():
     return render_template("create.html", project=project, prefill=prefill,
                            showcase=showcase.status(), chosen_style=style,
                            lead_only=lead_only,
+                           steps=_steps(style, "Listing"),
                            crumbs=_create_crumbs("listing", style=style))
 
 
@@ -1316,8 +1383,13 @@ def create_render():
         if lead is not None:
             project["photo_rooms"] = lead.photo_rooms or {}
 
+    # The style decides the stage bar, and a page opened straight from a lead
+    # has no project to carry it -- so the query string is allowed to say.
+    style = project.get("style") or request.args.get("style")
+
     return render_template("render.html", project=project, job_id=job_id,
                            lead_renders=lead_renders,
+                           steps=_steps(style, "Style & shots"),
                            crumbs=_create_crumbs("render",
                                                  style=project.get("style"),
                                                  project_id=project.get("id")))
@@ -2908,10 +2980,24 @@ def api_lead_drone_path(lead_id):
     if request.method == "GET":
         path = lead.drone_path or {}
         return jsonify({"path": path, "described": dronepath.describe(path),
-                        "earth_url": dronepath.earth_url(lead.address)})
+                        "earth_url": dronepath.earth_url(
+                            dronepath.full_address(lead))})
 
     data = request.get_json(force=True, silent=True) or {}
     points = data.get("points") or []
+
+    # The Earth stage saves a view before any line is drawn on it. Keeping
+    # whatever path already exists rather than clearing it: replacing the
+    # picture is not the same as abandoning the flight, and re-capturing the
+    # same view should not silently throw away the path drawn on it.
+    if not points and (data.get("image") or "").strip():
+        path = dict(lead.drone_path or {})
+        path["image"] = data["image"].strip()
+        path["saved_at"] = datetime.now(timezone.utc).isoformat()
+        lead.drone_path = path
+        db.session.commit()
+        return jsonify({"path": path, "described": dronepath.describe(path)})
+
     if not isinstance(points, list) or len(points) < 2:
         return jsonify({"error": "A path needs at least two points."}), 400
 

@@ -36,6 +36,23 @@ class PathError(Exception):
     """The path could not be read or planned."""
 
 
+def full_address(lead):
+    """Street, city, state and postcode, as one line.
+
+    Earth searches text, and "8732 15th Street Rd" on its own is a street
+    name in a great many towns. The city and state are already on the lead;
+    leaving them out is how a flight gets planned over the wrong house.
+    """
+    parts = [(lead.address or "").strip()]
+    town = ", ".join(p for p in [(lead.city or "").strip(),
+                                 (lead.state or "").strip()] if p)
+    if town:
+        parts.append(town)
+    if (lead.zip_code or "").strip():
+        parts.append(lead.zip_code.strip())
+    return " ".join(p for p in parts if p).strip()
+
+
 def earth_url(address, lat=None, lon=None):
     """A Google Earth link for this property.
 
@@ -134,5 +151,5 @@ def overhead_for(lead):
         "url": "/studio/static/uploads/%s" % name,
         "lat": coords[0],
         "lon": coords[1],
-        "earth_url": earth_url(lead.address, coords[0], coords[1]),
+        "earth_url": earth_url(full_address(lead), coords[0], coords[1]),
     }

@@ -1,0 +1,15 @@
+{# The stage bar, in one place.
+
+   It was copied into two templates with the numbers written out by hand,
+   which is why inserting a stage meant editing the same list twice. The
+   flow is decided in Python now (a drone run has stages a walkthrough does
+   not) and rendered here. #}
+<ol class="steps" id="steps">
+  {% for step in steps %}
+    <li class="step{% if step.state == 'done' %} is-done{% elif step.state == 'current' %} is-current{% endif %}{% if step.soon %} is-soon{% endif %}"
+        data-step="{{ step.num }}">
+      <span class="step-num">{{ step.num }}</span>
+      <span class="step-label">{{ step.label }}{% if step.soon %} <span class="step-soon">soon</span>{% endif %}</span>
+    </li>
+  {% endfor %}
+</ol>

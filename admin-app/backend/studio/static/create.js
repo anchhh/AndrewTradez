@@ -540,6 +540,16 @@ async function goNext() {
     return;
   }
   await autosave(wasCompleted ? {} : { status: "draft" });
+
+  // A drone run goes via Google Earth: the flight is planned on a view of
+  // the property, and that view is captured before there is anything to
+  // decide about clips. Every other style goes straight to the shots.
+  if (window.__CHOSEN_STYLE__ === "drone" && state.leadId) {
+    window.location.href =
+      `/studio/create/video/earth?lead_id=${encodeURIComponent(state.leadId)}` +
+      `&project=${state.projectId}`;
+    return;
+  }
   window.location.href = `/studio/create/render?project=${state.projectId}`;
 }
 
