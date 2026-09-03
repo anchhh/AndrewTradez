@@ -6233,3 +6233,63 @@ button.en-shot {
 
 /* A box is clickable now, so it should say so. */
 .ge-box[data-slot] { cursor: pointer; }
+
+/* Full size, over everything including the picker. */
+.ge-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(10, 8, 6, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.ge-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  display: block;
+  cursor: default;
+}
+.ge-lightbox-x {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ge-lightbox-x:hover { background: rgba(255, 255, 255, 0.3); }
+
+/* The magnifier corner. Sits opposite whatever remove button the tile has,
+   so the two are never confused with each other. */
+.ge-zoom {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: zoom-in;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.ge-shot:hover .ge-zoom,
+.ge-box-chip:hover .ge-zoom,
+.en-pick-item:hover .ge-zoom,
+.ge-zoom:focus { opacity: 1; }
+.ge-zoom:hover { background: var(--accent); }
+.ge-box-chip, .ge-shot, .en-pick-item { position: relative; }

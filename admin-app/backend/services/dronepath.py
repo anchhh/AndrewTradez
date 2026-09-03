@@ -181,12 +181,12 @@ SHOT_PLAN = [
         "label": "Front",
         "note": "The establishing shot. Worth getting all four.",
         "shots": [
-            {"key": "front_street", "label": "Street view",
-             "hint": "Earth's ground-level view from the road"},
+            {"key": "front_street", "label": "Street views",
+             "hint": "Earth's ground-level view from the road", "multi": True},
             {"key": "front_overhead", "label": "Satellite overhead",
-             "hint": "Straight down, framed on the plot"},
+             "hint": "Straight down, framed on the plot", "multi": True},
             {"key": "front_3d", "label": "Satellite 3D",
-             "hint": "Tilted, looking at the front of the house"},
+             "hint": "Tilted, looking at the front of the house", "multi": True},
             {"key": "front_reference", "label": "Reference photos",
              "hint": "Front elevations from the listing — as many as show it well",
              "source": "listing", "multi": True},
@@ -198,9 +198,9 @@ SHOT_PLAN = [
         "note": "Where a front-to-back flight ends up.",
         "shots": [
             {"key": "back_overhead", "label": "Satellite overhead",
-             "hint": "Straight down over the rear of the plot"},
+             "hint": "Straight down over the rear of the plot", "multi": True},
             {"key": "back_3d", "label": "Satellite 3D",
-             "hint": "Tilted, looking at the back of the house"},
+             "hint": "Tilted, looking at the back of the house", "multi": True},
             {"key": "back_reference", "label": "Reference photos",
              "hint": "Rear elevations from the listing — as many as show it well",
              "source": "listing", "multi": True},
@@ -213,11 +213,11 @@ SHOT_PLAN = [
                 "street gets invented too.",
         "shots": [
             {"key": "nb_overhead", "label": "Satellite overhead",
-             "hint": "Wider, both sides of the property"},
+             "hint": "Wider, both sides of the property", "multi": True},
             {"key": "nb_3d", "label": "Satellite 3D",
-             "hint": "Tilted along the row"},
-            {"key": "nb_street", "label": "Street view",
-             "hint": "Down the road, past the house"},
+             "hint": "Tilted along the row", "multi": True},
+            {"key": "nb_street", "label": "Street views",
+             "hint": "Down the road, past the house", "multi": True},
         ],
     },
 ]
@@ -235,10 +235,11 @@ CAPTURE_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]]
 LISTING_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]
                  if shot.get("source") == "listing"]
 
-# Slots that hold more than one image. A capture slot is one shot -- there is
-# only one front overhead -- but "what does the front of this house look
-# like" is answered better by three photographs than by one, and the model is
-# being asked to match a building rather than to copy a picture.
+# Slots that hold more than one image, which is now all of them. The first
+# version made capture slots single on the theory that there is only one
+# front overhead. There is not: there is one at each height, and the model is
+# being asked to match a building rather than to copy a picture. A second
+# view of the same thing is another answer to the same question.
 MULTI_SLOTS = {shot["key"] for group in SHOT_PLAN for shot in group["shots"]
                if shot.get("multi")}
 

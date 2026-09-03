@@ -38,6 +38,44 @@ function placedIn(slot) {
   return Object.keys(slots).filter((url) => slots[url] === slot);
 }
 
+/* ---------- full size ---------- */
+
+/* Every thumbnail here is too small to tell one oblique view from another,
+   and telling them apart is the whole judgement this stage asks for. So
+   anything showing an image can open it. */
+function zoom(url) {
+  el("ge-lightbox-img").src = url;
+  el("ge-lightbox").hidden = false;
+}
+
+function closeZoom() {
+  el("ge-lightbox").hidden = true;
+  el("ge-lightbox-img").removeAttribute("src");
+}
+
+el("ge-lightbox-x").addEventListener("click", closeZoom);
+el("ge-lightbox").addEventListener("click", (e) => {
+  // Clicking the backdrop closes; clicking the picture itself does not, so
+  // a mis-aimed click while looking at it is not a dismissal.
+  if (e.target.id !== "ge-lightbox-img") closeZoom();
+});
+
+/* A magnifier corner for anything that already does something else when
+   clicked -- a chip in a box, a tile in the picker. */
+function zoomButton(url) {
+  return `<button type="button" class="ge-zoom" data-act="zoom" data-url="${url}"
+                  aria-label="See it full size">&#10530;</button>`;
+}
+
+function wireZoom(root) {
+  root.querySelectorAll('[data-act="zoom"]').forEach((button) =>
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      zoom(button.dataset.url);
+    }));
+}
+
 /* ---------- the plan ---------- */
 
 function renderPlan() {
@@ -51,6 +89,7 @@ function renderPlan() {
     </section>`).join("");
 
   el("ge-plan").querySelectorAll(".ge-box").forEach(wireBox);
+  wireZoom(el("ge-plan"));
 }
 
 function dropBox(shot) {
@@ -70,6 +109,7 @@ function dropBox(shot) {
         ${urls.length ? `<div class="ge-box-strip">${urls.map((url) => `
           <span class="ge-box-chip">
             <img src="${url}" alt="">
+            ${zoomButton(url)}
             <button type="button" class="ge-box-x" data-act="clear"
                     data-url="${url}" aria-label="Take out">&times;</button>
           </span>`).join("")}</div>` : ""}
@@ -166,6 +206,7 @@ function renderListing() {
     <figure class="ge-shot${used.has(url) ? " is-used" : ""}"
             data-url="${url}" draggable="true">
       <img src="${url}" alt="">
+      ${zoomButton(url)}
       <figcaption>
         <span class="ge-shot-name">${escapeHtml(roomLabel(url))}</span>
       </figcaption>
@@ -179,6 +220,7 @@ function renderListing() {
     });
     figure.addEventListener("dragend", () => figure.classList.remove("is-dragging"));
   });
+  wireZoom(el("ge-listing"));
 }
 
 function renderShots() {
@@ -186,9 +228,11 @@ function renderShots() {
   el("ge-shots").innerHTML = spare.map((url, i) => `
     <figure class="ge-shot" data-url="${url}" draggable="true">
       <img src="${url}" alt="Unplaced capture ${i + 1}">
+      ${zoomButton(url)}
       <figcaption>
         <span class="ge-shot-name">Drag into a box</span>
-        <button type="button" class="ge-x" data-act="remove" aria-label="Remove">&times;</button>
+        <button type="button" class="ge-x" data-act="remove"
+                aria-label="Remove">&times;</button>
       </figcaption>
     </figure>`).join("");
 
@@ -200,8 +244,10 @@ function renderShots() {
       figure.classList.add("is-dragging");
     });
     figure.addEventListener("dragend", () => figure.classList.remove("is-dragging"));
-    figure.querySelector("button").addEventListener("click", () => change("remove", url));
+    figure.querySelector('[data-act="remove"]')
+      .addEventListener("click", () => change("remove", url));
   });
+  wireZoom(el("ge-shots"));
 
   el("ge-empty").hidden = spare.length > 0 || !images.length;
 }
@@ -250,6 +296,7 @@ function renderPicker() {
       <button type="button" class="en-pick-item${picked.has(url) ? " is-on" : ""}"
               data-url="${url}">
         <img src="${url}" alt="">
+        ${zoomButton(url)}
         <span>${escapeHtml(elsewhere
           ? `in ${shotName(slots[url])}`
           : (found.shot.source === "listing" ? roomLabel(url) : "Capture"))}</span>
@@ -267,6 +314,7 @@ function renderPicker() {
       }
       renderPicker();
     }));
+  wireZoom(el("ge-picker-grid"));
 
   el("ge-picker-count").textContent = multi
     ? `${picked.size} selected`
@@ -296,7 +344,10 @@ el("ge-picker-done").addEventListener("click", async () => {
 });
 
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !el("ge-picker").hidden) el("ge-picker").hidden = true;
+  if (e.key !== "Escape") return;
+  // Innermost first: the lightbox opens on top of the picker.
+  if (!el("ge-lightbox").hidden) closeZoom();
+  else if (!el("ge-picker").hidden) el("ge-picker").hidden = true;
 });
 
 /* ---------- talking to the server ---------- */

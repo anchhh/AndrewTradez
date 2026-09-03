@@ -79,6 +79,15 @@
   </div>
 </div>
 
+{# Full size. Every thumbnail on this page is small enough that telling one
+   oblique view from another is guesswork, which is exactly the judgement
+   this stage asks for. #}
+<div class="ge-lightbox" id="ge-lightbox" hidden>
+  <button type="button" class="ge-lightbox-x" id="ge-lightbox-x"
+          aria-label="Close">&times;</button>
+  <img id="ge-lightbox-img" alt="Full size">
+</div>
+
 {# Filling a box by clicking it. Dragging is fine when the image is next to
    the box and awkward when it is a scroll away, which on a listing with
    thirty photos is most of them. #}
