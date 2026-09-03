@@ -6836,3 +6836,5 @@ button.gn-review-shot {
 .cl-meta { flex: 1 1 auto; font-variant-numeric: tabular-nums; }
 /* The one you came back for. */
 .cl-tile.is-here { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.22); }
+/* Forward without spending, beside the button that does. */
+.dr-onward { font-weight: 600; }

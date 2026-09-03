@@ -30,6 +30,14 @@
       <h2>The two ends are missing</h2>
       <p class="hint">The flight opens on the front shot and lands on the back
         one. <a href="{{ generate_href }}">Generate them at stage 4</a>.</p>
+      {# A property can have clips without having these two -- everything
+         rendered before this flow existed, for one -- and those should not
+         be unreachable just because this stage cannot run. #}
+      {% if have %}
+        <p class="hint"><a href="{{ clips_href }}">See the {{ have }}
+          video{{ '' if have == 1 else 's' }} already made for this
+          listing</a>.</p>
+      {% endif %}
     </section>
   {% else %}
 
@@ -125,6 +133,14 @@
   <div class="row action-row ge-actions">
     <a class="btn-secondary" href="{{ back_href }}">Back</a>
     <button type="button" class="cta-btn" id="dr-go">Generate the shot</button>
+    {# Forward without spending. Generating was the only way off this page,
+       so looking at what you already made cost the price of making another
+       one. #}
+    {% if have %}
+      <a class="btn-secondary dr-onward" href="{{ clips_href }}">
+        Next: {{ have }} video{{ '' if have == 1 else 's' }} &rarr;
+      </a>
+    {% endif %}
     <span class="hint" id="dr-note"></span>
   </div>
 

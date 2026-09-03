@@ -1429,8 +1429,23 @@ def create_drone():
     made = dronepath.generated_of(path)
     flight = dronepath.flight_of(path)
 
+    # How many clips this property already has. The stage's own button spends
+    # money, and it was the only way forward from here -- so somebody who
+    # just wanted to look at what they had already made had to generate
+    # another one to get past it.
+    from models import VideoJob
+
+    have = 0
+    for job in VideoJob.query.filter_by(lead_id=lead.id,
+                                        owner_id=session["user_id"]).all():
+        have += sum(1 for c in (job.clips or [])
+                    if c.get("video_url") and not c.get("deleted_at"))
+
     return render_template(
         "create_drone.html", lead=lead,
+        have=have,
+        clips_href=("/studio/create/video/clips?lead_id=%s&style=drone" % lead.id
+                    + ("&project=%s" % quote(project_id) if project_id else "")),
         made=made,
         flight=flight,
         # The flattened picture if the planner made one. The canvas overlay
