@@ -331,3 +331,109 @@ flowDrop.addEventListener("drop", (e) => {
 });
 
 $("btn-flow-fill").addEventListener("click", fillFlow);
+
+/* ---------- looking at the page, when the guesswork is wrong ----------
+
+   Flow's markup is undocumented and this script has now guessed it wrong
+   twice: first taking the library uploader for the composer's, then finding
+   nothing at all where the attachment box should be. Guessing a third time
+   is not a plan.
+
+   So this reports what is actually there -- every file input with where it
+   sits, the prompt box's ancestry, the controls around it, and any dialog
+   that is open -- in a form that can be pasted straight back. It reads and
+   changes nothing. */
+
+function inspectFlowPage() {
+  const lines = [];
+  const say = (text) => lines.push(text);
+
+  const path = (el, depth = 5) => {
+    const parts = [];
+    let node = el;
+    for (let i = 0; node && i < depth && node !== document.body; i += 1) {
+      const id = node.id ? `#${node.id}` : "";
+      const cls = (node.className && typeof node.className === "string")
+        ? "." + node.className.trim().split(/\s+/).slice(0, 2).join(".")
+        : "";
+      parts.unshift(node.tagName.toLowerCase() + id + cls);
+      node = node.parentElement;
+    }
+    return parts.join(" > ");
+  };
+
+  const attrs = (el, names) => names
+    .map((name) => (el.getAttribute(name) ? `${name}="${el.getAttribute(name)}"` : ""))
+    .filter(Boolean).join(" ");
+
+  say(`URL ${location.pathname}`);
+
+  const inputs = [...document.querySelectorAll('input[type="file"]')];
+  say(`\nFILE INPUTS (${inputs.length})`);
+  inputs.forEach((el, i) => {
+    say(`  [${i}] ${attrs(el, ["accept", "multiple", "name", "id", "aria-label"]) || "no attributes"}`);
+    say(`      visible=${el.offsetParent !== null} at ${path(el)}`);
+  });
+
+  const typables = [
+    ...document.querySelectorAll("textarea"),
+    ...document.querySelectorAll('[contenteditable="true"]'),
+  ].filter((el) => el.offsetParent !== null);
+  say(`\nTYPABLE (${typables.length})`);
+  typables.forEach((el, i) => {
+    say(`  [${i}] ${el.tagName.toLowerCase()} ${attrs(el, ["placeholder", "aria-label", "id"])}`);
+    say(`      w=${Math.round(el.getBoundingClientRect().width)} at ${path(el)}`);
+  });
+
+  // Everything clickable near the widest typable thing, which is where an
+  // "attach" control would live.
+  const box = typables.sort(
+    (a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0];
+  if (box) {
+    let scope = box.parentElement;
+    for (let up = 0; up < 4 && scope && scope !== document.body; up += 1) {
+      scope = scope.parentElement;
+    }
+    const near = [...(scope || document).querySelectorAll('button, [role="button"]')]
+      .filter((el) => el.offsetParent !== null)
+      .slice(0, 25);
+    say(`\nCONTROLS NEAR THE PROMPT (${near.length})`);
+    near.forEach((el, i) => {
+      const label = (el.getAttribute("aria-label") || el.textContent || "").trim();
+      say(`  [${i}] "${label.slice(0, 40)}" ${attrs(el, ["id", "data-testid", "title"])}`);
+    });
+  }
+
+  const dialogs = [...document.querySelectorAll('[role="dialog"]')]
+    .filter((el) => el.offsetParent !== null);
+  say(`\nOPEN DIALOGS ${dialogs.length}`);
+  dialogs.forEach((el, i) => say(`  [${i}] ${path(el, 3)}`));
+
+  return lines.join("\n");
+}
+
+async function lookAtFlow() {
+  const report = $("flow-report");
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/^https:\/\/labs\.google\//.test(tab.url || "")) {
+      throw new Error("Open Flow in this window's active tab first.");
+    }
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: inspectFlowPage,
+    });
+    report.value = (result || {}).result || "(nothing came back)";
+    report.hidden = false;
+    try {
+      await navigator.clipboard.writeText(report.value);
+      setFlowStatus("Copied. Paste it back and the selectors can be fixed.", "ok");
+    } catch (err) {
+      setFlowStatus("Select the text below and copy it.", "ok");
+    }
+  } catch (err) {
+    setFlowStatus(err.message, "error");
+  }
+}
+
+$("btn-flow-look").addEventListener("click", lookAtFlow);

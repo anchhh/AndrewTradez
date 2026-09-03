@@ -181,6 +181,34 @@
     cursor: pointer;
   }
   #btn-flow-fill:disabled { opacity: 0.55; cursor: default; }
+  .flow-secondary {
+    width: 100%;
+    margin-top: 8px;
+    font-family: inherit;
+    font-size: 0.76rem;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--cream-soft);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  /* What the page actually contains, for when the guesswork is wrong.
+     Selectable, because the point is to send it on. */
+  .flow-report {
+    width: 100%;
+    height: 190px;
+    margin-top: 10px;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.66rem;
+    line-height: 1.4;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+    resize: vertical;
+  }
   #flow-status {
     margin: 10px 0 0;
     font-size: 0.74rem;
@@ -447,7 +475,11 @@
     <div id="flow-brief" class="flow-brief"></div>
 
     <button type="button" id="btn-flow-fill">Deploy into Flow</button>
+    <button type="button" id="btn-flow-look" class="flow-secondary">
+      Look at the Flow page
+    </button>
     <p id="flow-status"></p>
+    <textarea id="flow-report" class="flow-report" hidden readonly></textarea>
     <div id="flow-shots" class="flow-shots"></div>
 
     <h2 class="flow-return">When Flow is done</h2>
