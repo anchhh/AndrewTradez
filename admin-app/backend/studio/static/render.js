@@ -429,15 +429,24 @@ function anchorFor(url) {
   return site.rear || null;
 }
 
-/* Photos consumed as the ENDING of another clip. A front-to-back flyover
-   already contains the rear photograph -- it is the last frame -- so
-   rendering it again as its own clip is the same picture twice and twice the
-   money. It stays visible on the flight it belongs to. */
+/* Photos consumed as the ENDING of another clip.
+
+   A flyover already contains the photograph it lands on -- it IS the last
+   frame -- so rendering it again is the same picture twice and twice the
+   money.
+
+   Unless it also STARTS the next leg. The two-leg flight ends leg one on the
+   aerial and begins leg two from it, so consuming it left one clip where
+   there should be two and quietly dropped the half that crosses the roof. A
+   photo is only swallowed when it merely arrives somewhere. */
 function anchorsInUse() {
   const used = new Set();
   state.photos.forEach((url) => {
     const anchor = anchorFor(url);
-    if (anchor) used.add(anchor);
+    if (!anchor) return;
+    const continues = state.photos.includes(anchor)
+      && ANCHORED_MOVES.includes(moveFor(anchor));
+    if (!continues) used.add(anchor);
   });
   return used;
 }
