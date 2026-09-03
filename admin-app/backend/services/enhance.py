@@ -93,14 +93,20 @@ SIDE_RULES = {
         # around. The clip panning onto the next lot was not the model going
         # wrong; it was the only route between the two viewpoints it was
         # given.
-        "shows": "the rear of the house from high above this property's OWN "
-                 "back garden, looking down: the roof and the rear elevation "
-                 "together in the upper half, the patio and lawn directly "
-                 "below the camera, and this plot's own fence line around "
-                 "them",
+        # Where the camera stands, because that is what the flight has to
+        # reach. It hovers over this property's OWN back garden, at roof
+        # height or a little above, TURNED ROUND to face the house -- the
+        # position a drone is in at the end of a front-to-back reveal. Not
+        # looking straight down (that needs no turn, and the turn is the
+        # shot), and not from beyond the rear fence (that is the next
+        # property, and reaching it means leaving this one).
+        "shows": "the rear elevation of the house filling the frame, seen "
+                 "from above this property's OWN back garden looking back "
+                 "toward the house, with the patio and lawn below and in "
+                 "front of it and the roof visible above",
         "never": "no front door, no driveway, no garage doors, no street "
-                 "frontage, and no view taken from beyond the rear fence "
-                 "looking back at the property",
+                 "frontage, no fence across the foreground, and no view taken "
+                 "from beyond the rear fence",
     },
 }
 

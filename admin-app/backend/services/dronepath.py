@@ -831,8 +831,9 @@ def describe(path):
             "would, in this order: " + "; then ".join(steps) + ".")
     if span < 0.25:
         line += " It is a short run -- do not travel far."
-    line += (" Keep to that order and that shape. Do not reverse, circle back "
-             "or fly on past the property.")
+    line += (" Keep to that order and that shape. Do not orbit the building "
+             "or fly on past the property -- the only turn is the camera's "
+             "half-circle as it clears the ridge.")
     if not crossed:
         line += " The route never crosses the roof: stay beside the house."
     return line

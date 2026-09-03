@@ -442,17 +442,17 @@ EXTERIOR_MOVES = [
         # the number being there because a flyover once renumbered the
         # property mid-clip. A movement instruction that costs the prompt its
         # constraints is not a better movement instruction.
-        "MOVEMENT: one continuous drone flight in a single take. Begin exactly "
-        "on the first photograph and arrive exactly at the final photograph, "
-        "travelling between them along the route described below. THE TWO "
-        "PHOTOGRAPHS ARE THE SAME HOUSE FROM OPPOSITE SIDES: the roof you "
-        "cross is its roof and the garden you land in is its own, directly "
-        "behind it. The two ends are never two different buildings; do not "
-        "travel past the property onto the next plot. Change altitude as the "
-        "route needs -- climbing to clear the ridge, settling behind it -- "
-        "rather than holding one height. Keep the speed even and the motion "
-        "flown, not animated: no cuts, no jumps, no hovering. Invent nothing "
-        "in between.",
+        "MOVEMENT: one continuous drone flight, single take, from the first "
+        "photograph to the last along the route below. THE TWO PHOTOGRAPHS "
+        "ARE THE SAME HOUSE FROM OPPOSITE SIDES and the shot is the reveal "
+        "between them: climb over the front, clear the ridge, and as you pass "
+        "it TURN THE CAMERA A FULL HALF-CIRCLE, 180 degrees, to face back at "
+        "the house, unveiling the rear elevation. The aircraft keeps moving "
+        "forward; it is the CAMERA that comes about, one smooth rotation, not "
+        "a ninety-degree glance. The roof you cross is this house's roof and "
+        "the garden behind it its own; do not orbit it or travel past the "
+        "property. Even speed, flown not animated: no cuts, no jumps. Invent "
+        "nothing in between.",
     ),
     (
         "flyover_front_to_back",
