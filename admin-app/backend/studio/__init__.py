@@ -1615,6 +1615,8 @@ def create_aerial():
         **_shot_tabs(lead.id, shot="aerial", project_id=project_id),
         wide=wide,
         fallback=fallback,
+        middle=(dronepath.aerial_middle_of(path)
+                if dronepath.aerial_middle_of(path) in wide else None),
         opening=(dronepath.aerial_opening_of(path)
                  if dronepath.aerial_opening_of(path) in wide
                  else (wide[0] if wide else None)),
@@ -3610,15 +3612,22 @@ def api_lead_aerial(lead_id):
 
     data = request.get_json(silent=True) or {}
     opening = (data.get("opening") or "").strip()
+    middle = (data.get("middle") or "").strip()
     allowed = (set(lead.photo_urls or [])
                | set(dronepath.images_of(lead.drone_path or {})))
-    if opening and opening not in allowed:
-        return jsonify({"error": "That view is not one of this property's "
-                                 "captures."}), 400
+    for url in (opening, middle):
+        if url and url not in allowed:
+            return jsonify({"error": "That view is not one of this "
+                                     "property's pictures."}), 400
+    if middle and middle == opening:
+        return jsonify({"error": "The middle frame can't be the one it opens "
+                                 "on."}), 400
 
-    dronepath.set_aerial_opening(lead, opening or None)
+    dronepath.set_aerial_opening(lead, opening or None, middle or None)
     db.session.commit()
-    return jsonify({"opening": dronepath.aerial_opening_of(lead.drone_path or {})})
+    path = lead.drone_path or {}
+    return jsonify({"opening": dronepath.aerial_opening_of(path),
+                    "middle": dronepath.aerial_middle_of(path)})
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/flight", methods=["POST", "DELETE"])
@@ -4513,10 +4522,28 @@ def api_video_drone():
     # noise and at worst a second instruction pulling the other way.
     if aerial:
         site = dict(site, flight_path=None)
-    spec = {"move": move, "duration": seconds, "resolution": resolution,
-            "site": site}
-    if end:
-        spec["anchor"] = end
+    # A frame to pass THROUGH on the way. No model on this provider takes
+    # one -- every video endpoint is first plus last and nothing between --
+    # so a three-frame move is rendered as two clips that meet on it. That is
+    # not a workaround: with a tool that interpolates between pairs, two legs
+    # IS what a start, a middle and an end are.
+    middle = (data.get("middle") or "").strip() if aerial else ""
+    if middle and middle not in captures:
+        return jsonify({"error": "That middle frame is not one of this "
+                                 "property's pictures."}), 400
+    if middle and middle in (start, end):
+        return jsonify({"error": "The middle frame has to be different from "
+                                 "the two ends."}), 400
+
+    def leg(to):
+        spec = {"move": move, "duration": seconds, "resolution": resolution,
+                "site": site}
+        if to:
+            spec["anchor"] = to
+        return spec
+
+    photos = [start, middle] if middle else [start]
+    specs = [leg(middle), leg(end)] if middle else [leg(end)]
 
     # Whatever was on screen when it was confirmed. Empty means "use the
     # standard wording", which is what the job already does with no prompt.
@@ -4526,10 +4553,10 @@ def api_video_drone():
 
     try:
         job = start_job(current_app._get_current_object(), session["user_id"],
-                        [start], lead_id=lead.id, duration=seconds,
+                        photos, lead_id=lead.id, duration=seconds,
                         prompt=wording or None,
                         style="aerial" if aerial else "drone",
-                        resolution=resolution, specs=[spec])
+                        resolution=resolution, specs=specs)
     except VideoJobBusy as exc:
         return jsonify({"error": str(exc)}), 409
 

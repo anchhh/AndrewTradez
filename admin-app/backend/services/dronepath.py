@@ -579,13 +579,28 @@ def aerial_opening_of(path):
     return (path or {}).get("aerial_opening")
 
 
-def set_aerial_opening(lead, url):
-    """Remember it, so the choice survives leaving the page."""
+def aerial_middle_of(path):
+    """The optional frame it passes through on the way down.
+
+    No video model on this provider takes a middle frame -- every one of them
+    is first plus last -- so a shot with one is rendered as two clips that
+    meet on it. That is not a workaround for the model; it is what a
+    three-frame move IS when the tool interpolates between pairs.
+    """
+    return (path or {}).get("aerial_middle")
+
+
+def set_aerial_opening(lead, url, middle=None):
+    """Remember them, so the choices survive leaving the page."""
     path = dict(lead.drone_path or {})
     if url:
         path["aerial_opening"] = url
     else:
         path.pop("aerial_opening", None)
+    if middle:
+        path["aerial_middle"] = middle
+    else:
+        path.pop("aerial_middle", None)
     return _stamped(lead, path)
 
 

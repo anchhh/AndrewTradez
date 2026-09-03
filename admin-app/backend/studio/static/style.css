@@ -6968,13 +6968,17 @@ a.btn-secondary {
 }
 
 /* The aerial's two ends: what it opens on, what it lands on. */
+/* Two frames or three, with an arrow between each pair. A fixed
+   three-column grid could not hold five children and wrapped the landing
+   frame onto its own row. */
 .ae-ends {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
-  gap: 12px;
+  display: flex;
   align-items: center;
+  gap: 12px;
   margin: 14px 0 16px;
 }
+.ae-ends .ae-end { flex: 1 1 0; min-width: 0; }
+.ae-ends .dr-recap-arrow { flex: 0 0 auto; }
 .ae-end { margin: 0; display: grid; gap: 4px; }
 .ae-end img { width: 100%; border-radius: 9px; display: block; }
 .ae-end figcaption {

@@ -22,6 +22,8 @@ const el = (id) => document.getElementById(id);
 const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || ""; };
 
 let opening = window.__OPENING__ || wide[0] || "";
+/* Optional, and never the same picture as either end. */
+let middle = window.__MIDDLE__ || "";
 let standard = "";
 let edited = null;
 
@@ -57,13 +59,50 @@ function paintViews() {
   views.querySelectorAll(".fp-view").forEach((button) =>
     button.addEventListener("click", () => {
       opening = button.dataset.url;
+      // The two cannot be the same picture. Dropping it from the middle is
+      // less surprising than refusing the click.
+      if (middle === opening) middle = "";
       el("ae-open-img").src = opening;
       el("ae-open-name").textContent = nameOf(opening);
-      paintViews();
+      paintAll();
       save();
     }));
 
   if (opening) el("ae-open-name").textContent = nameOf(opening);
+}
+
+/* The optional frame in between. Clicking the chosen one again removes it,
+   which is how a single-select-or-none behaves everywhere else here. */
+function paintMiddles() {
+  const box = el("ae-mids");
+  if (!box) return;
+
+  box.innerHTML = wide.filter((url) => url !== opening).map((url) => {
+    const on = url === middle ? " is-on" : "";
+    return '<button type="button" class="fp-view' + on + '" data-url="' + esc(url) +
+      '" title="' + esc(nameOf(url)) + '"><img src="' + esc(url) + '" alt=""></button>';
+  }).join("");
+
+  box.querySelectorAll(".fp-view").forEach((button) =>
+    button.addEventListener("click", () => {
+      middle = button.dataset.url === middle ? "" : button.dataset.url;
+      paintAll();
+      save();
+    }));
+
+  const wrap = el("ae-mid-wrap");
+  const arrow = el("ae-mid-arrow");
+  if (wrap) {
+    wrap.hidden = !middle;
+    if (middle) el("ae-mid-img").src = middle;
+  }
+  if (arrow) arrow.hidden = !middle;
+}
+
+function paintAll() {
+  paintViews();
+  paintMiddles();
+  renderCost();
 }
 
 /* Remembered, so leaving the page does not throw the choice away. */
@@ -72,7 +111,7 @@ async function save() {
     await fetch("/studio/api/leads/" + lead + "/aerial", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opening: opening }),
+      body: JSON.stringify({ opening: opening, middle: middle }),
     });
   } catch (err) {
     /* the choice still applies to this run; only the memory of it is lost */
@@ -83,10 +122,17 @@ async function save() {
 
 function renderCost() {
   const seconds = Number(el("ae-duration").value);
+  // A middle frame is a second leg, and the length is per clip -- so say the
+  // total rather than letting the price double without explanation.
+  const legs = middle ? 2 : 1;
   const rate = rates[el("ae-resolution").value] || rates["*"];
-  el("ae-cost").textContent = rate
-    ? "About $" + (rate * seconds).toFixed(2) + " for " + seconds + " seconds."
-    : seconds + " seconds.";
+  const total = seconds * legs;
+  el("ae-cost").textContent = (rate
+    ? "About $" + (rate * total).toFixed(2) + " for " + total + " seconds"
+    : total + " seconds")
+    + (legs === 2
+       ? " — two clips of " + seconds + "s, meeting on the middle frame."
+       : ".");
 }
 
 /* ---------- the confirmation ---------- */
@@ -117,8 +163,12 @@ el("ae-go").addEventListener("click", async () => {
 function review(body) {
   el("ae-review-prompt").value = promptNow();
 
-  const ends = [[opening, "Opens on", nameOf(opening)],
-                [front, "Lands on", "The front"]];
+  const ends = middle
+    ? [[opening, "Opens on", nameOf(opening)],
+       [middle, "Through", nameOf(middle)],
+       [front, "Lands on", "The front"]]
+    : [[opening, "Opens on", nameOf(opening)],
+       [front, "Lands on", "The front"]];
   el("ae-review-frames").innerHTML = ends.map((end, i) =>
     '<figure class="gn-review-shot' + (i === 0 ? " is-base" : "") + '">' +
     '<img src="' + esc(end[0]) + '" alt="">' +
@@ -128,7 +178,9 @@ function review(body) {
 
   const seconds = Number(el("ae-duration").value);
   el("ae-review-specs").textContent =
-    moveName + " · " + seconds + " seconds · " + el("ae-resolution").value +
+    moveName + " · " +
+    (middle ? "two clips of " + seconds + "s" : seconds + " seconds") +
+    " · " + el("ae-resolution").value +
     " · " + (body.model || "the video model");
 
   el("ae-review").hidden = false;
@@ -168,6 +220,7 @@ async function generate() {
         lead_id: lead,
         shot: "aerial",
         start: opening,
+        middle: middle,
         end: front,
         duration: Number(el("ae-duration").value),
         resolution: el("ae-resolution").value,
@@ -187,8 +240,11 @@ async function generate() {
 /* ---------- go ---------- */
 
 if (el("ae-views")) {
-  paintViews();
+  paintAll();
+  const clear = el("ae-mid-clear");
+  if (clear) {
+    clear.addEventListener("click", () => { middle = ""; paintAll(); save(); });
+  }
   el("ae-duration").addEventListener("change", renderCost);
   el("ae-resolution").addEventListener("change", renderCost);
-  renderCost();
 }

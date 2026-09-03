@@ -54,7 +54,7 @@
       </div>
     </div>
 
-    <div class="ae-ends">
+    <div class="ae-ends" id="ae-ends">
       <figure class="ae-end">
         <span class="dr-recap-tag">Opens on</span>
         <img id="ae-open-img" src="{{ opening }}" alt="The opening wide view">
@@ -62,6 +62,21 @@
       </figure>
 
       <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
+
+      {# Optional. No video model on this provider takes a middle frame --
+         every one is first plus last and nothing between -- so a shot with
+         one is rendered as two clips that meet on it. That is not a
+         workaround: with a tool that interpolates between pairs, two legs is
+         what a start, a middle and an end ARE. #}
+      <figure class="ae-end" id="ae-mid-wrap" hidden>
+        <span class="dr-recap-tag">Through</span>
+        <img id="ae-mid-img" alt="The frame it passes through">
+        <figcaption>Middle
+          <button type="button" class="btn-tiny" id="ae-mid-clear">Remove</button>
+        </figcaption>
+      </figure>
+
+      <div class="dr-recap-arrow" id="ae-mid-arrow" aria-hidden="true" hidden>&rarr;</div>
 
       <figure class="ae-end">
         <span class="dr-recap-tag">Lands on</span>
@@ -81,6 +96,10 @@
       {% endif %}
     </p>
     <div class="fp-views" id="ae-views"></div>
+
+    <p class="gn-inputs-label hint">Through &mdash; optional. A frame to pass
+      on the way down; it renders as two clips that meet on it.</p>
+    <div class="fp-views" id="ae-mids"></div>
 
     <p class="hint"><b>{{ move }}.</b> It loses height and width together, so
       the streets and rooftops leave the frame gradually rather than jumping,
@@ -153,6 +172,7 @@
   window.__LEAD__ = {{ lead.id | tojson }};
   window.__WIDE__ = {{ wide | tojson }};
   window.__OPENING__ = {{ (opening or "") | tojson }};
+  window.__MIDDLE__ = {{ (middle or "") | tojson }};
   window.__FRONT__ = {{ (made.front or "") | tojson }};
   window.__SLOTS__ = {{ slots | tojson }};
   window.__SLOT_ORDER__ = {{ slot_order | tojson }};
