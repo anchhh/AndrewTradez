@@ -3338,7 +3338,7 @@ def api_generate_side(lead_id):
     swap and not a deletion.
     """
     from extensions import db
-    from services import dronepath, enhance, gemini_image
+    from services import dronepath, enhance
 
     lead = get_owned_lead(lead_id)
     if lead is None:
@@ -3370,8 +3370,6 @@ def api_generate_side(lead_id):
                                      "property yet." % side}), 400
         try:
             image = enhance.enhance_capture(lead, base, references=references)
-        except gemini_image.GeminiNotConfigured as exc:
-            return jsonify({"error": str(exc)}), 400
         except enhance.EnhanceError as exc:
             return jsonify({"error": str(exc)}), 400
 

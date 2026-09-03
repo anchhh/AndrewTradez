@@ -10,7 +10,8 @@
    Generated here rather than in Google Flow. Flow made the shot that settled
    which model to use, and driving its page from the extension got three
    guesses deep without ever attaching to the prompt; the same model through
-   the API does it in one call.
+   Atlas Cloud does it in one call, on the account that already pays for the
+   video.
 
    One image per side, replaced rather than accumulated. There is one front
    of a house, and a gallery of attempts at it is a decision deferred. */
@@ -110,7 +111,7 @@ async function generate(sideKey) {
   render();
   // Said out loud because it is not fast and it is not free: 4K on Pro takes
   // the better part of a minute and costs about a quarter.
-  note("Nano Banana Pro at 4K — this takes up to a minute.");
+  note("Nano Banana Pro at 4K, through Atlas Cloud — a minute or two.");
   try {
     const res = await fetch(`/studio/api/leads/${lead}/generate-side`, {
       method: "POST",

@@ -12,20 +12,15 @@ be involved in.
 """
 import os
 
-from services import gemini_image
+from services import atlas_image
 
-# Nano Banana Pro, which is what made the shot that was wanted, at the
-# resolution the next stage needs: these become the first frame of a 1080p
-# clip, and 4K costs about ten cents more per image than 2K. Settings rather
-# than constants, because a model is a thing that gets superseded.
-MODEL = "gemini-3-pro-image"
-IMAGE_SIZE = "4K"
-
-
-def _model_settings(cfg=None, model=None):
-    cfg = cfg or gemini_image.load_config()
-    return (model or cfg.get("enhance_model") or MODEL,
-            cfg.get("enhance_image_size") or IMAGE_SIZE)
+# Where the generation goes. Atlas Cloud, because the video already goes
+# there: one account, one balance, one bill. It is also the cheaper route to
+# the resolution this stage wants -- Google charges $0.24 an image at 4K and
+# Atlas lists the same model at $0.15.
+#
+# The model itself is Nano Banana Pro either way. Which one was never in
+# doubt after Flow: it made the shot that was actually wanted.
 
 
 MAX_REFERENCES = 4
@@ -119,10 +114,10 @@ def _paths_for(urls):
 def enhance_capture(lead, url, references=None, cfg=None, model=None):
     """Redraw one Earth capture as a photograph of this house.
 
-    `references` is the listing photos to match against. Chosen by hand when
-    the caller passes them -- which side of the house a capture shows is
-    obvious to a person and guesswork here -- and the exterior shots by
-    default.
+    `references` is what to match against -- this property's other captures
+    and its listing photographs. Chosen by hand when the caller passes them,
+    because which side of a house a view shows is obvious to a person and
+    guesswork here, and the board's own order otherwise.
 
     Returns the saved URL of the new image. The capture it came from is left
     on disk untouched: reverting is a swap, not a restore.
@@ -133,11 +128,11 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None):
     if not path or not path.exists():
         raise EnhanceError("that capture is not on disk any more")
 
-    # References can be listing photographs OR this property's other captures.
-    # Sending the top-down satellite alongside the oblique view is what tells
-    # the model the shape of the plot; sending only one leaves it guessing at
-    # the half it cannot see. Anything not belonging to this lead is dropped
-    # rather than trusted.
+    # References can be listing photographs OR this property's other
+    # captures. Sending the top-down satellite alongside the oblique view is
+    # what tells the model the shape of the plot; sending only one leaves it
+    # guessing at the half it cannot see. Anything not belonging to this lead
+    # is dropped rather than trusted.
     from services import dronepath
 
     allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
@@ -148,12 +143,11 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None):
             "this listing has no exterior photos, so there is nothing to "
             "match the building against. Add some at the listing step first.")
 
-    model, image_size = _model_settings(cfg, model)
+    # The capture first: Atlas passes the list straight through and the model
+    # treats the first image as the subject. Everything after it is context.
     try:
-        blob = gemini_image.edit_with_references(
-            str(path), PROMPT, references, cfg=cfg,
-            model=model, image_size=image_size)
-    except gemini_image.GeminiError as exc:
+        blob = atlas_image.edit([str(path)] + references, PROMPT)
+    except atlas_image.AtlasImageError as exc:
         raise EnhanceError(str(exc)) from exc
 
     return _save(UPLOAD_DIR, path, blob, "enhanced")
