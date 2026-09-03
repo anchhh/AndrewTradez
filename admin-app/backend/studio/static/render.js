@@ -328,6 +328,45 @@ function renderStyleCards() {
   document.querySelectorAll(".style-card").forEach((card) => {
     card.classList.toggle("selected", card.dataset.style === state.style);
   });
+
+  /* The style was chosen on the way in, so offering the three cards again
+     here asks a question that is already answered -- and answering it
+     differently halfway through is how a drone job quietly became a
+     walkthrough. Back, at the top, is the way to change it. */
+  const grid = el("style-grid");
+  if (grid) {
+    const decided = !!project.style;
+    grid.hidden = decided;
+    const hint = grid.previousElementSibling;
+    if (hint && hint.classList.contains("hint")) hint.hidden = decided;
+  }
+}
+
+/* A drone flight is flown over the outside of the house. Interior photos are
+   not a worse choice for it, they are the wrong material -- a push-in across
+   a kitchen is not a drone shot at any wording. So this style is given the
+   exterior photographs and nothing else.
+
+   If the listing has none labelled, the photos are left alone and the page
+   says why: an empty picker with no explanation is worse than a full one. */
+function restrictToExterior() {
+  if (state.style !== "drone" && project.style !== "drone") return;
+  if (!state.exteriorRooms.length) return;
+
+  const outside = state.available.filter(isExterior);
+  const note = el("rn-advice-note");
+  if (!outside.length) {
+    if (note) {
+      note.textContent = "No exterior photos are labelled on this listing, " +
+        "so every photo is shown. Sort the photos on the lead to fly the " +
+        "outside of the house.";
+    }
+    return;
+  }
+
+  state.available = outside;
+  state.photos = onePerRoom();
+  if (!state.photos.length) state.photos = outside.slice(0, DEFAULT_CLIPS);
 }
 
 function applyStyle(style, { save = true } = {}) {
@@ -793,7 +832,8 @@ function renderClipMoves() {
         : `<span class="rn-flight-text">No flight path drawn. The camera
              follows the move on each clip.</span>`}
       <a class="btn-tiny" href="/studio/create/video/path?lead_id=${
-        encodeURIComponent(project.lead_id)}&style=drone">${
+        encodeURIComponent(project.lead_id)}&style=drone${
+        project.id ? "&project=" + encodeURIComponent(project.id) : ""}">${
         planned ? "Edit path" : "Draw a path"}</a>
     </p>`;
 
@@ -1420,6 +1460,21 @@ async function openSavedJob(jobId) {
   }
 }
 
+/* One clip per room, in walkthrough order, capped. Pulled out of init()
+   because the drone flow re-runs it: once the photo set narrows to the
+   exterior, a selection made over the whole listing is the wrong selection
+   -- it kept whichever two exteriors happened to survive the filter rather
+   than one of each outside view. */
+function onePerRoom() {
+  const seen = new Set();
+  return walkthroughOrder().filter((url) => {
+    const room = roomOf(url).room;
+    if (!room || seen.has(room)) return false;
+    seen.add(room);
+    return true;
+  }).slice(0, DEFAULT_CLIPS);
+}
+
 async function init() {
   // Only the photos the project actually selected -- and never a video file,
   // which is already moving and has nothing to animate.
@@ -1431,13 +1486,7 @@ async function init() {
   // One per room where the photos have been sorted, so the default tour hits
   // living/kitchen/bedroom rather than six angles of the same lounge; a plain
   // cap otherwise. Either way it starts small.
-  const seen = new Set();
-  state.photos = walkthroughOrder().filter((url) => {
-    const room = roomOf(url).room;
-    if (!room || seen.has(room)) return false;
-    seen.add(room);
-    return true;
-  }).slice(0, DEFAULT_CLIPS);
+  state.photos = onePerRoom();
   // No labels at all (a pasted link or a manual upload): fall back to a cap,
   // still in the order the photos arrived.
   if (!state.photos.length) state.photos = state.available.slice(0, DEFAULT_CLIPS);
@@ -1465,6 +1514,12 @@ async function init() {
     state.exteriorMoves = status.exterior_moves || [];
     state.exteriorRooms = status.exterior_rooms || [];
     state.styleDefaults = status.style_default_move || {};
+
+    // Which photos this style can even use. Only knowable here: the room
+    // labels are on the project, but WHICH labels count as outside comes back
+    // with this request, so a drone flow that filtered in init() would filter
+    // against an empty list and keep everything.
+    restrictToExterior();
 
     // Re-applying the saved style seeds every clip, without saving it back --
     // opening the page is not a change.

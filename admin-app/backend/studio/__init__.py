@@ -26,7 +26,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
-from urllib.parse import urlencode, urljoin, urlparse
+from urllib.parse import urlencode, quote, urljoin, urlparse
 
 import requests
 from authlib.integrations.flask_client import OAuth
@@ -1153,14 +1153,11 @@ def create_video_style():
         ("walkthrough", "Walkthrough",
          "Steady room-to-room glide, a classic listing tour",
          "/studio/create/video/listing" + carry_amp + "style=walkthrough"),
-        # Drone goes through the flight planner when the listing is already
-        # known -- the path is drawn on THAT property's overhead, so there is
-        # nothing to plan until there is an address. Without one it falls
-        # through to the listing picker, which is where the address comes from.
+        # Drone goes to the same listing step as the others -- it just asks
+        # for a lead and nothing else, because a flight needs an address to
+        # plan over and a lead is where the address comes from.
         ("drone", "Drone", "Sweeping aerial establishing shots, orbits and rises",
-         ("/studio/create/video/path" + carry_amp + "style=drone")
-         if request.args.get("lead_id")
-         else ("/studio/create/video/listing" + carry_amp + "style=drone")),
+         "/studio/create/video/listing" + carry_amp + "style=drone"),
     ]
     return render_template(
         "create_style.html", carry=carry, carry_amp=carry_amp,
@@ -1181,7 +1178,11 @@ def create_path():
     if lead is None:
         return redirect(url_for("studio.create", style="drone"))
 
-    return render_template("create_path.html", lead=lead,
+    project_id = request.args.get("project")
+    back_href = ("/studio/create/render?project=%s" % quote(project_id)
+                 if project_id else "/studio/create/render?lead=%s" % lead.id)
+
+    return render_template("create_path.html", lead=lead, back_href=back_href,
                            crumbs=_create_crumbs("path", style="drone"))
 
 
@@ -1211,8 +1212,15 @@ def create():
     if style not in ("basic", "walkthrough", "drone"):
         style = None
 
+    # A drone flight is planned on the property's overhead and flown over its
+    # exterior photographs, both of which come from a lead. Pasted links and
+    # loose uploads have neither, so this style asks for a lead and nothing
+    # else rather than offering two routes that cannot finish.
+    lead_only = style == "drone"
+
     return render_template("create.html", project=project, prefill=prefill,
                            showcase=showcase.status(), chosen_style=style,
+                           lead_only=lead_only,
                            crumbs=_create_crumbs("listing", style=style))
 
 

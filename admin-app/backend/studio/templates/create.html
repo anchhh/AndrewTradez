@@ -33,10 +33,19 @@
   </ol>
 
   <section class="card">
+    {% if lead_only %}
+      <h2>1. Pick the listing to fly over</h2>
+      <p class="hint">A drone shot is planned on the property's overhead and
+        flown over its exterior photographs, so it starts from a lead.</p>
+    {% else %}
     <h2>1. Add photos for this listing</h2>
     <p class="hint">Choose how to bring in photos. Either way, you'll review and confirm which ones to keep before saving.</p>
+    {% endif %}
 
-    <div class="option-tabs">
+    {# The other two routes are hidden rather than removed: the panels below
+       stay in the DOM so the shared listing-source script still finds its
+       dropzones, and nothing has to learn about this mode. #}
+    <div class="option-tabs"{% if lead_only %} hidden{% endif %}>
       <button class="tab-btn active" data-tab="lead">
         <span class="opt-num">Option 1</span>
         Pick a lead you've already captured
@@ -59,7 +68,7 @@
       </div>
     </div>
 
-    <div id="tab-link" class="tab-panel">
+    <div id="tab-link" class="tab-panel"{% if lead_only %} hidden{% endif %}>
       <p class="hint">Works with Zillow, Airbnb, Redfin, VRBO, Realtor.com, or any URL. We read the page's public HTML (image tags, structured data, preview metadata) — the same kind of access a search engine or link-unfurl uses. We don't bypass bot-detection, so some sites may return few or no images; upload manually as a fallback.</p>
       <div class="row">
         <input id="listing-url" type="text" placeholder="https://www.zillow.com/homedetails/..." />
@@ -91,7 +100,7 @@
       </div>
     </div>
 
-    <div id="tab-upload" class="tab-panel">
+    <div id="tab-upload" class="tab-panel"{% if lead_only %} hidden{% endif %}>
       <p class="hint">Drag &amp; drop the photos or video clips you have for this listing (saved from the listing page, your own shoot, whatever).</p>
       <div id="dropzone-upload" class="dropzone">
         <p>Drag photos/videos here, or click to browse</p>

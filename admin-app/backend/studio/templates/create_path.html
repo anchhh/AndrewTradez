@@ -62,8 +62,10 @@
 
       <div class="dp-actions">
         <button type="button" class="btn-send" id="dp-save">Save path</button>
-        <a class="cta-btn cta-btn-sm" id="dp-next"
-           href="/studio/create/video/listing?style=drone&lead_id={{ lead.id }}">Continue</a>
+        {# Back to the shots step, which is where the planner is opened from.
+           Sending it to the listing step instead would restart the flow and
+           lose the clips already ticked. #}
+        <a class="cta-btn cta-btn-sm" id="dp-next" href="{{ back_href }}">Continue</a>
       </div>
     </aside>
   </div>
