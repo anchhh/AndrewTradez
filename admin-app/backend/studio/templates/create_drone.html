@@ -88,6 +88,53 @@
     <span class="hint" id="dr-note"></span>
   </div>
 
+  {# The same confirmation the image step has, for the same reason: this is
+     the expensive irreversible button on the page and it used to fire the
+     instant it was clicked. The prompt is two and a half thousand characters
+     of rules that a year of failed renders paid for, and none of it was ever
+     on screen. #}
+  <div class="gn-review" id="dr-review" hidden>
+    <div class="en-crop-panel gn-review-panel">
+      <div class="en-crop-head">
+        <strong>Generate the drone shot</strong>
+        <span>This is exactly what gets sent. Nothing runs until you confirm.</span>
+      </div>
+
+      <div class="gn-review-body">
+        <div class="gn-review-col">
+          <h4 class="gn-review-h">The prompt</h4>
+          <p class="hint">Editable, for this run. Most of it is constraint
+            rather than description &mdash; the camera moves, the house does
+            not &mdash; and every line of it is there because something went
+            wrong without it.</p>
+          <textarea id="dr-review-prompt" class="gn-review-prompt"
+                    spellcheck="false" rows="18"></textarea>
+          <button type="button" class="btn-secondary btn-tiny gn-review-reset"
+                  id="dr-review-reset">Back to the default wording</button>
+        </div>
+
+        <div class="gn-review-col">
+          <h4 class="gn-review-h">The frames</h4>
+          <p class="hint">The flight opens on the first and lands on the
+            second. Everything between them is the model's.</p>
+          <div class="gn-review-shots" id="dr-review-frames"></div>
+
+          <h4 class="gn-review-h">The flight</h4>
+          <p class="hint" id="dr-review-path"></p>
+
+          <h4 class="gn-review-h">The settings</h4>
+          <p class="hint" id="dr-review-specs"></p>
+        </div>
+      </div>
+
+      <div class="en-crop-actions">
+        <span class="en-crop-spacer"></span>
+        <button type="button" class="btn-secondary" id="dr-review-cancel">Cancel</button>
+        <button type="button" class="btn-send" id="dr-review-go">Generate</button>
+      </div>
+    </div>
+  </div>
+
   <section class="card" id="dr-running" hidden>
     <h2 id="dr-run-title">Generating</h2>
     <p class="hint" id="dr-run-sub"></p>
@@ -103,6 +150,7 @@
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
   window.__MOVES__ = {{ moves | tojson }};
   window.__RATES__ = {{ rates | tojson }};
+  window.__DESCRIBED__ = {{ (described or "") | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_drone.js') }}"></script>
 </body>

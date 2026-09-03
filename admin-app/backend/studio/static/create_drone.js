@@ -18,15 +18,25 @@ const labels = window.__LABELS__ || {};
 const shotLabels = window.__SHOT_LABELS__ || {};
 const moves = window.__MOVES__ || [];
 const rates = window.__RATES__ || {};
+const described = window.__DESCRIBED__ || "";
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { el("dr-note").textContent = text || ""; };
 
+/* The two ends were decided two stages ago: the front shot is where the
+   flight opens and the back one is where it lands, and the flight path stage
+   fixes them that way on purpose. Arriving here with the ending unset meant
+   the far side was invented by default -- the one thing the anchoring exists
+   to avoid -- and made a settled question look open again. */
+const generated = (side) =>
+  frames.find((url) => labels[url] === side) || null;
+
 const state = {
-  start: frames[0] || null,
-  end: null,
+  start: generated("front") || frames[0] || null,
+  end: generated("back") || null,
   move: (moves[0] || {}).key || null,
 };
+if (state.end === state.start) state.end = null;
 
 function escapeHtml(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -104,12 +114,94 @@ function renderCost() {
 el("dr-duration").addEventListener("change", renderCost);
 el("dr-resolution").addEventListener("change", renderCost);
 
-/* ---------- generating ---------- */
+/* ---------- what will be sent ---------- */
+
+/* The prompt for a drone shot is two and a half thousand characters of
+   constraint that a year of failed renders paid for, and until now none of
+   it was on screen -- the button spent a couple of dollars on wording nobody
+   could see. Fetched rather than rebuilt here: a preview assembled its own
+   way is a preview of something else. */
+
+let standard = "";
+let edited = null;
+
+const promptNow = () => (edited === null ? standard : edited);
 
 el("dr-go").addEventListener("click", async () => {
   if (!state.start) { note("Pick the frame the flight starts on."); return; }
   if (!state.move) { note("Pick how the camera moves."); return; }
 
+  note("Reading the prompt…");
+  try {
+    const res = await fetch("/studio/api/video/drone/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: lead, move: state.move,
+        duration: Number(el("dr-duration").value),
+        resolution: el("dr-resolution").value,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "couldn't read the prompt");
+    standard = body.prompt || "";
+    note("");
+    review(body);
+  } catch (err) {
+    note(err.message);
+  }
+});
+
+function review(body) {
+  el("dr-review-prompt").value = promptNow();
+
+  const frames = [state.start, state.end].filter(Boolean);
+  el("dr-review-frames").innerHTML = frames.map((url, i) => `
+    <figure class="gn-review-shot${i === 0 ? " is-base" : ""}">
+      <img src="${url}" alt="">
+      <figcaption><b>${i + 1}</b> ${i === 0 ? "Opens on" : "Lands on"}
+        <span class="gn-review-also">${escapeHtml(
+          frameName(url, frames.indexOf(url)))}</span>
+      </figcaption>
+    </figure>`).join("");
+
+  el("dr-review-path").textContent = described
+    || "No flight path drawn — the camera just follows the move.";
+
+  const seconds = Number(el("dr-duration").value);
+  const move = (moves.find((m) => m.key === state.move) || {}).name || state.move;
+  el("dr-review-specs").textContent =
+    `${move} · ${seconds} seconds · ${el("dr-resolution").value} · `
+    + `${body.model || "the video model"}`
+    + (frames.length < 2 ? " · no ending frame, so the far side is invented" : "");
+
+  el("dr-review").hidden = false;
+}
+
+function closeReview() { el("dr-review").hidden = true; }
+
+el("dr-review-cancel").addEventListener("click", closeReview);
+el("dr-review-reset").addEventListener("click", () => {
+  edited = null;
+  el("dr-review-prompt").value = standard;
+});
+el("dr-review").addEventListener("click", (e) => {
+  if (e.target.id === "dr-review") closeReview();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !el("dr-review").hidden) closeReview();
+});
+
+el("dr-review-go").addEventListener("click", () => {
+  const typed = el("dr-review-prompt").value.trim();
+  edited = typed && typed !== standard ? typed : null;
+  closeReview();
+  generate();
+});
+
+/* ---------- generating ---------- */
+
+async function generate() {
   const button = el("dr-go");
   button.disabled = true;
   note("");
@@ -129,6 +221,9 @@ el("dr-go").addEventListener("click", async () => {
         move: state.move,
         duration: Number(el("dr-duration").value),
         resolution: el("dr-resolution").value,
+        // Sent every time, edited or not: "what I saw" and "what ran" are
+        // the same string or the confirmation was theatre.
+        prompt: promptNow(),
       }),
     });
     const body = await res.json();
@@ -139,7 +234,7 @@ el("dr-go").addEventListener("click", async () => {
     el("dr-running").hidden = true;
     note(err.message);
   }
-});
+}
 
 /* Polled rather than pushed, the same way the shots step does it: generation
    runs on a background thread and the page has to survive being left. */

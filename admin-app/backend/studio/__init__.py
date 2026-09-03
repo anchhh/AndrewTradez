@@ -1078,8 +1078,11 @@ STEP_FLOWS = {
     # drone shot is one flight between two frames of the same property. They
     # were sharing the shots step, which meant a drone run arrived at a
     # room-by-room picker that had nothing to do with it.
+    # No "Clips" at the end: the clip IS the drone shot, and a stage for the
+    # thing the previous stage produces is a stage that can only ever be
+    # already done by the time you reach it.
     "drone": ["Listing", "Google Earth", "Crop", "Generate", "Flight path",
-              "Drone shot", "Clips"],
+              "Drone shot"],
     None: ["Listing", "Style & shots", "Clips"],
 }
 
@@ -4149,7 +4152,12 @@ def api_video_drone():
         return jsonify({"error": "Lead not found."}), 404
 
     path = lead.drone_path or {}
-    captures = set(dronepath.images_of(path))
+    # The two generated shots count. They are the whole point of the stage
+    # before this one and they are not "captures" -- they live under
+    # `generated` rather than in the gallery -- so a flight that opened on
+    # the front shot was being refused as somebody else's picture.
+    captures = set(dronepath.images_of(path)) | set(
+        dronepath.generated_of(path).values())
 
     start = (data.get("start") or "").strip()
     end = (data.get("end") or "").strip()
@@ -4188,14 +4196,60 @@ def api_video_drone():
     if end:
         spec["anchor"] = end
 
+    # Whatever was on screen when it was confirmed. Empty means "use the
+    # standard wording", which is what the job already does with no prompt.
+    wording = (data.get("prompt") or "").strip()
+    if len(wording) > 6000:
+        return jsonify({"error": "That prompt is too long to send."}), 400
+
     try:
         job = start_job(current_app._get_current_object(), session["user_id"],
                         [start], lead_id=lead.id, duration=seconds,
+                        prompt=wording or None,
                         resolution=resolution, specs=[spec])
     except VideoJobBusy as exc:
         return jsonify({"error": str(exc)}), 409
 
     return jsonify({"job_id": job.id, "estimated_cost": job.estimated_cost})
+
+
+@studio_bp.route("/api/video/drone/preview", methods=["POST"])
+@login_required
+def api_video_drone_preview():
+    """Exactly what a drone shot would be sent, without sending it.
+
+    The same call the render makes, stopped one step short. Built from the
+    same functions rather than a copy of them -- a preview assembled its own
+    way is a preview of something else.
+    """
+    from services import video
+
+    data = request.get_json(silent=True) or {}
+    lead = get_owned_lead(int(data.get("lead_id") or 0)) if str(
+        data.get("lead_id") or "").isdigit() else None
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    cfg = video.load_config()
+    move = (data.get("move") or "").strip().lower()
+    if move not in dict((k, n) for k, n, _, _ in video.EXTERIOR_MOVES):
+        return jsonify({"error": "Unknown drone move."}), 400
+
+    try:
+        seconds = int(data.get("duration") or 10)
+    except (TypeError, ValueError):
+        seconds = 10
+
+    site = exterior_site_facts(lead, {})
+    # No cost here: the page already prices a clip from the rate table it was
+    # given, and a second implementation of the same arithmetic is how two
+    # screens end up showing different dollars.
+    return jsonify({
+        "prompt": video.prompt_for_clip(move=move, cfg=cfg, site=site),
+        "site": site,
+        "seconds": seconds,
+        "model": video.model_info(cfg).get("label"),
+    })
 
 
 @studio_bp.route("/api/video/jobs/<int:job_id>/cancel", methods=["POST"])
