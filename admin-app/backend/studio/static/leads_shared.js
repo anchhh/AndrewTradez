@@ -245,7 +245,7 @@ function leadCardHtml(lead, opts = {}) {
               }</button>`
             : ""}
           ${qualify}
-          <a class="link-btn" href="/studio/create?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
+          <a class="link-btn" href="/studio/create/video/listing?lead_id=${lead.id}">${project ? "Open Video" : "Create Video"}</a>
           <button class="icon-btn lm-delete-btn" title="Delete lead">&times;</button>
         </div>
       </div>

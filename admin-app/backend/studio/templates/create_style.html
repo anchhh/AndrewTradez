@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Video style</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Video</h1>
+      <p class="sub">Pick how it should move. You can change any individual
+        clip later.</p>
+    </div>
+    <a class="btn-secondary btn-tiny" href="/studio/create{{ carry }}">&larr; Back</a>
+  </header>
+
+  {# Placeholders for now: each of these gets its own loop once there are
+     clips in that style worth showing. The frame is the same shape a video
+     will fill, so adding one later changes nothing about the layout. #}
+  <nav class="style-cards" aria-label="Video style">
+    {% for key, name, note in styles %}
+      <a href="/studio/create/video/listing{{ carry_amp }}style={{ key }}"
+         class="style-card">
+        <span class="style-card-media" aria-hidden="true"></span>
+        <span class="style-card-body">
+          <span class="style-card-name">{{ name }}</span>
+          <span class="style-card-note">{{ note }}</span>
+        </span>
+      </a>
+    {% endfor %}
+  </nav>
+</div>
+</body>
+</html>

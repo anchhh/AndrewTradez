@@ -1002,6 +1002,52 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .task-tab.active .task-tab-count { background: var(--accent); color: #fff; }
 
+/* The chooser page, where the two cards are the whole page. */
+.task-cards.is-full .task-card { aspect-ratio: 16 / 10; }
+
+/* How the video should move. Placeholders for now: the media area is the
+   shape a loop will fill, so adding one later changes nothing here. */
+.style-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.style-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--cream-soft);
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+.style-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(23, 19, 15, 0.14);
+}
+.style-card-media {
+  display: block;
+  aspect-ratio: 4 / 5;
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+}
+.style-card-body { padding: 14px 16px 16px; }
+.style-card-name {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.style-card-note {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
 /* The two things Create makes, as cards that show what they make.
 
    Each plays a loop built from this account's own work. They are links, not

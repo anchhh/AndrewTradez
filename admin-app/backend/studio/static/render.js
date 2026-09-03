@@ -1483,13 +1483,13 @@ async function init() {
 el("rn-recommend").addEventListener("click", useRecommended);
 el("rn-go").addEventListener("click", startRender);
 el("rn-back").addEventListener("click", () => {
-  window.location.href = `/studio/create?project=${project.id}`;
+  window.location.href = `/studio/create/video/listing?project=${project.id}`;
 });
 function backToShots() {
   // Nothing to go back TO without photos -- that only happens when a saved
   // render's lead has since lost them.
   if (!state.available.length) {
-    window.location.href = "/studio/create";
+    window.location.href = "/studio/create/video/listing";
     return;
   }
   state.reopened = false;
@@ -1508,7 +1508,7 @@ document.querySelectorAll("#steps .step").forEach((li) => {
     const step = Number(li.dataset.step);
     if (step === 1) {
       window.location.href = project.id
-        ? `/studio/create?project=${project.id}`
+        ? `/studio/create/video/listing?project=${project.id}`
         : "/studio/create";
     }
     if (step === 2) backToShots();

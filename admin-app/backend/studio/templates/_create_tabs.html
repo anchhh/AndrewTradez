@@ -6,7 +6,10 @@
    when one has not been built yet the card still works and just shows no
    loop. #}
 <nav class="task-cards" aria-label="What to make">
-  <a href="/studio/create"
+  {# Into the video flow, not back to the chooser: from inside Scenery this
+     card means "make a video instead", and the style screen is where that
+     starts. #}
+  <a href="/studio/create/video"
      class="task-card {{ 'active' if task == 'video' else '' }}">
     {% if showcase and showcase.video.exists %}
       <video class="task-card-loop" src="{{ showcase.video.url }}"

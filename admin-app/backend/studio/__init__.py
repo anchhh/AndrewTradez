@@ -26,7 +26,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 import requests
 from authlib.integrations.flask_client import OAuth
@@ -1053,7 +1053,50 @@ def home():
     return render_template("home.html")
 
 
+def _carry():
+    """The lead or project being worked on, kept across the chooser screens.
+
+    Two forms, because one is appended to a bare path and the other to a path
+    that already has a query on it. Returned together so a template never has
+    to guess which it needs.
+    """
+    keep = {k: v for k, v in request.args.items() if k in ("lead_id", "project")}
+    if not keep:
+        return "", "?"
+    query = urlencode(keep)
+    return "?" + query, "?" + query + "&"
+
+
 @studio_bp.route("/create")
+@login_required
+def create_choose():
+    """What to make. This page asks one question and shows nothing else."""
+    from services import showcase
+
+    carry, _ = _carry()
+    return render_template("create_choose.html", showcase=showcase.status(),
+                           carry=carry)
+
+
+@studio_bp.route("/create/video")
+@login_required
+def create_video_style():
+    """How the video should move, before any listing is chosen.
+
+    The same three styles the shots step offers; choosing here only sets the
+    starting point, and every clip can still be changed individually later.
+    """
+    carry, carry_amp = _carry()
+    return render_template(
+        "create_style.html", carry=carry, carry_amp=carry_amp,
+        styles=[
+            ("basic", "Basic", "Simple photo-to-video pans, quick and clean"),
+            ("walkthrough", "Walkthrough", "Steady room-to-room glide, a classic listing tour"),
+            ("drone", "Drone", "Sweeping aerial establishing shots, orbits and rises"),
+        ])
+
+
+@studio_bp.route("/create/video/listing")
 @login_required
 def create():
     project = None
@@ -1074,8 +1117,13 @@ def create():
 
     from services import showcase
 
+    # The style chosen on the way in, so the shots step starts there.
+    style = (request.args.get("style") or "").strip().lower()
+    if style not in ("basic", "walkthrough", "drone"):
+        style = None
+
     return render_template("create.html", project=project, prefill=prefill,
-                           showcase=showcase.status())
+                           showcase=showcase.status(), chosen_style=style)
 
 
 @studio_bp.route("/create/style")

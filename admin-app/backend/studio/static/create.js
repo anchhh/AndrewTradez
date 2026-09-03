@@ -64,6 +64,9 @@ async function doAutosave(extra) {
     sqft: state.extracted?.sqft ?? null,
     property_type: state.extracted?.property_type ?? null,
     lead_id: state.leadId,
+    // The style picked on the way in, so the shots step opens on it instead
+    // of asking the same question twice. Only set when one was chosen.
+    ...(window.__CHOSEN_STYLE__ ? { style: window.__CHOSEN_STYLE__ } : {}),
     ...extra,
   };
 

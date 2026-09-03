@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Create</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Create</h1>
+      <p class="sub">What are you making for this listing?</p>
+    </div>
+  </header>
+
+  {# The chooser and nothing else. Everything that used to sit under it now
+     lives a click away, so this page asks one question. #}
+  <nav class="task-cards is-full" aria-label="What to make">
+    <a href="/studio/create/video{{ carry }}" class="task-card">
+      {% if showcase.video.exists %}
+        <video class="task-card-loop" src="{{ showcase.video.url }}"
+               autoplay muted loop playsinline preload="metadata"></video>
+      {% endif %}
+      <span class="task-card-body">
+        <span class="task-card-name">Video</span>
+        <span class="task-card-note">Bring listing photos to life</span>
+      </span>
+    </a>
+
+    <a href="/studio/create/scenery{{ carry }}" class="task-card">
+      {% if showcase.staging.exists %}
+        <video class="task-card-loop" src="{{ showcase.staging.url }}"
+               autoplay muted loop playsinline preload="metadata"></video>
+      {% endif %}
+      <span class="task-card-body">
+        <span class="task-card-name">Staging</span>
+        <span class="task-card-note">Furnish a room, or empty it</span>
+      </span>
+    </a>
+  </nav>
+</div>
+
+<script>
+  /* autoplay+muted is meant to be enough and is not when the tab was in the
+     background: the element comes back paused with readyState 4, which reads
+     as a broken card rather than a policy. */
+  (function () {
+    var loops = document.querySelectorAll(".task-card-loop");
+    function nudge() {
+      loops.forEach(function (v) {
+        if (v.paused) { var p = v.play(); if (p) p.catch(function () {}); }
+      });
+    }
+    nudge();
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) nudge();
+    });
+  })();
+</script>
+</body>
+</html>
