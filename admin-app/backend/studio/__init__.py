@@ -1303,12 +1303,13 @@ def create_earth():
 @studio_bp.route("/create/video/enhance")   # the name it had before it split
 @login_required
 def create_enhance():
-    """Stage 3: correct the photographs before anything is made from them.
+    """Stage 3: framing the captures.
 
-    Needs a lead, because the photographs and the room labels that decide
-    which references go with which picture both live on one.
+    Called create_enhance because that is the URL it had when it did more
+    than this. It crops, and only crops -- generating the shots moved to its
+    own stage and then out of the app entirely.
     """
-    from services import gemini_image
+    from services import dronepath
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1318,13 +1319,10 @@ def create_enhance():
     style = (request.args.get("style") or "drone").strip().lower()
     project_id = request.args.get("project")
     tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
-    onward = ("/studio/create/video/generate?lead_id=%s&style=drone" % lead.id
-              + ("&project=%s" % quote(project_id) if project_id else "")
+    carried = "&project=%s" % quote(project_id) if project_id else ""
+    onward = ("/studio/create/video/generate?lead_id=%s&style=drone%s"
+              % (lead.id, carried)
               if style == "drone" else "/studio/create/render?" + tail)
-    back = ("/studio/create/video/earth?lead_id=%s" % lead.id
-            + ("&project=%s" % quote(project_id) if project_id else ""))
-
-    from services import dronepath, enhance
 
     path = lead.drone_path or {}
     return render_template(
@@ -1333,21 +1331,7 @@ def create_enhance():
         originals=path.get("originals") or {},
         slots=dronepath.slots_of(path),
         shot_labels=dronepath.SHOT_LABELS,
-        # What was placed on stage 2's board, in plan order. That board is a
-        # person saying which images describe this property; guessing from
-        # room labels is what it replaced.
-        references=dronepath.placed(lead) or enhance.exterior_references(lead),
-        models=enhance.MODELS,
-        default_model=enhance._model_settings()[0],
-        flow_url=dronepath.FLOW_URL,
-        prompt=enhance.PROMPT,
-        # Every photo on the listing, so the picker can offer the interior
-        # ones too -- a capture of the back garden is better matched against
-        # a photo of the back garden than against the front elevation.
-        photos=lead.photo_urls or [],
-        rooms=lead.photo_rooms or {},
-        configured=gemini_image.is_configured(),
-        back_href=back,
+        back_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, carried),
         next_href=onward,
         steps=_steps(style, "Crop"),
         crumbs=_create_crumbs("enhance", style=style))
@@ -1363,7 +1347,7 @@ def create_generate():
     board at stage 2 feeds one of these two columns, with the neighbours in
     both.
     """
-    from services import dronepath, enhance, gemini_image
+    from services import dronepath, enhance
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1389,9 +1373,6 @@ def create_generate():
         generated=dronepath.generated_of(path),
         slots=dronepath.slots_of(path),
         shot_labels=dronepath.SHOT_LABELS,
-        models=enhance.MODELS,
-        default_model=enhance._model_settings()[0],
-        configured=gemini_image.is_configured(),
         flow_url=dronepath.FLOW_URL,
         prompt=enhance.PROMPT,
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
@@ -3302,13 +3283,13 @@ def api_lead_drone_path(lead_id):
 def _capture_edit(lead_id, make_new):
     """Shared body of the capture edits.
 
-    All three do the same three things -- make a new file, swap it into the
-    flight plan, answer with the gallery -- and differ only in how the file is
-    made. Writing that once is what keeps crop and enhance from drifting into
+    Cropping and reverting do the same three things -- make a new file, swap
+    it into the flight plan, answer with the gallery -- and differ only in how
+    the file is made. Writing that once is what keeps them from drifting into
     disagreeing about what a capture is.
     """
     from extensions import db
-    from services import dronepath, enhance, gemini_image
+    from services import dronepath, enhance
 
     lead = get_owned_lead(lead_id)
     if lead is None:
@@ -3321,8 +3302,6 @@ def _capture_edit(lead_id, make_new):
 
     try:
         replacement = make_new(lead, image, data)
-    except gemini_image.GeminiNotConfigured as exc:
-        return jsonify({"error": str(exc)}), 400
     except (enhance.EnhanceError, dronepath.PathError) as exc:
         return jsonify({"error": str(exc)}), 400
 
@@ -3332,20 +3311,6 @@ def _capture_edit(lead_id, make_new):
                     "images": dronepath.images_of(path),
                     "originals": path.get("originals") or {},
                     "primary": path.get("image")})
-
-
-@studio_bp.route("/api/leads/<int:lead_id>/captures/enhance", methods=["POST"])
-@login_required
-def api_capture_enhance(lead_id):
-    """Redraw one Earth capture as a photograph, from the listing's own
-    exterior shots."""
-    from services import enhance
-
-    return _capture_edit(
-        lead_id,
-        lambda lead, image, data: enhance.enhance_capture(
-            lead, image, references=data.get("references"),
-            model=(data.get("model") or "").strip() or None))
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/captures/crop", methods=["POST"])
@@ -3362,15 +3327,19 @@ def api_capture_crop(lead_id):
 @studio_bp.route("/api/leads/<int:lead_id>/generate-side", methods=["POST", "DELETE"])
 @login_required
 def api_generate_side(lead_id):
-    """Make -- or discard -- the shot for one side of the property.
+    """Record -- or discard -- the shot Flow made for one side.
 
-    One image per side, replaced rather than accumulated: there is one front
+    The shot is not made here. It is made in Flow, by hand, and comes back as
+    a file; this is where it is filed against the property so the drone stage
+    can fly between the two.
+
+    One image per side, replaced rather than accumulated. There is one front
     of a house, and a gallery of attempts at it is a decision deferred rather
     than a decision made. The previous file stays on disk, so discarding is a
     swap and not a deletion.
     """
     from extensions import db
-    from services import dronepath, enhance, gemini_image
+    from services import dronepath
 
     lead = get_owned_lead(lead_id)
     if lead is None:
@@ -3386,23 +3355,18 @@ def api_generate_side(lead_id):
         db.session.commit()
         return jsonify({"generated": dronepath.generated_of(path)})
 
-    base, references = dronepath.base_for(lead, side)
-    if not base:
-        return jsonify({"error": "Nothing is placed for the %s of this "
-                                 "property yet." % side}), 400
+    # An uploaded file, named by the upload endpoint. Anything else is
+    # refused: this value ends up as a video's first frame, so it is not a
+    # field to take on trust.
+    image = (data.get("image") or "").strip()
+    if not image.startswith("/studio/static/uploads/"):
+        return jsonify({"error": "That image was not uploaded here."}), 400
+    if not local_path_from_url(image) or not local_path_from_url(image).exists():
+        return jsonify({"error": "That image is not on disk."}), 400
 
-    try:
-        url = enhance.enhance_capture(
-            lead, base, references=references,
-            model=(data.get("model") or "").strip() or None)
-    except gemini_image.GeminiNotConfigured as exc:
-        return jsonify({"error": str(exc)}), 400
-    except enhance.EnhanceError as exc:
-        return jsonify({"error": str(exc)}), 400
-
-    path = dronepath.set_generated(lead, side, url)
+    path = dronepath.set_generated(lead, side, image)
     db.session.commit()
-    return jsonify({"side": side, "image": url,
+    return jsonify({"side": side, "image": image,
                     "generated": dronepath.generated_of(path)})
 
 

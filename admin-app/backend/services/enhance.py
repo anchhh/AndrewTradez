@@ -1,37 +1,19 @@
 """
-Stage 3: an image editor for the Google Earth captures.
+The Earth captures: framing them, and describing what to do with them.
 
-What is being edited matters, because it decides what is honest here.
+Generating the shots themselves happens in Google Flow, by hand. That was a
+decision made after trying it here: Gemini's image models are reachable from
+this app and they do work, but the run that produced the shot actually
+wanted was made in Flow, and a second path that produces a worse version of
+the same thing is a second path to maintain and a bill to explain.
 
-These are not photographs of the property. They are screenshots of Earth's
-3D mesh: the roof is a smeared triangle, the walls are projected texture,
-and anything smaller than a car is a suggestion. Nobody is going to mistake
-one for a photo of the house, and nobody sends one to a client. It is the
-plate a drone flight gets planned and generated from.
-
-So generation is the right tool here, where it was the wrong tool for a
-listing photograph. Asked to retouch a real photo, Gemini's image model
-redraws the fixtures -- which on a listing means an agent sending a client a
-door handle the house does not have. Asked to sharpen a mesh into something
-that looks like a building, redrawing is the entire job.
-
-What keeps it honest is the reference photographs. The listing's own
-exterior shots go up alongside the capture, so when the model resolves that
-smear into a roof it is resolving it toward the roof this house actually
-has: its colour, its pitch, its materials. Without them the model would
-invent a plausible house. With them it is copying from the real one.
-
-Cropping is separate and deliberately dumb: PIL, exact pixels, no model
-involved. Framing a shot is not a judgement anything needs to make for you.
+So what is left here is everything around that. Cropping, which is exact and
+free and nothing a model should be involved in. The prompt, which travels to
+Flow in the bundle. And which photographs go with which capture, which is
+the judgement the whole board stage exists to record.
 """
 import os
 
-from services import gemini_image
-
-# How many images go up with the capture by default. The picker can send
-# more: the run that produced the shot this was rebuilt around used four --
-# an oblique Earth view, a top-down satellite, a street-level view and a
-# listing photograph -- and the mix mattered more than the count.
 MAX_REFERENCES = 4
 
 # Which room labels count as a look at the outside of the building. Same set
@@ -45,56 +27,6 @@ EXTERIOR_ROOMS = ("exterior_front", "exterior_back", "aerial", "outdoor_space")
 # prompt: four times the pixels, and the difference between "melted" and
 # "photograph". Both are settings rather than constants because the newer
 # model's free allowance is Google's to change.
-# The models this stage can use, and what choosing one costs.
-#
-# Google Flow itself has no API -- it is a web tool, and nothing here drives
-# it. What it does have is a model, and that model is on this key: the shot
-# that was made by hand in Flow was Nano Banana Pro, which the API calls
-# gemini-3-pro-image. So "recreate what I made in Flow" is a model choice
-# plus the prompt and the mix of inputs, not an integration with Flow.
-#
-# Listed with their trade rather than ranked, because the right one depends
-# on whether this run is a look or a keeper.
-MODELS = [
-    {
-        "key": "gemini-3.1-flash-image",
-        "label": "Flash",
-        "note": "Fast and cheap. 2K output. Good enough to judge a framing.",
-        "size": "2K",
-    },
-    {
-        "key": "gemini-3-pro-image",
-        "label": "Pro — the model Flow uses",
-        "note": "Nano Banana Pro. Slower and billed per image; this is what "
-                "made the shot you liked.",
-        "size": "2K",
-    },
-]
-
-MODEL_KEYS = {m["key"]: m for m in MODELS}
-
-# The default is the cheaper one on purpose. A stage that quietly ran the
-# billed model every time a button was pressed would be a stage that spends
-# money without being asked.
-MODEL = MODELS[0]["key"]
-IMAGE_SIZE = "2K"
-
-
-def _model_settings(cfg=None, model=None):
-    """Which model and size this run uses.
-
-    A model named by the caller wins, then the configured one, then Flash.
-    Anything unrecognised falls back rather than being sent, because an
-    unknown model string reaches Google as a 404 halfway through a run.
-    """
-    cfg = cfg or gemini_image.load_config()
-    chosen = model or cfg.get("enhance_model") or MODEL
-    if chosen not in MODEL_KEYS:
-        chosen = MODEL
-    return chosen, (cfg.get("enhance_image_size")
-                    or MODEL_KEYS[chosen].get("size") or IMAGE_SIZE)
-
-
 class EnhanceError(Exception):
     """The capture could not be edited."""
 
@@ -170,49 +102,6 @@ def _paths_for(urls):
     return paths
 
 
-def enhance_capture(lead, url, references=None, cfg=None, model=None):
-    """Redraw one Earth capture as a photograph of this house.
-
-    `references` is the listing photos to match against. Chosen by hand when
-    the caller passes them -- which side of the house a capture shows is
-    obvious to a person and guesswork here -- and the exterior shots by
-    default.
-
-    Returns the saved URL of the new image. The capture it came from is left
-    on disk untouched: reverting is a swap, not a restore.
-    """
-    from studio import UPLOAD_DIR, local_path_from_url
-
-    path = local_path_from_url(url)
-    if not path or not path.exists():
-        raise EnhanceError("that capture is not on disk any more")
-
-    # References can be listing photographs OR this property's other captures.
-    # Sending the top-down satellite alongside the oblique view is what tells
-    # the model the shape of the plot; sending only one leaves it guessing at
-    # the half it cannot see. Anything not belonging to this lead is dropped
-    # rather than trusted.
-    from services import dronepath
-
-    allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
-    chosen = [u for u in (references or []) if u in allowed and u != url]
-    references = _paths_for(chosen or placed_references(lead))
-    if not references:
-        raise EnhanceError(
-            "this listing has no exterior photos, so there is nothing to "
-            "match the building against. Add some at the listing step first.")
-
-    model, image_size = _model_settings(cfg, model)
-    try:
-        blob = gemini_image.edit_with_references(
-            str(path), PROMPT, references, cfg=cfg,
-            model=model, image_size=image_size)
-    except gemini_image.GeminiError as exc:
-        raise EnhanceError(str(exc)) from exc
-
-    return _save(UPLOAD_DIR, path, blob, "enhanced")
-
-
 def crop_capture(lead, url, box):
     """Crop one capture to a box given in its own pixels.
 
@@ -256,14 +145,3 @@ def _name_for(path, suffix, ext):
         if base.endswith(known):
             base = base[: -len(known)]
     return "%s-%s%s" % (base, suffix, ext)
-
-
-def _save(upload_dir, source_path, blob, suffix):
-    import uuid
-
-    # A unique name rather than a predictable one: an edit has to be a NEW
-    # file every time, because the old one is still referenced by the gallery
-    # until the swap goes through, and by the browser's cache after it.
-    name = _name_for(source_path, "%s-%s" % (suffix, uuid.uuid4().hex[:8]), ".png")
-    (upload_dir / name).write_bytes(blob)
-    return "/studio/static/uploads/%s" % name

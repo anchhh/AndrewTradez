@@ -1,16 +1,18 @@
-/* The generate stage: two shots, the front and the back.
+/* The generate stage: two shots, the front and the back, both made in
+   Google Flow.
 
-   A flight starts on one and lands on the other, so those are the two
-   pictures worth making. Everything placed on the board at stage 2 exists to
-   make them right: the oblique is what each is built ON, the rest of that
-   side is reference, and the neighbours go into both because a house gets
-   rebuilt in its street and a model with nothing to go on for either side
-   invents the street as well.
+   Flow cannot be automated. It has no public API and no URL that pre-fills a
+   prompt or attaches an image, so this page does the two halves that CAN be
+   done: hand a side over -- prompt copied, that side's images downloaded in
+   order, Flow opened -- and take the result back afterwards.
 
-   Google Flow is offered per side rather than integrated. It has no public
-   API and no URL that pre-fills a prompt or attaches an image, so what the
-   button does is the three things that can honestly be done: copy the
-   prompt, download that side's images in order, open Flow. */
+   Everything placed on the board at stage 2 feeds one of the two columns:
+   the oblique first, because it already looks like a photograph taken from
+   the air, then the rest of that side, then the neighbours, which go into
+   BOTH columns because a house is rebuilt in its street.
+
+   One image per side, replaced rather than accumulated. There is one front
+   of a house, and a gallery of attempts at it is a decision deferred. */
 
 const lead = window.__LEAD__;
 const sides = window.__SIDES__ || [];
@@ -73,7 +75,7 @@ function render() {
                <button type="button" class="btn-tiny" data-act="clear">Discard</button>
              </figcaption>
            </figure>`
-        : `<div class="gn-placeholder">Not generated yet</div>`;
+        : `<div class="gn-placeholder">Nothing back from Flow yet</div>`;
 
     result.querySelectorAll("[data-act]").forEach((button) =>
       button.addEventListener("click", () => {
@@ -94,36 +96,54 @@ function render() {
       button.addEventListener("click", () => zoom(button.dataset.url)));
   });
 
-  document.querySelectorAll(".gn-go").forEach((button) => {
+  document.querySelectorAll(".gn-flow").forEach((button) => {
     button.disabled = !!busy[button.dataset.side] ||
       !(sides.find((s) => s.key === button.dataset.side) || {}).base;
   });
 }
 
-function modelChoice() {
-  return (document.querySelector('input[name="en-model"]:checked') || {}).value;
-}
+/* The shot Flow made, brought back. Uploaded through the same endpoint the
+   rest of the app uses, so it lands beside the listing's images rather than
+   in a second place with its own rules, then filed against this side. */
+async function receive(sideKey, file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { note("That isn't an image."); return; }
 
-async function generate(sideKey) {
-  busy[sideKey] = "Generating…";
+  busy[sideKey] = "Adding…";
   render();
-  note("This takes ten or twenty seconds.");
+  note("");
   try {
+    const form = new FormData();
+    form.append("photos", file);
+    const up = await fetch("/studio/api/upload", { method: "POST", body: form });
+    const saved = await up.json();
+    if (!up.ok) throw new Error(saved.error || "that image couldn't be saved");
+    const url = (saved.photos || [])[0];
+    // Uploads are de-duplicated by image hash, so the same file twice comes
+    // back with nothing rather than an error.
+    if (!url) throw new Error("that image is already on this listing");
+
     const res = await fetch(`/studio/api/leads/${lead}/generate-side`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ side: sideKey, model: modelChoice() }),
+      body: JSON.stringify({ side: sideKey, image: url }),
     });
     const body = await res.json();
-    if (!res.ok) throw new Error(body.error || "that didn't generate");
+    if (!res.ok) throw new Error(body.error || "that shot couldn't be filed");
     generated = body.generated || {};
-    note("");
+    note(`The ${sideKey} shot is in. The drone stage will fly from it.`);
   } catch (err) {
     note(err.message);
   }
   delete busy[sideKey];
   render();
 }
+
+document.querySelectorAll(".gn-file").forEach((input) =>
+  input.addEventListener("change", (e) => {
+    receive(input.dataset.side, e.target.files[0]);
+    input.value = "";
+  }));
 
 async function discard(sideKey) {
   try {
@@ -140,9 +160,6 @@ async function discard(sideKey) {
   }
   render();
 }
-
-document.querySelectorAll(".gn-go").forEach((button) =>
-  button.addEventListener("click", () => generate(button.dataset.side)));
 
 /* ---------- handing one side to Google Flow ---------- */
 

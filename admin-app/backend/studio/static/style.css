@@ -6486,3 +6486,7 @@ button.en-shot {
 /* The one the shot is built ON, as opposed to the ones it refers to. */
 .gn-input.is-base { border-color: var(--accent); }
 .gn-input.is-base span { color: var(--accent); font-weight: 700; }
+
+/* The file input that brings a Flow result back, styled as the button its
+   label already looks like. */
+.gn-upload { cursor: pointer; }
