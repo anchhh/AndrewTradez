@@ -6857,3 +6857,15 @@ button.gn-review-shot {
    thing you want the moment a clip is nearly right. */
 a.cl-style { color: var(--accent); text-decoration: none; }
 a.cl-style:hover { text-decoration: underline; }
+
+/* A finished stage is the way back to itself. */
+.step.is-link { cursor: pointer; }
+.step-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+.step.is-link:hover .step-label { text-decoration: underline; }
+.step.is-link:hover .step-num { background: var(--accent); color: #fff; }

@@ -6,10 +6,21 @@
    not) and rendered here. #}
 <ol class="steps" id="steps">
   {% for step in steps %}
-    <li class="step{% if step.state == 'done' %} is-done{% elif step.state == 'current' %} is-current{% endif %}{% if step.soon %} is-soon{% endif %}"
+    {# A finished stage is a link back to itself. The bar used to be a
+       picture of the flow; on a six-stage run the only way back to stage 3
+       from stage 6 was Back three times. Stages on the current page stay
+       inert -- the page's own script switches those views. #}
+    <li class="step{% if step.state == 'done' %} is-done{% elif step.state == 'current' %} is-current{% endif %}{% if step.soon %} is-soon{% endif %}{% if step.href %} is-link{% endif %}"
         data-step="{{ step.num }}">
-      <span class="step-num">{{ step.num }}</span>
-      <span class="step-label">{{ step.label }}{% if step.soon %} <span class="step-soon">soon</span>{% endif %}</span>
+      {% if step.href %}
+        <a class="step-go" href="{{ step.href }}" title="Back to {{ step.label }}">
+          <span class="step-num">{{ step.num }}</span>
+          <span class="step-label">{{ step.label }}</span>
+        </a>
+      {% else %}
+        <span class="step-num">{{ step.num }}</span>
+        <span class="step-label">{{ step.label }}{% if step.soon %} <span class="step-soon">soon</span>{% endif %}</span>
+      {% endif %}
     </li>
   {% endfor %}
 </ol>

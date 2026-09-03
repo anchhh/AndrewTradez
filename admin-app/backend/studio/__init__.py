@@ -1094,19 +1094,50 @@ STEPS_SOON = set()
 
 
 def _steps(style, current):
-    """The stage bar, as [{num, label, state, soon}].
+    """The stage bar, as [{num, label, state, soon, href}].
 
     `current` is the label of the stage being shown. Everything before it is
     done, everything after is still to come.
+
+    Completed stages carry an href, so the bar is the way back rather than a
+    picture of one. It was decoration: the only way to return to stage 3 from
+    stage 6 was Back, Back, Back. The drone flow has six of them.
+
+    A stage on the CURRENT page gets no href -- the walkthrough's "Style &
+    shots" and "Clips" are two views of one document, and a link would reload
+    it into the view you were trying to leave. Those are already handled in
+    the page's own script, which knows how to switch views.
     """
     labels = STEP_FLOWS.get(style if style == "drone" else None)
     here = labels.index(current) if current in labels else 0
+
+    # Carried so a link lands on the same listing rather than the chooser.
+    keep = []
+    lead = request.args.get("lead_id") or request.args.get("lead")
+    if lead:
+        keep.append("lead_id=%s" % quote(str(lead)))
+        keep.append("lead=%s" % quote(str(lead)))
+    if request.args.get("project"):
+        keep.append("project=%s" % quote(str(request.args["project"])))
+    if style == "drone":
+        keep.append("style=drone")
+
+    def href_for(label, done):
+        if not done:
+            return None
+        page = next((path for name, path in STAGE_PAGES.values()
+                     if name == label), None)
+        if not page or page == request.path:
+            return None
+        return page + ("?" + "&".join(keep) if keep else "")
+
     return [
         {
             "num": i + 1,
             "label": label,
             "state": "done" if i < here else ("current" if i == here else "todo"),
             "soon": label in STEPS_SOON,
+            "href": href_for(label, i < here),
         }
         for i, label in enumerate(labels)
     ]

@@ -1666,8 +1666,12 @@ function backToShots() {
 el("rn-again").addEventListener("click", backToShots);
 // Backwards only, like Scenery's, and never mid-render.
 document.querySelectorAll("#steps .step").forEach((li) => {
-  li.addEventListener("click", () => {
+  li.addEventListener("click", (e) => {
     if (state.polling) return;
+    // A step that renders as a link takes itself there, and carries the
+    // listing while doing it. Racing it from here sent you to the chooser
+    // with the lead thrown away.
+    if (e.target.closest("a")) return;
     const step = Number(li.dataset.step);
     if (step === 1) {
       window.location.href = project.id
