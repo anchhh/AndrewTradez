@@ -41,6 +41,15 @@ function ago(value) {
 
 const STYLES = { drone: "Drone shot", walkthrough: "Walkthrough", basic: "Basic" };
 
+/* The order sections appear in, and what an unlabelled render is called.
+
+   Fixed rather than sorted by count or recency, so the page does not
+   rearrange itself between visits -- a section that moves is a section you
+   have to find again. Renders made before the style was recorded have none,
+   and "Video" is the honest name for those rather than a guess. */
+const SECTIONS = ["drone", "walkthrough", "basic", ""];
+const SECTION_NAMES = Object.assign({}, STYLES, { "": "Video" });
+
 /* Back to where a clip was made.
 
    A clip on its own says nothing about how to make another like it, and
@@ -77,6 +86,7 @@ async function load() {
       tiles.push({
         url: clip.video_url,
         job: run.id,
+        group: SECTIONS.includes(run.style || "") ? (run.style || "") : "",
         style: STYLES[run.style] || "Video",
         origin: madeAt(run),
         cost: run.cost != null ? run.cost : run.estimated_cost,
@@ -92,7 +102,10 @@ async function load() {
     return;
   }
 
-  el("cl-grid").innerHTML = tiles.map((t) => `
+  // A section per style, in a fixed order, empty ones left out. Eleven clips
+  // of one house in one pile is the same wall this page was built to replace,
+  // one level down: "the drone ones" is how somebody asks for them.
+  const tile = (t) => `
     <figure class="cl-tile${String(t.job) === highlight ? " is-here" : ""}"
             id="cl-job-${t.job}">
       <video src="${esc(t.url)}" controls playsinline preload="metadata"></video>
@@ -104,11 +117,26 @@ async function load() {
           t.model ? " · " + esc(t.model) : ""}</span>
         <a class="btn-tiny" href="${esc(t.url)}" download>Download</a>
       </figcaption>
-    </figure>`).join("");
+    </figure>`;
 
+  el("cl-grid").innerHTML = SECTIONS.map((key) => {
+    const mine = tiles.filter((t) => t.group === key);
+    if (!mine.length) return "";
+    return `
+      <section class="cl-section">
+        <h3 class="cl-section-head">${esc(SECTION_NAMES[key])}
+          <span class="cl-section-n">${mine.length}</span>
+        </h3>
+        <div class="cl-row">${mine.map(tile).join("")}</div>
+      </section>`;
+  }).join("");
+
+  const kinds = SECTIONS.filter((k) => tiles.some((t) => t.group === k)).length;
   el("cl-note").textContent =
     tiles.length + (tiles.length === 1 ? " clip" : " clips")
-    + ", newest first — drone, walkthrough and basic together.";
+    + (kinds > 1 ? ", grouped by what made them." : ".")
+    + " Newest first within each group; the style name opens the step it was"
+    + " made in.";
 
   // Scrolled to rather than merely marked: on a listing with a dozen clips,
   // an outline below the fold is not an answer to "where is the one I just

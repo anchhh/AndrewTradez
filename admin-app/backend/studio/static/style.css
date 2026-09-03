@@ -6869,3 +6869,29 @@ a.cl-style:hover { text-decoration: underline; }
 }
 .step.is-link:hover .step-label { text-decoration: underline; }
 .step.is-link:hover .step-num { background: var(--accent); color: #fff; }
+
+/* Sections by style, so "the drone ones" is a thing you can point at. */
+.cl-grid { display: block; }
+.cl-section + .cl-section { margin-top: 22px; }
+.cl-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 9px;
+  font-size: 0.92rem;
+}
+.cl-section-n {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--line);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.cl-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}

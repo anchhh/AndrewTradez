@@ -7,9 +7,10 @@
    house", and only then "which clip"; a listing with six clips is one thing
    to scan past, not six.
 
-   So each property is one card, and it opens that lead's profile, where its
-   clips already live alongside everything else about it. This page does not
-   try to be a second gallery. */
+   So each property is one card, and it opens that property's videos. Not the
+   profile: the profile is everything known about a listing and the clips are
+   one panel of it, and somebody who clicked a video thumbnail asked for the
+   videos. This page does not try to be a second gallery. */
 
 (async function recentVideos() {
   const card = document.getElementById("rv-card");
@@ -84,8 +85,11 @@
   const STYLES = { drone: "drone", walkthrough: "walkthrough", basic: "basic" };
 
   grid.innerHTML = list.map((home) => {
+    // Straight to the videos, not the profile. The profile is everything
+    // known about a listing and the clips are one panel of it; somebody who
+    // clicked a video thumbnail asked for the videos.
     const href = home.lead
-      ? "/studio/leads/" + home.lead
+      ? "/studio/create/video/clips?lead_id=" + home.lead
       : "/studio/create/render?job=" + home.job;
     const kinds = [...home.styles].map((s) => STYLES[s]).filter(Boolean);
     // #t=0.5 so the poster frame is half a second in: the first frame of a
@@ -103,6 +107,6 @@
   document.getElementById("rv-note").textContent =
     list.length + (list.length === 1 ? " property" : " properties") + ", " +
     clips + (clips === 1 ? " clip" : " clips") +
-    " — open one to see its videos on the lead.";
+    " — open one to see its videos.";
   card.hidden = false;
 }());
