@@ -1646,8 +1646,25 @@ async function init() {
 el("rn-recommend").addEventListener("click", useRecommended);
 el("rn-go").addEventListener("click", startRender);
 el("rn-back").addEventListener("click", () => {
-  window.location.href = `/studio/create/video/listing?project=${project.id}`;
+  // Carry the listing, not only the project: a render opened from a lead has
+  // no project behind it and was landing on an empty listing step.
+  const params = new URLSearchParams();
+  if (project.id) params.set("project", project.id);
+  if (project.lead_id) params.set("lead_id", project.lead_id);
+  window.location.href = "/studio/create/video/listing?" + params.toString();
 });
+
+/* Where the clips step goes on to: this listing's videos, the same shelf the
+   drone flow ends on. Hidden when there is no lead to have a shelf. */
+(function wireVideosLink() {
+  const link = el("rn-videos");
+  if (!link) return;
+  if (!project.lead_id) {
+    link.hidden = true;
+    return;
+  }
+  link.href = "/studio/create/video/clips?lead_id=" + project.lead_id;
+}());
 function backToShots() {
   // Nothing to go back TO without photos -- that only happens when a saved
   // render's lead has since lost them.
