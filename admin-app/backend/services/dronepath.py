@@ -709,74 +709,130 @@ def _near_centre(points, width, height):
     return best is not None and best <= OVER_HOUSE
 
 
+# The most legs a route is worth describing in. A drawn line has dozens of
+# samples and a flight has two or three intentions; past that the sentence
+# gets longer than the prompt budget and no more faithful.
+MAX_LEGS = 3
+
+# How sharp a turn has to be before it starts a new leg. Below this it is the
+# same intention with a wobble in it.
+TURN = 30.0
+
+
+def _simplify(points):
+    """The drawn line reduced to the turns that were meant.
+
+    Kept because the route is the thing being asked for. Reducing the whole
+    polyline to one start-to-end bearing threw away the shape -- a dogleg
+    round the side of the house and a straight run became the same sentence,
+    and the model was never told the difference.
+    """
+    if len(points) < 3:
+        return list(points)
+
+    kept = [points[0]]
+    heading = None
+    for i in range(1, len(points)):
+        ax, ay = kept[-1]
+        bx, by = points[i]
+        if abs(bx - ax) < 1e-6 and abs(by - ay) < 1e-6:
+            continue
+        angle = math.degrees(math.atan2(bx - ax, -(by - ay))) % 360
+        if heading is None:
+            heading = angle
+            continue
+        turn = abs((angle - heading + 180) % 360 - 180)
+        if turn >= TURN:
+            kept.append(points[i - 1])
+            heading = angle
+    kept.append(points[-1])
+
+    # Merge the shortest legs until it fits, so what survives is the biggest
+    # turns rather than the first ones.
+    while len(kept) - 1 > MAX_LEGS:
+        spans = [math.hypot(kept[i + 1][0] - kept[i][0],
+                            kept[i + 1][1] - kept[i][1])
+                 for i in range(len(kept) - 1)]
+        kept.pop(spans.index(min(spans)) + 1 if spans.index(min(spans)) < len(kept) - 2
+                 else len(kept) - 2)
+    return kept
+
+
+def _leg_crosses(a, b, width, height):
+    return _near_centre([a, b], width, height)
+
+
 def describe(path):
-    """The drawn line, as a sentence the model can act on.
+    """The drawn line, as an ordered instruction the model can fly.
 
-    Deliberately about the CAMERA, not the scenery. What the line crosses is
-    a matter for the photographs; what it says about the flight is a heading,
-    a distance, whether it turns, and whether it goes over the house.
+    Leg by leg, in the order they were drawn. The previous version reduced
+    the whole polyline to one start-to-end bearing and a "curved" flag, which
+    meant a straight run and a dogleg round the side of the house produced
+    almost the same sentence -- the shape someone had taken the trouble to
+    draw was thrown away before it reached the model.
 
-    That last one is the altitude cue, and it comes from the drawing rather
-    than from a setting: a line straight through the middle of the plot is a
-    drone flying OVER the property, which means clearing the roof and coming
-    down the far side. A line that keeps to one side is not, and telling it to
-    climb over a roof it never reaches is how a clip ends up looking flown by
-    nobody.
+    Each leg carries the one thing that decides altitude: whether it passes
+    over the building. A leg across the middle of the plot is a drone over
+    the roof; a leg down the side is not, and telling it to climb over a roof
+    it never reaches is how a clip ends up flown by nobody.
     """
     points = (path or {}).get("points") or []
     if len(points) < 2:
         return ""
 
-    start, end = points[0], points[-1]
-    heading = bearing(start, end)
-    if not heading:
-        return ""
-
-    # Length as a fraction of the image, which is the only scale available
-    # without knowing the ground resolution. Long/short is enough to say
-    # whether the flight travels or hovers.
     width = float((path or {}).get("width") or 1) or 1
     height = float((path or {}).get("height") or 1) or 1
-    span = math.hypot((end[0] - start[0]) / width, (end[1] - start[1]) / height)
 
-    # Turning: the angle between the first leg and the last says whether the
-    # planned flight is straight or arcs around the building.
-    curved = False
-    if len(points) >= 3:
-        first = bearing(points[0], points[1])
-        last = bearing(points[-2], points[-1])
-        curved = bool(first and last and first != last)
+    legs = _simplify(points)
+    if len(legs) < 2:
+        return ""
 
-    # Not "planned on an overhead view", which was a dangling reference: the
-    # video model is given a first frame, a last frame and words, and never
-    # sees the overhead the line was drawn on. Pointing at a picture that is
-    # not in the request is worse than not pointing at all.
-    #
-    # What replaces it is the framing the route actually deserves -- an
-    # instruction to a pilot, in a pilot's terms.
-    parts = ["FLY THIS ROUTE, the way a drone operator filming this property "
-             "would: %s across the plot" % heading]
+    steps = []
+    crossed = False
+    said = None
+    for i in range(len(legs) - 1):
+        a, b = legs[i], legs[i + 1]
+        head = bearing(a, b)
+        if not head:
+            continue
+        # Two legs the same way over the same thing are one intention. The
+        # simplifier keeps a turn that rounds to the same compass point, and
+        # without this the route read "north over the house; then north over
+        # the house".
+        here = (head, _leg_crosses(a, b, width, height))
+        if here == said and i != len(legs) - 2:
+            continue
+        said = here
+        last = i == len(legs) - 2
+        if last and steps and here == (said[0], True) and crossed:
+            steps[-1] += " and settling over the garden behind it"
+            continue
+        if here[1]:
+            crossed = True
+            # A final leg that crosses the roof still has to land somewhere,
+            # and "clearing its ridge" on its own leaves the flight in the
+            # air over the middle of the house.
+            steps.append("%s DIRECTLY OVER THE HOUSE, clearing its ridge%s"
+                         % (head, " and settling over the garden behind it"
+                            if last else ""))
+        elif not steps:
+            steps.append("%s across the plot" % head)
+        elif last:
+            steps.append("%s to settle over the garden" % head)
+        else:
+            steps.append("%s along the side of the house" % head)
+    if not steps:
+        return ""
+
+    span = math.hypot((legs[-1][0] - legs[0][0]) / width,
+                      (legs[-1][1] - legs[0][1]) / height)
+
+    line = ("FLY THIS ROUTE, the way a drone operator filming this property "
+            "would, in this order: " + "; then ".join(steps) + ".")
     if span < 0.25:
-        parts.append("a short distance only")
-    elif span > 0.6:
-        # Was "the full width of the plot", which read as licence to keep
-        # going and land beyond the property.
-        parts.append("the length of this plot and no further, steadily")
-    if curved:
-        parts.append("curving as you go rather than travelling straight")
-
-    line = ", ".join(parts) + ". Hold that heading; do not reverse or circle back."
-
-    # Kept short on purpose. The prompt runs against a 2,500-character
-    # ceiling and this sentence is ranked above the site context but below
-    # nothing -- a wordier version of it pushed the house number out of the
-    # prompt entirely, and the house number is there because a flyover once
-    # renumbered the property mid-clip.
-    if _near_centre(points, width, height):
-        line += (" The path crosses the plot's middle: fly DIRECTLY OVER THE "
-                 "HOUSE, clearing its ridge and settling behind that same "
-                 "house -- not past it.")
-    else:
-        line += (" The path keeps to one side of the building: stay beside "
-                 "the house and do not cross the roof.")
+        line += " It is a short run -- do not travel far."
+    line += (" Keep to that order and that shape. Do not reverse, circle back "
+             "or fly on past the property.")
+    if not crossed:
+        line += " The route never crosses the roof: stay beside the house."
     return line
