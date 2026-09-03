@@ -1,10 +1,17 @@
 /* The generate stage: two shots, the front and the back, both made in
    Google Flow.
 
-   Flow cannot be automated. It has no public API and no URL that pre-fills a
-   prompt or attaches an image, so this page does the two halves that CAN be
-   done: hand a side over -- prompt copied, that side's images downloaded in
-   order, Flow opened -- and take the result back afterwards.
+   Flow cannot be driven from here. It has no public API, and every path
+   under /fx/tools/flow returns the same client-side shell -- no project deep
+   link, no prompt parameter, nothing an image can be handed to. One origin
+   cannot reach into another's app, so a button that opens a project, fills
+   it and presses generate is not a thing a web page can do.
+
+   What this does instead is make the manual version short: the prompt on the
+   clipboard, that side's images saved loose in the downloads bar in the
+   order they should be added, and Flow open. Loose rather than zipped,
+   because a zip has to be found and unzipped before it can be dragged --
+   three steps where files in the downloads bar are one.
 
    Everything placed on the board at stage 2 feeds one of the two columns:
    the oblique first, because it already looks like a photograph taken from
@@ -102,9 +109,70 @@ function render() {
   });
 }
 
-/* The shot Flow made, brought back. Uploaded through the same endpoint the
-   rest of the app uses, so it lands beside the listing's images rather than
-   in a second place with its own rules, then filed against this side. */
+/* ---------- handing one side to Flow ---------- */
+
+function saveBlob(blob, name) {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10000);
+}
+
+async function toFlow(side) {
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(window.__PROMPT__ || "");
+    copied = true;
+  } catch (err) {
+    // Clipboard access can be refused; the prompt is still on this page.
+  }
+
+  note(`Fetching the ${side} set…`);
+  let manifest;
+  try {
+    // Fetched rather than navigated to: pointing the window at the endpoint
+    // works right up until the session has expired, at which point the
+    // "download" is a redirect to the login page and this page is gone.
+    const res = await fetch(
+      `/studio/api/leads/${lead}/flow-bundle?side=${side}&as=list`);
+    manifest = await res.json();
+    if (!res.ok) throw new Error(manifest.error || `couldn't build the ${side} set`);
+  } catch (err) {
+    note(err.message);
+    return;
+  }
+
+  // One at a time and named in order. Chrome asks once per site before it
+  // will save several files; after that this is one confirmation for the
+  // whole set.
+  for (const file of manifest.files) {
+    try {
+      const image = await fetch(file.url);
+      saveBlob(await image.blob(), file.name);
+      await new Promise((done) => setTimeout(done, 250));
+    } catch (err) {
+      note(`Couldn't download ${file.name}.`);
+    }
+  }
+
+  window.open(window.__FLOW_URL__, "_blank", "noopener");
+  note(`${manifest.files.length} images saved in order` +
+       (copied ? " and the prompt is on your clipboard" : "") +
+       ". Flow is open — drag them in" + (copied ? " and paste" : "") + ".");
+}
+
+document.querySelectorAll(".gn-flow").forEach((button) =>
+  button.addEventListener("click", () => toFlow(button.dataset.side)));
+
+/* ---------- bringing the shot back ---------- */
+
+/* Uploaded through the same endpoint the rest of the app uses, so it lands
+   beside the listing's images rather than in a second place with its own
+   rules, then filed against this side. */
 async function receive(sideKey, file) {
   if (!file) return;
   if (!/^image\//.test(file.type)) { note("That isn't an image."); return; }
@@ -160,52 +228,5 @@ async function discard(sideKey) {
   }
   render();
 }
-
-/* ---------- handing one side to Google Flow ---------- */
-
-async function toFlow(side) {
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(window.__PROMPT__ || "");
-    copied = true;
-  } catch (err) {
-    // Clipboard access can be refused; the prompt is in the zip either way.
-  }
-
-  // Fetched as a blob rather than navigated to: pointing the window at the
-  // endpoint works right up until the session has expired, at which point
-  // the "download" is a redirect to the login page and this page is gone.
-  note(`Bundling the ${side} set…`);
-  try {
-    const res = await fetch(`/studio/api/leads/${lead}/flow-bundle?side=${side}`);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `couldn't build the ${side} set`);
-    }
-    const blob = await res.blob();
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = (res.headers.get("Content-Disposition") || "")
-      .split("filename=").pop().replace(/"/g, "") || `${side}-flow.zip`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(href), 10000);
-  } catch (err) {
-    note(err.message);
-    return;
-  }
-
-  window.open(window.__FLOW_URL__, "_blank", "noopener");
-  note(copied
-    ? `Prompt copied and the ${side} set downloaded. Flow is open — drop the ` +
-      `images in and paste the prompt.`
-    : `The ${side} set downloaded. Flow is open; the prompt is in prompt.txt ` +
-      `inside the zip.`);
-}
-
-document.querySelectorAll(".gn-flow").forEach((button) =>
-  button.addEventListener("click", () => toFlow(button.dataset.side)));
 
 render();

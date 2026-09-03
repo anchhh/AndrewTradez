@@ -3411,9 +3411,11 @@ def api_flow_bundle(lead_id):
     only ever mean: open Flow, and have the prompt and the pictures already
     in hand. This is the second half of that.
 
-    A zip rather than a page of links because Flow takes a drag of files, and
-    a folder of numbered images is a drag of files. The prompt rides along as
-    prompt.txt so the run is reproducible from the download alone.
+    Two shapes, because a zip is not always the shorter path. Flow takes a
+    drag of files, and a zip has to be found, unzipped and then dragged --
+    three steps where loose files in the downloads bar are one. ?as=list
+    returns the manifest so the page can pull each file down individually;
+    the default stays a zip, which is the better thing to keep.
     """
     import zipfile
     from io import BytesIO
@@ -3436,6 +3438,26 @@ def api_flow_bundle(lead_id):
     # not a subject of their own, and a flight always happens in one.
     if side in ("front", "back") and "neighbours" in grouped:
         wanted = [side, "neighbours"]
+
+    # The same set either way, named the same way, so what is dragged into
+    # Flow is identical whichever route it took.
+    files = []
+    for group in wanted:
+        for url in grouped.get(group) or []:
+            path = local_path_from_url(url)
+            if path and path.exists():
+                files.append((group, url, path))
+
+    if not files:
+        return jsonify({"error": "Those images are no longer on disk."}), 400
+
+    if (request.args.get("as") or "").strip() == "list":
+        return jsonify({
+            "prompt": enhance.PROMPT,
+            "files": [{"url": url,
+                       "name": "%02d-%s-%s" % (i, group, path.name)}
+                      for i, (group, url, path) in enumerate(files, start=1)],
+        })
 
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
