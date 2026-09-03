@@ -1225,17 +1225,20 @@ def create_earth():
     project_id = request.args.get("project")
     tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
 
-    # Which listing photos already answer the plan's "reference" entries, so
-    # those rows can be ticked rather than asking for a capture that is
-    # already on the lead.
+    # The listing's own exterior photographs, offered to be dragged into the
+    # reference boxes. Offered rather than picked automatically: the app
+    # cannot reliably tell a front elevation from a side one, and a reference
+    # is only useful if it shows the side the capture shows.
+    from services import enhance
+
     rooms = lead.photo_rooms or {}
 
-    def has_room(key):
-        for entry in rooms.values():
-            room = entry.get("room") if isinstance(entry, dict) else entry
-            if room == key:
-                return True
-        return False
+    def room_of(url):
+        entry = rooms.get(url)
+        return (entry.get("room") if isinstance(entry, dict) else entry) or ""
+
+    outside = [u for u in (lead.photo_urls or [])
+               if room_of(u) in enhance.EXTERIOR_ROOMS]
 
     path = lead.drone_path or {}
     return render_template(
@@ -1243,9 +1246,8 @@ def create_earth():
         plan=dronepath.SHOT_PLAN,
         captures=dronepath.images_of(path),
         slots=dronepath.slots_of(path),
-        have_listing={shot["listing"]: has_room(shot["listing"])
-                      for group in dronepath.SHOT_PLAN for shot in group["shots"]
-                      if shot.get("listing")},
+        listing_photos=outside or (lead.photo_urls or []),
+        photo_rooms=rooms,
         earth_url=dronepath.earth_url(dronepath.full_address(lead)),
         back_href="/studio/create/video/listing?style=drone&lead_id=%s" % lead.id,
         next_href=("/studio/create/video/enhance?lead_id=%s&style=drone" % lead.id
@@ -1284,7 +1286,10 @@ def create_enhance():
         originals=path.get("originals") or {},
         slots=dronepath.slots_of(path),
         shot_labels=dronepath.SHOT_LABELS,
-        references=enhance.exterior_references(lead),
+        # What was placed on stage 2's board, in plan order. That board is a
+        # person saying which images describe this property; guessing from
+        # room labels is what it replaced.
+        references=dronepath.placed(lead) or enhance.exterior_references(lead),
         # Every photo on the listing, so the picker can offer the interior
         # ones too -- a capture of the back garden is better matched against
         # a photo of the back garden than against the front elevation.

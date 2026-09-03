@@ -48,7 +48,15 @@
        both states beats a server pass that is stale a second later. #}
     <div class="ge-plan" id="ge-plan"></div>
 
-    <h2 class="ge-step">Not placed yet</h2>
+    {# The listing's own exterior shots, as drag sources for the reference
+       boxes. Shown rather than picked: a reference only helps if it shows
+       the side the capture shows, and that is a judgement about pictures. #}
+    <h2 class="ge-step">Photos from this listing</h2>
+    <p class="hint">Drag one into a reference box. These come from the lead,
+      and using one here does not remove it from the listing.</p>
+    <div class="ge-shots ge-listing-strip" id="ge-listing"></div>
+
+    <h2 class="ge-step">Captures not placed yet</h2>
     <p class="hint">Captures the extension has sent that aren't in a box yet.
       Drag one into its box above, or drop image files straight onto a
       box.</p>
@@ -75,7 +83,8 @@
   window.__LEAD__ = {{ lead.id | tojson }};
   window.__PLAN__ = {{ plan | tojson }};
   window.__SLOTS__ = {{ slots | tojson }};
-  window.__HAVE_LISTING__ = {{ have_listing | tojson }};
+  window.__LISTING__ = {{ listing_photos | tojson }};
+  window.__ROOMS__ = {{ photo_rooms | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_earth.js') }}"></script>
 </body>

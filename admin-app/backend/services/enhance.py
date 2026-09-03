@@ -108,6 +108,17 @@ def exterior_references(lead, limit=MAX_REFERENCES):
     return ranked[:limit]
 
 
+def placed_references(lead):
+    """What stage 2's board says describes this property.
+
+    Preferred over the room-label guess wherever the board has been filled
+    in, because it is a person's answer to the same question.
+    """
+    from services import dronepath
+
+    return dronepath.placed(lead) or exterior_references(lead)
+
+
 def _paths_for(urls):
     from studio import local_path_from_url
 
@@ -145,7 +156,7 @@ def enhance_capture(lead, url, references=None, cfg=None):
 
     allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
     chosen = [u for u in (references or []) if u in allowed and u != url]
-    references = _paths_for(chosen or exterior_references(lead))
+    references = _paths_for(chosen or placed_references(lead))
     if not references:
         raise EnhanceError(
             "this listing has no exterior photos, so there is nothing to "

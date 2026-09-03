@@ -17,7 +17,8 @@
 
 const lead = window.__LEAD__;
 const plan = window.__PLAN__ || [];
-const haveListing = window.__HAVE_LISTING__ || {};
+const listingPhotos = window.__LISTING__ || [];
+const rooms = window.__ROOMS__ || {};
 
 let images = [];
 let slots = window.__SLOTS__ || {};
@@ -45,31 +46,18 @@ function renderPlan() {
       <h3>${escapeHtml(group.label)}</h3>
       <p class="hint">${escapeHtml(group.note)}</p>
       <div class="ge-boxes">
-        ${group.shots.map((shot) => shot.listing
-          ? listingRow(shot)
-          : dropBox(shot)).join("")}
+        ${group.shots.map(dropBox).join("")}
       </div>
     </section>`).join("");
 
   el("ge-plan").querySelectorAll(".ge-box").forEach(wireBox);
 }
 
-/* A row rather than a box: this one is answered by the listing's own photos,
-   which are already on the lead. Nothing to drop, only something to know. */
-function listingRow(shot) {
-  const done = haveListing[shot.listing];
-  return `
-    <div class="ge-box is-listing${done ? " is-filled" : ""}">
-      <span class="ge-box-label">${escapeHtml(shot.label)}</span>
-      <span class="ge-box-hint">${escapeHtml(shot.hint)} &mdash; ${
-        done ? "on the listing" : "none on this listing yet"}</span>
-    </div>`;
-}
-
 function dropBox(shot) {
   const url = placedIn(shot.key);
   return `
-    <div class="ge-box${url ? " is-filled" : ""}" data-slot="${shot.key}">
+    <div class="ge-box${url ? " is-filled" : ""}${
+      shot.source === "listing" ? " is-listing" : ""}" data-slot="${shot.key}">
       ${url
         ? `<img src="${url}" alt="${escapeHtml(shot.label)}">
            <button type="button" class="ge-box-x" data-act="clear"
@@ -134,6 +122,36 @@ function wireBox(box) {
 
 /* ---------- the unplaced strip ---------- */
 
+function roomLabel(url) {
+  const entry = rooms[url];
+  const label = entry && typeof entry === "object" ? entry.label : entry;
+  return label || "Photo";
+}
+
+/* The listing's photographs, as drag sources. Placing one never takes it out
+   of this strip: a photo can be the reference for a box and still be a photo
+   of the house. */
+function renderListing() {
+  const used = new Set(Object.keys(slots));
+  el("ge-listing").innerHTML = listingPhotos.map((url) => `
+    <figure class="ge-shot${used.has(url) ? " is-used" : ""}"
+            data-url="${url}" draggable="true">
+      <img src="${url}" alt="">
+      <figcaption>
+        <span class="ge-shot-name">${escapeHtml(roomLabel(url))}</span>
+      </figcaption>
+    </figure>`).join("");
+
+  el("ge-listing").querySelectorAll(".ge-shot").forEach((figure) => {
+    figure.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData(DRAG_TYPE, figure.dataset.url);
+      e.dataTransfer.effectAllowed = "copy";
+      figure.classList.add("is-dragging");
+    });
+    figure.addEventListener("dragend", () => figure.classList.remove("is-dragging"));
+  });
+}
+
 function renderShots() {
   const spare = images.filter((url) => !slots[url]);
   el("ge-shots").innerHTML = spare.map((url, i) => `
@@ -177,6 +195,7 @@ async function change(action, url, slot) {
     slots = body.slots || {};
     renderPlan();
     renderShots();
+    renderListing();
     note("");
   } catch (err) {
     note(err.message);
@@ -205,6 +224,7 @@ async function upload(file) {
 
 (async function start() {
   renderPlan();
+  renderListing();
   try {
     const res = await fetch(`/studio/api/leads/${lead}/drone-path`);
     const body = await res.json();
@@ -212,5 +232,6 @@ async function upload(file) {
     slots = body.slots || {};
     renderPlan();
     renderShots();
+    renderListing();
   } catch (err) { /* nothing captured yet is the normal case */ }
 })();

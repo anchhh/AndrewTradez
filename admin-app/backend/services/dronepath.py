@@ -188,7 +188,7 @@ SHOT_PLAN = [
             {"key": "front_3d", "label": "Satellite 3D",
              "hint": "Tilted, looking at the front of the house"},
             {"key": "front_reference", "label": "Reference photo",
-             "hint": "A front elevation from the listing", "listing": "exterior_front"},
+             "hint": "A front elevation from the listing", "source": "listing"},
         ],
     },
     {
@@ -201,7 +201,7 @@ SHOT_PLAN = [
             {"key": "back_3d", "label": "Satellite 3D",
              "hint": "Tilted, looking at the back of the house"},
             {"key": "back_reference", "label": "Reference photo",
-             "hint": "A rear elevation from the listing", "listing": "exterior_back"},
+             "hint": "A rear elevation from the listing", "source": "listing"},
         ],
     },
     {
@@ -224,8 +224,26 @@ SHOT_PLAN = [
 SHOT_LABELS = {shot["key"]: "%s — %s" % (group["label"], shot["label"])
                for group in SHOT_PLAN for shot in group["shots"]}
 
-CAPTURE_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]
-                 if not shot.get("listing")]
+# Every slot in the plan, whether it is filled from Earth or from the
+# listing. A reference photo is a choice now rather than an automatic pick:
+# the app cannot tell a front elevation from a side one reliably, and the
+# enhancer is only as good as the photograph it is told to match.
+CAPTURE_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]]
+
+LISTING_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]
+                 if shot.get("source") == "listing"]
+
+
+def placed(lead):
+    """Everything put in a box, in plan order.
+
+    This is what the enhancer should be given: the views and photographs a
+    person chose for this property, in the order the plan lists them, rather
+    than whatever the room labels happened to pick out.
+    """
+    slots = slots_of(lead.drone_path or {})
+    by_slot = {slot: url for url, slot in slots.items()}
+    return [by_slot[key] for key in CAPTURE_SLOTS if key in by_slot]
 
 
 def slots_of(path):
@@ -241,8 +259,8 @@ def set_slot(lead, url, slot):
     one stays in the gallery, just unplaced.
     """
     path = dict(lead.drone_path or {})
-    if url not in images_of(path):
-        raise PathError("that view is not one of this listing's captures")
+    if url not in images_of(path) and url not in (lead.photo_urls or []):
+        raise PathError("that image is not one of this listing's")
     if slot and slot not in CAPTURE_SLOTS:
         raise PathError("there is no such shot in the plan")
 
