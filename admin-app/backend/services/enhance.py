@@ -37,6 +37,22 @@ MAX_REFERENCES = 4
 # the video stage uses to split exterior from interior.
 EXTERIOR_ROOMS = ("exterior_front", "exterior_back", "aerial", "outdoor_space")
 
+# The model this stage uses, which is deliberately NOT the one staging uses.
+# gemini-2.5-flash-image returns about a megapixel whatever you ask for --
+# 1248x832, below the 1920 wide a 1080p clip starts from. gemini-3.1-flash-image
+# honours imageSize and returned 2508x1664 on the same capture with the same
+# prompt: four times the pixels, and the difference between "melted" and
+# "photograph". Both are settings rather than constants because the newer
+# model's free allowance is Google's to change.
+MODEL = "gemini-3.1-flash-image"
+IMAGE_SIZE = "2K"
+
+
+def _model_settings(cfg=None):
+    cfg = cfg or gemini_image.load_config()
+    return (cfg.get("enhance_model") or MODEL,
+            cfg.get("enhance_image_size") or IMAGE_SIZE)
+
 
 class EnhanceError(Exception):
     """The capture could not be edited."""
@@ -76,9 +92,11 @@ TAKE FROM THE REFERENCE PHOTOGRAPHS:
 - the fencing, the driveway, the path, the planting and the ground cover
 
 The screenshot may include Google Earth's own interface -- menus, a search
-box, a toolbar, a scale bar, a logo, a status line. None of it is part of
-the view. Render the landscape it covers instead; do not reproduce any of
-it, and do not leave a band of interface at any edge.
+box, a toolbar, a scale bar, a logo, a status line -- and Earth's map labels
+painted over the scene, such as house numbers floating above roofs and
+street names lying along the roads. None of that is part of the property.
+Render the landscape underneath instead: no menus, no toolbars, no floating
+numbers, no street names, and no band of interface at any edge.
 
 Do not add or remove buildings, vehicles, people or trees. Do not add text,
 logos or watermarks, and do not copy a watermark out of the reference
@@ -146,8 +164,11 @@ def enhance_capture(lead, url, references=None, cfg=None):
             "this listing has no exterior photos, so there is nothing to "
             "match the building against. Add some at the listing step first.")
 
+    model, image_size = _model_settings(cfg)
     try:
-        blob = gemini_image.edit_with_references(str(path), PROMPT, references, cfg=cfg)
+        blob = gemini_image.edit_with_references(
+            str(path), PROMPT, references, cfg=cfg,
+            model=model, image_size=image_size)
     except gemini_image.GeminiError as exc:
         raise EnhanceError(str(exc)) from exc
 

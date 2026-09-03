@@ -133,7 +133,8 @@ def edit_bytes(image_bytes, prompt, cfg=None, timeout=180):
                  prompt, cfg, timeout)
 
 
-def edit_with_references(local_path, prompt, reference_paths=(), cfg=None, timeout=240):
+def edit_with_references(local_path, prompt, reference_paths=(), cfg=None,
+                         timeout=240, model=None, image_size=None):
     """Edit one photo with others alongside it for context.
 
     The first image is the one being edited; the rest are shown to the model
@@ -157,9 +158,14 @@ def edit_with_references(local_path, prompt, reference_paths=(), cfg=None, timeo
                 "data": base64.b64encode(fh.read()).decode("ascii"),
             }})
 
-    return _send({"contents": [{"parts": parts}],
-                  "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]}},
-                 cfg, timeout)
+    generation = {"responseModalities": ["IMAGE", "TEXT"]}
+    if image_size:
+        # Only the newer image models honour this; the older one silently
+        # returns its usual ~1MP either way, so passing it is never harmful.
+        generation["imageConfig"] = {"imageSize": image_size}
+
+    return _send({"contents": [{"parts": parts}], "generationConfig": generation},
+                 cfg, timeout, model=model)
 
 
 def _edit(encoded, mime, prompt, cfg, timeout):
@@ -181,8 +187,11 @@ def _edit(encoded, mime, prompt, cfg, timeout):
     return _send(payload, cfg, timeout)
 
 
-def _send(payload, cfg, timeout):
-    url = f"{BASE_URL}/models/{cfg['model']}:generateContent"
+def _send(payload, cfg, timeout, model=None):
+    # A caller may name a different model than the configured one: staging and
+    # the capture enhancer want different things, and one of them changing
+    # should not move the other's bill.
+    url = f"{BASE_URL}/models/{model or cfg['model']}:generateContent"
     try:
         resp = requests.post(
             url,
