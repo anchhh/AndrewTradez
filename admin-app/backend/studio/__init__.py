@@ -4198,6 +4198,10 @@ def api_video_jobs():
             # still count: deleting one does not get the money back, and a
             # total that fell when you tidied up would be a lie.
             "cost": round(sum(clip_cost(job, c) for _, c in delivered), 2),
+            # The finished video, when the clips were joined into one -- the
+            # aerial's legs are. Absent otherwise; a run that is several
+            # separate clips has no single file to offer.
+            "output_url": job.output_url,
             "clips": [
                 {
                     "index": i,
