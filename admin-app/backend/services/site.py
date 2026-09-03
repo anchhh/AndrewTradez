@@ -26,12 +26,21 @@ footprint, which side meets the street and how much land is behind the house,
 which is what says whether "front to back" is even a short flight. It is
 fetched keylessly from Esri and is often a few years old, so it is used to
 judge layout and never as evidence about the building's condition.
+
+Deliberately NOT read from contact sheets, which is how room sorting works.
+Sorting a room is a coarse call that survives a 320x240 tile; deciding
+whether a photograph shows the REAR ELEVATION, or whether an aerial is close
+enough to fly through, is not. Asked from a sheet this missed a rear
+elevation plainly in it and called a close aerial of the house "not close".
+There are only ever a handful of exterior photographs, so they go one per
+image at full size.
 """
+import io
 import json
 import os
 import re
 
-from contact_sheet import build_sheets
+from contact_sheet import local_path_for
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "studio", "_site")
@@ -45,38 +54,40 @@ class SiteError(Exception):
     """The site could not be analysed."""
 
 
-PROMPT = """You are looking at the OUTSIDE of one property, to plan a drone shot.
+# Only the aerials are sent, plus the front elevation for reference. Which
+# photograph is the front, the rear or an aerial is already known -- room
+# sorting labelled every photo and got it right. Asking a model to re-derive
+# that from nine images produced a different wrong answer every run, so the
+# question is now the narrow one that labels cannot answer: is any of these
+# aerials close enough to this house to be flown through.
+AERIAL_PROMPT = """The FIRST image is the front of a house, at ground level.
 
-The first image is an overhead satellite view of the property, if one was
-available. The remaining images are numbered contact sheets of the listing's
-own exterior photographs. Each photo has its number printed on it, and the
-numbering STARTS AT 0. Answer with those printed numbers exactly.
+The images after it are aerial photographs from the same listing, numbered
+from 0 in the order given.
+
+Which ONE of the numbered aerials shows THAT SAME HOUSE from above, close
+enough that its roof and frontage fill much of the frame -- close enough to
+be the midpoint of a drone flight over that house?
+
+A wide neighbourhood or streetscape view, where the house is one roof among
+many and hard to pick out, does NOT count.
 
 Answer ONLY with a JSON object, no prose, no markdown fence:
 
-{
-  "front": <number of the single best photograph of the FRONT of the house --
-            the street-facing elevation, usually with the main door, driveway
-            or garage -- or null if none shows it>,
-  "rear": <number of the single best photograph of the BACK of the house --
-           the elevation facing the garden or yard -- or null if NO photograph
-           shows the rear of the building>,
-  "aerials": [<numbers of any photographs taken from the air>],
-  "front_faces": "<which way the front of the house faces in the satellite
-                   view: north, south, east, west, or unknown>",
-  "rear_shown": <true only if one of the photographs genuinely shows the back
-                 of the BUILDING. A photograph of a garden, deck or pool that
-                 does not show the rear wall of the house is NOT the rear.>,
-  "depth": "<short|medium|long> -- how far it is from the street frontage to
-            the back of the plot, judged from the satellite view>",
-  "notes": "<one or two sentences on the layout: where the street is, what is
-             behind the house, anything that would make a flight over the
-             property go wrong>"
-}
+{"aerial": <the number, or null if none is close enough>,
+ "why": "<one short sentence>"}
+"""
 
-Be strict about "rear". Getting this wrong causes a video that invents a back
-of a house that nobody has photographed. If you are not certain a photograph
-shows the rear elevation of the building, answer null and false.
+SITE_PROMPT = """This is an overhead satellite view of a property, and then a
+photograph of the front of the house on it.
+
+Answer ONLY with a JSON object, no prose, no markdown fence:
+
+{"front_faces": "<which way the front of the house faces: north, south, east,
+                  west, or unknown>",
+ "depth": "<short|medium|long -- how far from the street frontage to the back
+            of the plot>",
+ "notes": "<one sentence on the layout>"}
 """
 
 
@@ -139,6 +150,28 @@ def satellite_bytes(address):
         return None
 
 
+def _readable(url, longest=1100):
+    """One photograph, scaled down enough to send but large enough to judge.
+
+    1100px keeps a rear elevation legible and a roof recognisable, which a
+    320x240 contact-sheet tile did not.
+    """
+    from PIL import Image
+
+    try:
+        with Image.open(local_path_for(url)) as img:
+            img = img.convert("RGB")
+            img.thumbnail((longest, longest))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            return buf.getvalue()
+    except (OSError, ValueError):
+        # A photo that will not open is skipped; a bug in here is not. A bare
+        # `except Exception` hid a NameError for io and turned it into "none
+        # of the exterior photographs could be read".
+        return None
+
+
 def _parse(text):
     """The JSON object out of a model reply, fence or no fence."""
     body = (text or "").strip()
@@ -154,8 +187,17 @@ def _parse(text):
         raise SiteError("the analysis was not valid JSON") from exc
 
 
+def _by_room(photo_urls, photo_rooms, room):
+    rooms = photo_rooms or {}
+    return [u for u in photo_urls if (rooms.get(u) or {}).get("room") == room]
+
+
 def analyse(lead_id, address, photo_urls, photo_rooms, force=False):
     """What the outside of this property looks like, and what can be flown.
+
+    Structure comes from the room labels, which are already right. The model
+    is asked two narrow questions it can actually answer: which aerial is
+    close enough to fly through, and which way the plot runs.
 
     Cached per lead: a house does not move, and this runs before a render
     rather than adding a minute to one.
@@ -171,33 +213,40 @@ def analyse(lead_id, address, photo_urls, photo_rooms, force=False):
 
     from services import gemini_image
 
-    sheets = build_sheets("site%s" % lead_id, outside)
-    if not sheets:
-        raise SiteError("no contact sheet could be built for the exteriors")
+    fronts = _by_room(photo_urls, photo_rooms, "exterior_front")
+    rears = _by_room(photo_urls, photo_rooms, "exterior_back")
+    aerials = _by_room(photo_urls, photo_rooms, "aerial")
 
-    images = []
+    front = fronts[0] if fronts else None
+    rear = rears[0] if rears else None
+
+    # Which aerial can carry the middle of the flight.
+    aerial_close, aerial_why = None, ""
+    if front and aerials:
+        images = [_readable(front)] + [_readable(u) for u in aerials]
+        if all(images):
+            try:
+                raw = _parse(gemini_image.ask_about_images(
+                    images, AERIAL_PROMPT, timeout=120))
+                index = raw.get("aerial")
+                if isinstance(index, int) and 0 <= index < len(aerials):
+                    aerial_close = aerials[index]
+                    aerial_why = (raw.get("why") or "").strip()
+            except (SiteError, Exception):  # noqa: BLE001
+                aerial_close = None
+
+    # Which way the plot runs, from the satellite.
+    faces, depth, notes = "unknown", "unknown", ""
     sat = satellite_bytes(address)
-    if sat:
-        images.append(sat)
-    for sheet in sheets:
-        with open(sheet, "rb") as fh:
-            images.append(fh.read())
-
-    raw = _parse(gemini_image.ask_about_images(images, PROMPT, timeout=180))
-
-    def photo_at(number):
-        # The contact sheets print ZERO-based indexes, over `outside` rather
-        # than over every photo in the listing. Reading them as 1-based made
-        # the analysis look wrong when it was right -- it named the back of
-        # the house and this returned the front.
+    if sat and front:
         try:
-            index = int(number)
-        except (TypeError, ValueError):
-            return None
-        return outside[index] if 0 <= index < len(outside) else None
-
-    front = photo_at(raw.get("front"))
-    rear = photo_at(raw.get("rear")) if raw.get("rear_shown") else None
+            raw = _parse(gemini_image.ask_about_images(
+                [sat, _readable(front)], SITE_PROMPT, timeout=120))
+            faces = (raw.get("front_faces") or "unknown").strip().lower()
+            depth = (raw.get("depth") or "unknown").strip().lower()
+            notes = (raw.get("notes") or "").strip()
+        except (SiteError, Exception):  # noqa: BLE001
+            pass
 
     data = {
         "count": len(outside),
@@ -205,10 +254,12 @@ def analyse(lead_id, address, photo_urls, photo_rooms, force=False):
         "photos": outside,
         "front": front,
         "rear": rear,
-        "aerials": [p for p in (photo_at(n) for n in raw.get("aerials") or []) if p],
-        "front_faces": raw.get("front_faces") or "unknown",
-        "depth": raw.get("depth") or "unknown",
-        "notes": (raw.get("notes") or "").strip(),
+        "aerials": aerials,
+        "aerial_close": aerial_close,
+        "aerial_why": aerial_why,
+        "front_faces": faces,
+        "depth": depth,
+        "notes": notes,
     }
     save_cached(lead_id, data)
     return data
@@ -257,6 +308,37 @@ def check_move(move, photo, site):
             "anchor": rear,
         }
 
+    aerial = (site or {}).get("aerial_close")
+
+    if move == "rise_over_roof":
+        if not aerial:
+            return {"level": "blocked",
+                    "reason": "No aerial photograph shows this house from above, "
+                              "so the climb has nowhere real to arrive.",
+                    "anchor": None}
+        if photo == aerial:
+            return {"level": "blocked",
+                    "reason": "This is the aerial the climb ends on.",
+                    "anchor": None}
+        return {"level": "anchored",
+                "reason": "Ends on the aerial view of this house.",
+                "anchor": aerial}
+
+    if move == "cross_to_rear":
+        if not rear:
+            return {"level": "blocked",
+                    "reason": "No photograph shows the back of this house, so the "
+                              "flight would have to invent it.",
+                    "anchor": None}
+        if aerial and photo != aerial:
+            return {"level": "safe",
+                    "reason": "Start this leg from the aerial view -- crossing the "
+                              "roof from ground level is the jump that dissolves.",
+                    "anchor": rear}
+        return {"level": "anchored",
+                "reason": "Over the roof and down to the rear photograph.",
+                "anchor": rear}
+
     if needs_anchor(move):
         return {"level": "blocked",
                 "reason": "This move needs a photograph of where it ends.",
@@ -295,16 +377,25 @@ def recommend(site):
     plan = []
     front = (site or {}).get("front")
     rear = (site or {}).get("rear")
+    aerial = (site or {}).get("aerial_close")
 
-    if front and rear:
+    # The flight, in two legs through the aerial. Straight from the ground-level
+    # front to the ground-level rear is the version that dissolved: the two
+    # photographs share no surface, so there is no path to interpolate. Going
+    # via the overhead gives each leg a viewpoint it overlaps with.
+    if front and aerial and rear:
+        plan.append({"photo": front, "move": "rise_over_roof", "anchor": aerial})
+        plan.append({"photo": aerial, "move": "cross_to_rear", "anchor": rear})
+    elif front and rear:
         plan.append({"photo": front, "move": "flyover_front_to_back", "anchor": rear})
+    elif front and aerial:
+        plan.append({"photo": front, "move": "rise_over_roof", "anchor": aerial})
     elif front:
         plan.append({"photo": front, "move": "approach_front", "anchor": None})
 
+    # Any wide aerial is a establishing shot rather than part of the flight.
     for photo in (site or {}).get("aerials") or []:
-        plan.append({"photo": photo, "move": "pull_back_wide", "anchor": None})
-
-    if front and not rear:
-        plan.append({"photo": front, "move": "rise_reveal", "anchor": None})
+        if photo != aerial:
+            plan.append({"photo": photo, "move": "pull_back_wide", "anchor": None})
 
     return plan

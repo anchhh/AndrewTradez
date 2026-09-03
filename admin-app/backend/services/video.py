@@ -359,8 +359,13 @@ EXT_NO_INVENTION = (
     "pool, conservatory or rear elevation is always wrong."
 )
 
+EXT_NO_INVENTION_SHORT = (
+    "Invent nothing the photographs do not show. If the move would reveal "
+    "what is not there, make the move smaller."
+)
+
 EXT_TEMPORAL = (
-    "One continuous aerial shot: no cuts, no transitions, no speed ramp. "
+    "One continuous shot from one moving camera. Do NOT dissolve, crossfade, blend or cut between the first and last frames -- the camera travels the whole way, and every frame between them is a real view from a point on that path. No cuts, no speed ramp. "
     "Nothing may morph, warp, melt, stretch, flicker or swap between frames. "
     "Straight lines -- rooflines, walls, fences, kerbs -- must stay straight. "
     "Keep the lighting, shadows, weather, sky, season, white balance and "
@@ -406,6 +411,10 @@ EXT_NEGATIVE = (
     "new fence, different house, neighbouring house changed, "
     "morphing, warping, melting, stretching, distorted geometry, "
     "bent rooflines, wobbling lines, flickering, colour shift, "
+    # The observed failure, named. A crossfade satisfies "get from A to B"
+    # while doing none of the flying.
+    "crossfade, dissolve, fade, blend, double exposure, superimposed images, "
+    "ghosting, overlay, slideshow, still photo hold, frozen frame, "
     "weather change, sky change, time of day change, season change, "
     "people, person, pets, moving cars, text, caption, watermark, logo, "
     "blurry, soft focus, motion blur, low resolution, upscaled, pixelated, "
@@ -426,6 +435,31 @@ EXTERIOR_MOVES = [
         "the final photograph provided. Keep the building centred and level "
         "throughout. The building beneath you is the same building in both "
         "photographs -- travel between them, and invent nothing in between.",
+    ),
+    (
+        "rise_over_roof",
+        "Rise over the roof",
+        "Leg 1: climbs from the front elevation to the overhead view",
+        "MOVEMENT: a single continuous drone climb. Begin exactly on the "
+        "front elevation as photographed, at ground level. Rise smoothly and "
+        "steadily while easing forward, tilting the camera DOWN as you climb "
+        "so the building stays centred, arriving exactly at the elevated view "
+        "in the final photograph. Both photographs show the same front of the "
+        "same house, from the ground and from above: fly between those two "
+        "viewpoints, keeping the roof, driveway and porch in view throughout.",
+    ),
+    (
+        "cross_to_rear",
+        "Cross the roof to the rear",
+        "Leg 2: passes over the ridge and settles behind the house",
+        "MOVEMENT: a single continuous drone flight. Begin exactly at the "
+        "elevated view in the first photograph, above and in front of the "
+        "house. Fly FORWARD over the building, passing close over the roof "
+        "ridge so the shingles fill the lower frame, then continue down the "
+        "far side and descend behind the house, arriving exactly at the final "
+        "photograph provided. The roof you cross is the roof visible in the "
+        "first photograph and the garden you descend into is the one in the "
+        "last: travel between them and invent nothing in between.",
     ),
     (
         "approach_front",
@@ -472,7 +506,10 @@ EXTERIOR_MOVES = [
 # Moves that cannot be rendered honestly without a photograph of where they
 # end up. The flyover is the whole point of the exterior section and also the
 # one move that, unanchored, is an invitation to invent a rear elevation.
-NEEDS_ANCHOR = {"flyover_front_to_back"}
+# Every move that ends somewhere it was not given. These are legs of the same
+# flight, and none can be rendered honestly without a photograph of where it
+# arrives.
+NEEDS_ANCHOR = {"flyover_front_to_back", "rise_over_roof", "cross_to_rear"}
 
 EXTERIOR_KEYS = {key for key, _, _, _ in EXTERIOR_MOVES}
 
@@ -487,6 +524,22 @@ def is_exterior_move(key):
 
 def needs_anchor(key):
     return (key or "").strip().lower() in NEEDS_ANCHOR
+
+
+def address_rule(site):
+    """The house number, named outright.
+
+    A general "do not change any number" did not hold: the first flyover
+    changed 8732 to 8753 within two and a half seconds. Naming the actual
+    value gives the model something to check itself against, which a
+    prohibition does not.
+    """
+    number = str((site or {}).get("house_number") or "").strip()
+    if not number:
+        return ""
+    return ("The house number on this building reads %s. It must read exactly "
+            "%s in every single frame -- do not change, re-order or re-draw "
+            "any digit." % (number, number))
 
 
 def site_context(site):
@@ -530,6 +583,7 @@ def exterior_prompt(move, cfg=None, site=None):
     instruction = EXTERIOR_PROMPTS.get(key) or EXTERIOR_PROMPTS["approach_front"]
     limit = model_info(cfg).get("max_prompt", 2500)
     context = site_context(site)
+    address = address_rule(site)
 
     # A ladder, shortening from the least load-bearing end. What never goes:
     # the opening constraint, a "never change" of some length, no-invention
@@ -538,22 +592,22 @@ def exterior_prompt(move, cfg=None, site=None):
     # move that most needs them.
     ladders = [
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE, EXT_NO_INVENTION, instruction,
-         context, EXT_TEMPORAL, EXT_LOOK, EXT_ONLY_THE_CAMERA, EXT_NO_INVENTION,
+         context, address, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION_SHORT,
          EXT_WHEN_UNSURE],
-        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, context, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION,
-         EXT_WHEN_UNSURE],
-        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, context, EXT_TEMPORAL, EXT_NO_INVENTION, EXT_WHEN_UNSURE],
         # The itemised list goes to the negative prompt; the ban stays.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, EXT_TEMPORAL, EXT_LOOK, EXT_NO_INVENTION,
-         EXT_WHEN_UNSURE],
+         instruction, context, address, EXT_TEMPORAL, EXT_LOOK,
+         EXT_NO_INVENTION_SHORT, EXT_WHEN_UNSURE],
         # The look is craft, not compliance, so it goes before any rule does.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, EXT_TEMPORAL, EXT_NO_INVENTION, EXT_WHEN_UNSURE],
+         instruction, context, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT,
+         EXT_WHEN_UNSURE],
+        # Orientation goes before the address: a wrong house number is a
+        # compliance problem, a missing bearing is only a worse flight path.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
-         instruction, EXT_TEMPORAL, EXT_NO_INVENTION],
+         instruction, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, instruction, address,
+         EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
     ]
     for parts in ladders:
         text = " ".join(part for part in parts if part)

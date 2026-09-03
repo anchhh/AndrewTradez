@@ -2409,6 +2409,10 @@ def api_video_site():
             "front": analysis.get("front"),
             "rear": analysis.get("rear"),
             "aerials": analysis.get("aerials") or [],
+            # The one that can carry the middle of a flight, which is a
+            # different thing from "is an aerial".
+            "aerial_close": analysis.get("aerial_close"),
+            "aerial_why": analysis.get("aerial_why"),
             "front_faces": analysis.get("front_faces"),
             "depth": analysis.get("depth"),
             "notes": analysis.get("notes"),
@@ -2666,6 +2670,32 @@ def api_stats():
 # Spend arithmetic lives in services.video, where Scenery-style callers can
 # reach it too. Re-exported under the name the routes below already use.
 from services.video import clip_cost  # noqa: E402
+
+
+def exterior_site_facts(lead, site_data):
+    """What the generator is told about the property, beyond its photographs.
+
+    Geometry from the overhead view, and the house number from the address.
+    The number is here because a general "do not change any number" did not
+    hold -- the first flyover turned 8732 into 8753 within two and a half
+    seconds -- and naming the value gives the model something to check
+    against.
+
+    Deliberately not included: anything the satellite can see BEHIND the
+    house. Describing it is an instruction to draw it, and the only honest
+    source for the far side is the rear photograph, which is the last frame.
+    """
+    number = ""
+    for token in (lead.address or "").split():
+        if token.isdigit():
+            number = token
+            break
+
+    return {
+        "front_faces": site_data.get("front_faces"),
+        "depth": site_data.get("depth"),
+        "house_number": number or None,
+    }
 
 
 def _clip_owner_job(job_id):
@@ -3084,10 +3114,7 @@ def api_video_generate():
                     return jsonify({"error": "A clip can't end on the photo it "
                                              "starts from."}), 400
                 spec["anchor"] = chosen
-                spec["site"] = {
-                    "front_faces": site_data.get("front_faces"),
-                    "depth": site_data.get("depth"),
-                }
+                spec["site"] = exterior_site_facts(ext_lead, site_data)
                 continue
 
             check = site_svc.check_move(spec["move"], photo, site_data)
@@ -3101,10 +3128,7 @@ def api_video_generate():
             # not carried: describing it is an instruction to draw it, and the
             # only honest source for the far side is the rear photograph, which
             # is already the clip's last frame.
-            spec["site"] = {
-                "front_faces": site_data.get("front_faces"),
-                "depth": site_data.get("depth"),
-            }
+            spec["site"] = exterior_site_facts(ext_lead, site_data)
 
     # Interior clips are anchored by the layout pass, not by hand, so any
     # anchor the browser sent for one is dropped rather than trusted.

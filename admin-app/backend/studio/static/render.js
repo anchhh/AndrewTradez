@@ -381,8 +381,19 @@ function exteriorMoveOptions() {
 function defaultMoveFor(url) {
   if (!isExterior(url)) return state.defaultMove;
   const site = state.site;
-  if (site && site.front === url && site.rear) return "flyover_front_to_back";
-  if (site && (site.aerials || []).includes(url)) return "pull_back_wide";
+  if (!site) return "approach_front";
+
+  // The flight in two legs, through the aerial. Straight from the ground-level
+  // front to the ground-level rear is the version that came back as a
+  // crossfade: those two photographs share no surface, so there is no path to
+  // interpolate between them.
+  if (site.front === url) {
+    if (site.aerial_close) return "rise_over_roof";
+    if (site.rear) return "flyover_front_to_back";
+    return "approach_front";
+  }
+  if (site.aerial_close === url && site.rear) return "cross_to_rear";
+  if ((site.aerials || []).includes(url)) return "pull_back_wide";
   return "approach_front";
 }
 
@@ -397,17 +408,25 @@ function moveFor(url) {
 }
 
 /* Where a clip ends, when it ends somewhere real. */
+const ANCHORED_MOVES = ["flyover_front_to_back", "rise_over_roof", "cross_to_rear"];
+
 function anchorFor(url) {
-  if (!isExterior(url) || moveFor(url) !== "flyover_front_to_back") return null;
+  if (!isExterior(url)) return null;
+  const move = moveFor(url);
+  if (!ANCHORED_MOVES.includes(move)) return null;
+
   // A hand-picked ending wins over the analysis. The analysis is a good
   // guess about which photograph shows the back; the person looking at the
   // house knows.
   if (state.anchorOverride[url]) return state.anchorOverride[url];
   const verdict = state.siteVerdicts[url];
   if (verdict && verdict.anchor) return verdict.anchor;
-  // Before the site call lands, the rear photo is still the only place a
-  // flyover can end, so the list does not flicker while it is in flight.
-  return (state.site && state.site.rear) || null;
+
+  // Before the site call lands, fall back to where each leg has to end, so
+  // the list does not flicker while it is in flight.
+  const site = state.site || {};
+  if (move === "rise_over_roof") return site.aerial_close || null;
+  return site.rear || null;
 }
 
 /* Photos consumed as the ENDING of another clip. A front-to-back flyover
