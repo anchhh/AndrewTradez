@@ -112,115 +112,117 @@ async function downloadBrief(urls) {
  * reveals exists.
  */
 async function fillFlowPage(prompt, files) {
-  const found = { prompt: null, fileInput: null, added: 0, via: null };
+  /* Written against what the page actually reports, not against a guess.
+   *
+   *   FILE INPUTS (1)
+   *     [0] accept="image/*" visible=false
+   *         at div#__next > div.sc-…> input.sc-…
+   *   TYPABLE (1)
+   *     [0] div  w=566            <- contenteditable, not a textarea
+   *   CONTROLS NEAR THE PROMPT
+   *     "add_2Create"  "Agent"  "Nano Banana Pro…"  "arrow_forwardCreate"
+   *
+   * One hidden input for the whole page means attaching is not a second
+   * upload -- it is the SAME input, reached through the composer's "+".
+   * Feeding it cold is what put the images in the library twice. So the
+   * order matters: press "+", take whatever it offers, and only then hand
+   * over the files.
+   *
+   * Every step is reported, so a failure says which one stopped rather than
+   * leaving another round of guessing.
+   */
+  const steps = [];
+  const found = { prompt: null, fileInput: null, added: 0, via: null, steps };
   const wait = (ms) => new Promise((done) => setTimeout(done, ms));
-
   const visible = (el) => el && el.offsetParent !== null;
+  const labelOf = (el) =>
+    ((el.getAttribute("aria-label") || "") + " " + (el.textContent || "")).trim();
 
-  // The prompt box: the widest visible thing you can type into.
+  // ---- the prompt: a contenteditable, so execCommand rather than .value
   const box = [
-    ...document.querySelectorAll("textarea"),
     ...document.querySelectorAll('[contenteditable="true"]'),
-    ...document.querySelectorAll('input[type="text"]'),
+    ...document.querySelectorAll("textarea"),
   ].filter(visible).sort(
     (a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0];
 
   if (box) {
-    found.prompt = box.tagName.toLowerCase() +
-      (box.getAttribute("placeholder") ? ` ("${box.getAttribute("placeholder")}")` : "");
+    found.prompt = box.isContentEditable ? "contenteditable" : "textarea";
+    box.focus();
     if (box.isContentEditable) {
-      box.focus();
       document.execCommand("selectAll", false, null);
       document.execCommand("insertText", false, prompt);
     } else {
-      // React and friends listen to the native setter, not to .value, so a
-      // plain assignment types into a field the app never notices.
       const proto = box instanceof HTMLTextAreaElement
-        ? HTMLTextAreaElement.prototype
-        : HTMLInputElement.prototype;
+        ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(proto, "value").set.call(box, prompt);
       box.dispatchEvent(new Event("input", { bubbles: true }));
-      box.dispatchEvent(new Event("change", { bubbles: true }));
     }
+    steps.push("prompt typed");
+  } else {
+    steps.push("no prompt box found");
   }
 
-  /* Which file input to feed.
-   *
-   * NOT simply the first one on the page: that is the library uploader, and
-   * feeding it puts the images in Flow's asset shelf rather than on the
-   * prompt -- which is exactly what happened the first time this ran. The
-   * one that matters belongs to the composer, so the search starts at the
-   * prompt box and walks outward, taking the nearest.
-   */
-  function inputNear(node) {
-    let scope = node;
-    for (let up = 0; scope && up < 8; up += 1) {
-      // Stop before the document itself. Walking as far as <body> finds
-      // EVERY file input on the page, including the library uploader, and
-      // then reports it as "the composer" -- which is exactly how the first
-      // run put the images in Flow's asset shelf instead of on the prompt.
-      if (scope === document.body || scope === document.documentElement) return null;
-      const input = [...scope.querySelectorAll('input[type="file"]')].pop();
-      if (input) return input;
-      scope = scope.parentElement;
-    }
-    return null;
+  // ---- the "+" beside the prompt. Its text is the icon ligature plus a
+  // label, which is why it reads as "add_2Create".
+  let scope = box ? box.parentElement : document.body;
+  for (let up = 0; up < 5 && scope && scope !== document.body; up += 1) {
+    scope = scope.parentElement;
+  }
+  const plus = [...(scope || document).querySelectorAll('button, [role="button"]')]
+    .filter(visible)
+    // The label is an icon ligature run together with the button's
+    // text -- "add_2Create" -- so there is no word boundary after the
+    // icon to anchor on. Matching the start is what works.
+    .find((el) => /^\s*add(_\d+)?/i.test(labelOf(el)) ||
+                  /add reference|add image|attach/i.test(labelOf(el)));
+
+  if (plus) {
+    plus.click();
+    steps.push(`pressed "${labelOf(plus).slice(0, 24)}"`);
+    await wait(700);
+  } else {
+    steps.push("no + button found beside the prompt");
   }
 
-  let input = box ? inputNear(box.parentElement) : null;
-  if (input) found.via = "the composer";
+  // ---- whatever that opened. Usually a menu with an upload item; taking it
+  // is what tells the app the files belong to the prompt.
+  const menuItem = [...document.querySelectorAll(
+    '[role="menuitem"], [role="option"], [role="dialog"] button, [role="menu"] button')]
+    .filter(visible)
+    .find((el) => /upload|computer|device|from file|browse|add image/i.test(labelOf(el)));
 
-  // Still nothing: the composer's picker is usually behind a "+", and the
-  // input it owns may not exist until that is pressed.
-  if (!input && box) {
-    let scope = box.parentElement;
-    for (let up = 0; scope && up < 6 && !input; up += 1) {
-      const opener = [...scope.querySelectorAll('button, [role="button"]')]
-        .filter(visible)
-        .find((el) => /add|attach|upload|image|reference|\+/i.test(
-          (el.getAttribute("aria-label") || "") + " " + (el.textContent || "").trim()));
-      if (opener) {
-        opener.click();
-        await wait(600);
-        input = inputNear(box.parentElement);
-        if (input) found.via = `the "${(opener.getAttribute("aria-label") ||
-          opener.textContent || "+").trim().slice(0, 24)}" button`;
-      }
-      scope = scope.parentElement;
-    }
+  if (menuItem) {
+    menuItem.click();
+    steps.push(`chose "${labelOf(menuItem).slice(0, 24)}"`);
+    found.via = `the composer's "${labelOf(menuItem).slice(0, 24)}"`;
+    await wait(500);
+  } else if (plus) {
+    steps.push("no upload item in what the + opened");
+    found.via = "the composer's plus button";
   }
 
-  // Nothing near the prompt. The page-wide input is NOT used as a fallback:
-  // on Flow that is the library uploader, and quietly filling it looks like
-  // success while putting the images somewhere they do nothing. Better to
-  // say so and let the selector be fixed.
+  // ---- and now the input, which by this point the composer is listening to.
+  const input = [...document.querySelectorAll('input[type="file"]')]
+    .find((el) => (el.getAttribute("accept") || "").includes("image")) ||
+    document.querySelector('input[type="file"]');
+
   if (!input) {
-    found.via = null;
+    steps.push("no file input on the page at all");
+    return found;
   }
 
-  if (input) {
-    found.fileInput = input.getAttribute("accept") || "any";
-    // DataTransfer is the only way to hand a page a File it did not choose
-    // itself.
-    const data = new DataTransfer();
-    files.forEach((file) => {
-      const binary = atob(file.data);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      data.items.add(new File([bytes], file.name, { type: file.type }));
-      found.added += 1;
-    });
-    input.files = data.files;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
-    // Some composers listen for a drop rather than for the input, so the
-    // same files are offered that way too. Harmless when unhandled.
-    const target = input.closest("form, [role='textbox']") || box || input;
-    ["dragenter", "dragover", "drop"].forEach((name) =>
-      target.dispatchEvent(new DragEvent(name, {
-        bubbles: true, cancelable: true, dataTransfer: data,
-      })));
-  }
+  found.fileInput = input.getAttribute("accept") || "any";
+  const data = new DataTransfer();
+  files.forEach((file) => {
+    const binary = atob(file.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    data.items.add(new File([bytes], file.name, { type: file.type }));
+    found.added += 1;
+  });
+  input.files = data.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+  steps.push(`${found.added} files handed to the input`);
 
   return found;
 }
@@ -245,6 +247,7 @@ async function fillFlow() {
     });
 
     const found = (result || {}).result || {};
+    if (found.steps) console.log("[Estly] Flow steps:", found.steps.join(" → "));
     if (!found.fileInput) {
       throw new Error(found.prompt
         ? `Typed the prompt into the ${found.prompt}, but couldn't find the ` +
@@ -254,11 +257,10 @@ async function fillFlow() {
           "Open the panel where you would normally type the prompt, then " +
           "press Deploy again.");
     }
-    setFlowStatus(
-      `${found.added} image${found.added === 1 ? "" : "s"} attached via ` +
-        `${found.via || "an unknown input"}` +
-        (found.prompt ? `, prompt typed into the ${found.prompt}` : "") +
-        ". Check the attachments, then send it yourself.",
+    // The steps are the message. When this lands in the library again, the
+    // line says which stage did not happen rather than claiming success.
+    setFlowStatus((found.steps || []).join(" → ") +
+      ". Check whether they attached to the prompt or went to the library.",
       "ok");
   } catch (err) {
     setFlowStatus(err.message, "error");
