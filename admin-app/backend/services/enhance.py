@@ -112,8 +112,15 @@ second roof over the garage. Every roof plane on the house -- the main roof,
 the garage, the porch below the windows -- is the same shingle in the same
 colour; from above the lower ones are simply in more shadow.
 
-Several of the attached images show the %(other)s of this same house, and
-several show the houses either side of it. They are colour and material
+If one of the attached images is a finished aerial photograph of the
+%(other)s of this house, it is the SAME BUILDING you are drawing and it is
+the authority on the building itself: match its number of storeys, its roof
+pitch and ridge direction, its depth and its materials exactly, so the two
+views are recognisably one house. Everything about the building that it shows
+outranks the satellite views.
+
+Several of the other attached images show the %(other)s of this same house,
+and several show the houses either side of it. They are colour and material
 swatches only. Take the siding, the shingle, the stone and the trim from
 them, and take nothing else: not the layout, not the orientation, not a
 single feature. A %(other)s elevation among the references is NOT the view
@@ -270,7 +277,9 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None,
     # is dropped rather than trusted.
     from services import dronepath
 
-    allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
+    allowed = (set(lead.photo_urls or [])
+               | set(dronepath.images_of(lead.drone_path or {}))
+               | set(dronepath.generated_of(lead.drone_path or {}).values()))
     chosen = [u for u in (references or []) if u in allowed and u != url]
     # Trimmed, because these are the listing's own photographs and they
     # carry its watermark.

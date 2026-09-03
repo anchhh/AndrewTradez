@@ -322,6 +322,23 @@ def _ordered(lead, side):
                     out.append(url)
         return out
 
+    # The shot already made for the OTHER side, first of all.
+    #
+    # This is the one thing that ties the two ends together. They were
+    # generated in complete ignorance of each other -- each from its own
+    # capture with its own references -- so nothing made the back agree with
+    # the front about how many storeys the house has, which way the ridge
+    # runs, or how deep the building is. They came out as two different
+    # houses, and no video prompt can fly between two different houses: the
+    # clip crossed one roof and arrived at a building that did not match, so
+    # it put a fence between them and made them neighbours.
+    #
+    # First in the list because the model weighs early images most, and this
+    # one is not a swatch -- it is the same building, already drawn.
+    made = generated_of(lead.drone_path or {})
+    counterpart = made.get("back" if side == "front" else "front")
+    lead_in = [counterpart] if counterpart and counterpart != base else []
+
     mine = collect(["%s_reference" % side, "%s_3d" % side,
                     "%s_overhead" % side, "%s_street" % side])
     theirs = collect(["%s_reference" % other, "%s_3d" % other,
@@ -329,7 +346,7 @@ def _ordered(lead, side):
     nearby = collect(["nb_3d", "nb_overhead", "nb_street"])
 
     ranked = []
-    for url in mine + theirs + nearby:
+    for url in lead_in + mine + theirs + nearby:
         if url not in ranked:
             ranked.append(url)
     return base, ranked
