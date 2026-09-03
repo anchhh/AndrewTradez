@@ -1421,30 +1421,22 @@ def create_drone():
     project_id = request.args.get("project")
     cfg = video.load_config()
 
-    # Placed first, in plan order, because those are the views someone has
-    # already said something about. Everything else after, so a capture that
-    # was never filed is still usable.
-    # The two generated shots first: they are what the previous stage exists
-    # to produce, and a flight between them is the default reading of this
-    # page. Everything placed on the board after, then anything unfiled.
+    # Nothing to pick here any more. The two ends were decided at stage 4 by
+    # generating them and the route at stage 5 by drawing it, so this page
+    # reads back what those stages settled instead of asking again.
     made = dronepath.generated_of(path)
-    shots = [made[key] for key in dronepath.SIDES if made.get(key)]
-    placed = [u for u in dronepath.placed(lead) if u not in shots]
-    rest = [u for u in dronepath.images_of(path) if u not in shots + placed]
+    flight = dronepath.flight_of(path)
 
     return render_template(
         "create_drone.html", lead=lead,
-        frames=shots + placed + rest,
-        labels=dict(
-            {made[key]: key for key in dronepath.SIDES if made.get(key)},
-            **{url: slots[0] for url, slots in
-               ((u, dronepath.slots_for(path, u)) for u in placed + rest) if slots}),
-        shot_labels=dict(dronepath.SHOT_LABELS,
-                         front="Generated — front", back="Generated — back"),
+        made=made,
+        flight=flight,
         described=dronepath.describe(path),
-        path_href="/studio/create/video/path?lead_id=%s&style=drone" % lead.id,
-        moves=[{"key": key, "name": name, "note": note}
-               for key, name, note, _ in video.EXTERIOR_MOVES],
+        move=video.MOVE_NAMES.get(dronepath.MOVE),
+        move_note=dict((k, note) for k, _, note, _ in video.EXTERIOR_MOVES).get(
+            dronepath.MOVE),
+        generate_href="/studio/create/video/generate?lead_id=%s&style=drone" % lead.id,
+        path_href="/studio/create/video/flight?lead_id=%s&style=drone" % lead.id,
         durations=video.model_info(cfg).get("durations") or [5, 8, 10],
         resolutions=video.model_info(cfg).get("resolutions") or ["1080p"],
         rates=video.model_info(cfg).get("rates") or {},
@@ -4171,9 +4163,10 @@ def api_video_drone():
         return jsonify({"error": "A shot can't end on the frame it starts "
                                  "from."}), 400
 
-    move = (data.get("move") or "").strip().lower()
-    if move not in dict((k, n) for k, n, _, _ in video.EXTERIOR_MOVES):
-        return jsonify({"error": "Unknown drone move."}), 400
+    # One move, not the caller's. Every shot this flow produces is a drone
+    # flight between two photographs along a drawn route; the menu of legs
+    # that used to be here was offering fragments of that.
+    move = dronepath.MOVE
 
     info = video.model_info(cfg)
     try:
@@ -4231,9 +4224,9 @@ def api_video_drone_preview():
         return jsonify({"error": "Lead not found."}), 404
 
     cfg = video.load_config()
-    move = (data.get("move") or "").strip().lower()
-    if move not in dict((k, n) for k, n, _, _ in video.EXTERIOR_MOVES):
-        return jsonify({"error": "Unknown drone move."}), 400
+    from services import dronepath
+
+    move = dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)

@@ -6742,3 +6742,32 @@ button.gn-review-shot {
 @media (max-width: 900px) {
   .fp-layout { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The recap. Three pictures and an arrow: what it opens on, what it lands
+   on, and the route between them. */
+.dr-recap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin: 14px 0 12px;
+}
+.dr-recap-end { margin: 0; display: grid; gap: 4px; }
+.dr-recap-end img { width: 100%; border-radius: 9px; display: block; }
+.dr-recap-tag { font-size: 0.66rem; font-weight: 700; color: var(--ink-soft); }
+.dr-recap-end figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+.dr-recap-arrow { font-size: 1.5rem; color: var(--accent); text-align: center; }
+.dr-recap-end.is-route { border-left: 1px solid var(--line); padding-left: 12px; }
+
+@media (max-width: 800px) {
+  .dr-recap { grid-template-columns: minmax(0, 1fr); }
+  .dr-recap-arrow { transform: rotate(90deg); }
+  .dr-recap-end.is-route { border-left: 0; padding-left: 0; }
+}

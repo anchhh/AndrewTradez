@@ -425,6 +425,31 @@ EXT_NEGATIVE = (
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
     (
+        # The drone flow's only move. The menu below it is a menu of legs --
+        # rise, cross, orbit, pull back -- and picking one was picking a
+        # fragment of a flight when what the stage produces is the flight. The
+        # route is drawn two stages earlier and the two ends are photographs,
+        # so the only thing left to say is "fly it like a drone would", which
+        # includes climbing and descending wherever the route needs it rather
+        # than holding one altitude because a menu item said so.
+        "drone_flight",
+        "Drone flight",
+        "One continuous flight between the two shots, at whatever heights the "
+        "route needs",
+        "MOVEMENT: one continuous drone flight, shot in a single take. Begin "
+        "exactly on the first photograph and arrive exactly at the final "
+        "photograph provided, travelling between them along the route "
+        "described below. Fly it the way a drone operator filming this "
+        "property would: climb, descend and change altitude wherever the "
+        "route calls for it -- rising to clear the roof, dropping again to "
+        "settle over the garden -- rather than holding one height throughout. "
+        "Keep the building centred and level, keep the speed even, and let "
+        "the movement look flown rather than animated: no cuts, no jumps, no "
+        "sudden acceleration, no hovering in place. The building beneath you "
+        "is the same building in both photographs -- travel between them, and "
+        "invent nothing in between.",
+    ),
+    (
         "flyover_front_to_back",
         "Front to back flyover",
         "Drone rises over the front and travels to the rear of the property",

@@ -266,6 +266,13 @@ def group_of(slot):
     return None
 
 
+# The camera move every shot in this flow uses. Not a default that can be
+# overridden -- the only one. The route is drawn at stage 5 and the two ends
+# are photographs, so what is left to say about the camera is "fly it like a
+# drone", and a menu offering "orbit" or "pull back wide" instead was offering
+# a different shot than the one the flow is building.
+MOVE = "drone_flight"
+
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything
 # else on the board exists to make those two right.

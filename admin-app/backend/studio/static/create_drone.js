@@ -1,42 +1,22 @@
-/* Stage 4 of a drone run.
+/* The drone shot: a recap, then a confirmation, then one clip.
 
-   Deliberately not the shots step. That page turns each photograph of a
-   listing into its own clip with its own camera move, which is the right
-   shape for a walkthrough and the wrong shape for this: a drone shot is one
-   flight across one property. There is no per-room grain to choose, and a
-   room-by-room picker had nothing to say about it.
+   Nothing is chosen here except how long the clip runs and how big it is.
+   Which two photographs the flight travels between was answered at stage 4
+   by generating them; the route was answered at stage 5 by drawing it; and
+   the camera move is not a question at all -- every shot this flow makes is
+   a drone flight, and how high it goes is a consequence of the route.
 
-   What there is to choose: which captured view the flight starts on, which
-   it ends on, how the camera moves between them, and for how long. Both ends
-   are pictures rather than descriptions because that is what stops the model
-   inventing the far side of the house -- the same anchoring the exterior
-   clips have always used. */
+   Asking any of that again was letting the same thing be answered two ways
+   on two pages, and then rendering whichever page was last. */
 
 const lead = window.__LEAD__;
-const frames = window.__FRAMES__ || [];
-const labels = window.__LABELS__ || {};
-const shotLabels = window.__SHOT_LABELS__ || {};
-const moves = window.__MOVES__ || [];
+const made = window.__MADE__ || {};
 const rates = window.__RATES__ || {};
 const described = window.__DESCRIBED__ || "";
+const moveName = window.__MOVE_NAME__ || "Drone flight";
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { el("dr-note").textContent = text || ""; };
-
-/* The two ends were decided two stages ago: the front shot is where the
-   flight opens and the back one is where it lands, and the flight path stage
-   fixes them that way on purpose. Arriving here with the ending unset meant
-   the far side was invented by default -- the one thing the anchoring exists
-   to avoid -- and made a settled question look open again. */
-const generated = (side) =>
-  frames.find((url) => labels[url] === side) || null;
-
-const state = {
-  start: generated("front") || frames[0] || null,
-  end: generated("back") || null,
-  move: (moves[0] || {}).key || null,
-};
-if (state.end === state.start) state.end = null;
 
 function escapeHtml(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -44,83 +24,26 @@ function escapeHtml(value) {
   }[c]));
 }
 
-function frameName(url, i) {
-  return shotLabels[labels[url]] || `View ${i + 1}`;
-}
-
-/* ---------- the two ends ---------- */
-
-function renderFrames() {
-  el("dr-start").innerHTML = frames.map((url, i) => tile(url, i, url === state.start)).join("");
-  // The ending offers "none", because a shot without one is a legitimate
-  // choice: some moves have nowhere to land and inventing a destination is
-  // worse than not going there.
-  el("dr-end").innerHTML =
-    `<button type="button" class="dr-frame dr-frame-none${
-      state.end ? "" : " is-on"}" data-url="">No ending</button>` +
-    frames.filter((url) => url !== state.start)
-      .map((url) => tile(url, frames.indexOf(url), url === state.end)).join("");
-
-  el("dr-start").querySelectorAll(".dr-frame").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.start = button.dataset.url;
-      // A clip cannot end where it began; that is a still, not a flight.
-      if (state.end === state.start) state.end = null;
-      renderFrames();
-    }));
-  el("dr-end").querySelectorAll(".dr-frame").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.end = button.dataset.url || null;
-      renderFrames();
-    }));
-}
-
-function tile(url, i, on) {
-  return `
-    <button type="button" class="dr-frame${on ? " is-on" : ""}" data-url="${url}">
-      <img src="${url}" alt="">
-      <span>${escapeHtml(frameName(url, i))}</span>
-    </button>`;
-}
-
-/* ---------- the move ---------- */
-
-function renderMoves() {
-  el("dr-moves").innerHTML = moves.map((move) => `
-    <button type="button" class="dr-move${move.key === state.move ? " is-on" : ""}"
-            data-move="${move.key}">
-      <span class="dr-move-name">${escapeHtml(move.name)}</span>
-      <span class="dr-move-note">${escapeHtml(move.note)}</span>
-    </button>`).join("");
-
-  el("dr-moves").querySelectorAll(".dr-move").forEach((button) =>
-    button.addEventListener("click", () => {
-      state.move = button.dataset.move;
-      renderMoves();
-    }));
-}
-
 /* ---------- what it costs ---------- */
 
 function renderCost() {
-  const seconds = Number(el("dr-duration").value) || 0;
-  const resolution = el("dr-resolution").value;
-  const rate = rates[resolution] != null ? rates[resolution] : rates["*"];
+  const seconds = Number(el("dr-duration").value);
+  // The rate table can price every resolution the same, and says so with a
+  // "*" key. Reading only the exact resolution missed that and quietly
+  // showed a length where a price belonged.
+  const rate = rates[el("dr-resolution").value] || rates["*"];
   el("dr-cost").textContent = rate
-    ? `About $${(rate * seconds).toFixed(2)} for ${seconds} seconds.`
-    : `${seconds} seconds.`;
+    ? "About $" + (rate * seconds).toFixed(2) + " for " + seconds + " seconds."
+    : seconds + " seconds.";
 }
-
-el("dr-duration").addEventListener("change", renderCost);
-el("dr-resolution").addEventListener("change", renderCost);
 
 /* ---------- what will be sent ---------- */
 
-/* The prompt for a drone shot is two and a half thousand characters of
-   constraint that a year of failed renders paid for, and until now none of
-   it was on screen -- the button spent a couple of dollars on wording nobody
-   could see. Fetched rather than rebuilt here: a preview assembled its own
-   way is a preview of something else. */
+/* The prompt is two thousand characters of constraint that a year of failed
+   renders paid for, and until now none of it was on screen -- the button
+   spent a couple of dollars on wording nobody could read. Fetched rather
+   than rebuilt here: a preview assembled its own way is a preview of
+   something else. */
 
 let standard = "";
 let edited = null;
@@ -128,16 +51,13 @@ let edited = null;
 const promptNow = () => (edited === null ? standard : edited);
 
 el("dr-go").addEventListener("click", async () => {
-  if (!state.start) { note("Pick the frame the flight starts on."); return; }
-  if (!state.move) { note("Pick how the camera moves."); return; }
-
   note("Reading the prompt…");
   try {
     const res = await fetch("/studio/api/video/drone/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        lead_id: lead, move: state.move,
+        lead_id: lead,
         duration: Number(el("dr-duration").value),
         resolution: el("dr-resolution").value,
       }),
@@ -155,25 +75,22 @@ el("dr-go").addEventListener("click", async () => {
 function review(body) {
   el("dr-review-prompt").value = promptNow();
 
-  const frames = [state.start, state.end].filter(Boolean);
-  el("dr-review-frames").innerHTML = frames.map((url, i) => `
-    <figure class="gn-review-shot${i === 0 ? " is-base" : ""}">
-      <img src="${url}" alt="">
-      <figcaption><b>${i + 1}</b> ${i === 0 ? "Opens on" : "Lands on"}
-        <span class="gn-review-also">${escapeHtml(
-          frameName(url, frames.indexOf(url)))}</span>
-      </figcaption>
-    </figure>`).join("");
+  const ends = [[made.front, "Opens on", "The front"],
+                [made.back, "Lands on", "The back"]];
+  el("dr-review-frames").innerHTML = ends.map((end, i) =>
+    '<figure class="gn-review-shot' + (i === 0 ? " is-base" : "") + '">' +
+    '<img src="' + end[0] + '" alt="">' +
+    '<figcaption><b>' + (i + 1) + "</b> " + end[1] +
+    '<span class="gn-review-also">' + escapeHtml(end[2]) + "</span>" +
+    "</figcaption></figure>").join("");
 
   el("dr-review-path").textContent = described
-    || "No flight path drawn — the camera just follows the move.";
+    || "No route drawn — the camera has only the two photographs to work between.";
 
   const seconds = Number(el("dr-duration").value);
-  const move = (moves.find((m) => m.key === state.move) || {}).name || state.move;
   el("dr-review-specs").textContent =
-    `${move} · ${seconds} seconds · ${el("dr-resolution").value} · `
-    + `${body.model || "the video model"}`
-    + (frames.length < 2 ? " · no ending frame, so the far side is invented" : "");
+    moveName + " · " + seconds + " seconds · " + el("dr-resolution").value +
+    " · " + (body.model || "the video model");
 
   el("dr-review").hidden = false;
 }
@@ -216,9 +133,8 @@ async function generate() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         lead_id: lead,
-        start: state.start,
-        end: state.end,
-        move: state.move,
+        start: made.front,
+        end: made.back,
         duration: Number(el("dr-duration").value),
         resolution: el("dr-resolution").value,
         // Sent every time, edited or not: "what I saw" and "what ran" are
@@ -240,7 +156,7 @@ async function generate() {
    runs on a background thread and the page has to survive being left. */
 async function poll(jobId) {
   try {
-    const res = await fetch(`/studio/api/video/jobs/${jobId}`);
+    const res = await fetch("/studio/api/video/jobs/" + jobId);
     const job = await res.json();
     const clip = (job.clips || [])[0] || {};
 
@@ -248,7 +164,7 @@ async function poll(jobId) {
       el("dr-run-title").textContent = "Done";
       el("dr-run-sub").textContent = "";
       el("dr-result").innerHTML =
-        `<video src="${clip.url}" controls playsinline class="dr-video"></video>`;
+        '<video src="' + clip.url + '" controls playsinline class="dr-video"></video>';
       el("dr-go").disabled = false;
       return;
     }
@@ -264,6 +180,10 @@ async function poll(jobId) {
   }
 }
 
-renderFrames();
-renderMoves();
-renderCost();
+/* ---------- go ---------- */
+
+if (el("dr-duration")) {
+  el("dr-duration").addEventListener("change", renderCost);
+  el("dr-resolution").addEventListener("change", renderCost);
+  renderCost();
+}
