@@ -1760,6 +1760,16 @@ def create_render():
             "photos": lead.photo_urls or [],
         }
 
+    # Which style this page is in. Without it the style cards sit unselected
+    # and no clip is seeded with that style's move, so arriving from a
+    # property's videos gave a step 2 that did not look like the step 2 the
+    # flow reaches -- same page, different state. Carried in the URL by
+    # whatever linked here; a clip knows the style that made it.
+    wanted_style = (request.args.get("style") or "").strip().lower()
+    if wanted_style in ("basic", "walkthrough", "drone"):
+        project = dict(project or {})
+        project["style"] = wanted_style
+
     if not project and job_id:
         from models import VideoJob
 

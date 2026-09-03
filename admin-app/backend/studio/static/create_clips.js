@@ -62,10 +62,12 @@ function madeAt(run) {
   if (run.style === "drone") {
     return "/studio/create/video/drone?lead_id=" + lead + "&style=drone";
   }
-  // `run` marks which one to scroll to. Nothing else: the page behaves the
-  // same however you reached it, so there is nothing to tell it about where
-  // the click came from.
-  return "/studio/create/render?lead=" + lead + "&run=" + run.id;
+  // `run` marks which one to scroll to, and `style` puts the page in the
+  // same state the flow would: the style card selected, every clip seeded
+  // with that style's move. Without it you land on a step 2 that does not
+  // look like the one you would have walked to.
+  return "/studio/create/render?lead=" + lead + "&run=" + run.id
+    + (run.style ? "&style=" + encodeURIComponent(run.style) : "");
 }
 
 async function load() {
