@@ -1699,9 +1699,12 @@ async function wireNextToClips() {
 wireNextToClips();
 
 el("rn-next").addEventListener("click", () => {
-  show("rn-setup", false);
-  show("rn-results", true);
-  markStep(3);
+  // Load them, do not just reveal the card. Showing the results panel only
+  // switches which section is visible, and nothing had ever filled it on
+  // this path -- so "Next: 3 clips" opened an empty step 3. The clips live
+  // on the job rows and openLeadRenders is what fetches and draws them.
+  if (!project.lead_id) return;
+  openLeadRenders(project.lead_id);
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
