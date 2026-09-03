@@ -235,18 +235,31 @@ let chosen = new Set();
 
 function openPicker(url) {
   pickUrl = url;
-  chosen = new Set(defaultRefs);
+  chosen = new Set([...captures.filter((u) => u !== url), ...defaultRefs]);
   renderPicker();
   el("en-pick").hidden = false;
 }
 
 function renderPicker() {
-  el("en-pick-grid").innerHTML = photos.map((url) => `
+  // The other captures first, and preselected. Sending the top-down
+  // satellite alongside the oblique view is what tells the model the shape
+  // of the plot -- one view leaves it guessing at the half it cannot see,
+  // which is the difference between a good redraw and a great one.
+  const others = captures.filter((url) => url !== pickUrl);
+  const tile = (url, label) => `
     <button type="button" class="en-pick-item${chosen.has(url) ? " is-on" : ""}"
             data-url="${url}">
       <img src="${url}" alt="">
-      <span>${escapeHtml(roomLabel(url))}</span>
-    </button>`).join("");
+      <span>${escapeHtml(label)}</span>
+    </button>`;
+
+  el("en-pick-grid").innerHTML =
+    (others.length
+      ? `<p class="en-pick-head">Other views of this property</p>` +
+        others.map((url) => tile(url, `View ${captures.indexOf(url) + 1}`)).join("")
+      : "") +
+    `<p class="en-pick-head">Photos of the house</p>` +
+    photos.map((url) => tile(url, roomLabel(url))).join("");
 
   el("en-pick-grid").querySelectorAll(".en-pick-item").forEach((button) => {
     button.addEventListener("click", () => {
@@ -265,7 +278,7 @@ function renderPicker() {
 }
 
 el("en-pick-default").addEventListener("click", () => {
-  chosen = new Set(defaultRefs);
+  chosen = new Set([...captures.filter((u) => u !== pickUrl), ...defaultRefs]);
   renderPicker();
 });
 el("en-pick-cancel").addEventListener("click", () => { el("en-pick").hidden = true; });

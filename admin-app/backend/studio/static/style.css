@@ -6018,3 +6018,15 @@ button.en-shot {
 }
 .en-pick-item.is-on { border-color: var(--accent); }
 .en-pick-item.is-on span { color: var(--accent); font-weight: 700; }
+
+/* Group headings inside the picker grid, spanning it rather than sitting in
+   a cell -- the two kinds of input are chosen differently. */
+.en-pick-head {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}

@@ -28,9 +28,10 @@ import os
 
 from services import gemini_image
 
-# How many exterior photographs go up with the capture. Enough to establish
-# the house from more than one side; few enough that the capture is still
-# clearly the subject rather than one image among many.
+# How many images go up with the capture by default. The picker can send
+# more: the run that produced the shot this was rebuilt around used four --
+# an oblique Earth view, a top-down satellite, a street-level view and a
+# listing photograph -- and the mix mattered more than the count.
 MAX_REFERENCES = 4
 
 # Which room labels count as a look at the outside of the building. Same set
@@ -58,53 +59,31 @@ class EnhanceError(Exception):
     """The capture could not be edited."""
 
 
-PROMPT = """Redraw this Google Earth screenshot as a real photograph of
-this house, at the highest quality you can produce.
+# Short on purpose.
+#
+# The long version of this -- two and a half thousand characters of rules,
+# a camera lock and a ban list -- produced a careful, mediocre picture. The
+# same model given one sentence about what to make produced the shot that was
+# actually wanted. It is the prompt ladder's lesson again from the other end:
+# rules earn their place by fixing an observed failure, and every one that is
+# there "to be safe" is spending attention that would otherwise go on the
+# photograph.
+#
+# What is left: the task, which images are which, and the two failures that
+# were real -- Earth's interface, and its map labels.
+PROMPT = """Use the attached satellite and aerial views of this property,
+together with the ground photographs of the same home, to produce a
+realistic drone photograph of it from above.
 
-THE CAMERA DOES NOT MOVE. This is the rule that matters most. The result is
-shot from the same place as the screenshot: the same height, the same angle,
-the same distance, the same framing. An aerial view stays an aerial view --
-do not descend to the ground, do not swing round the building, do not
-re-centre it. Every roof, fence and driveway stays in the position it
-occupies in the screenshot.
+The first image is the view to work from: stay over the property, looking at
+what it is looking at. The ground photographs are the truth about the
+building -- its colours, materials, roof, windows, doors, fencing, driveway
+and planting.
 
-The first image is the screenshot. Every image after it is a photograph of
-THAT SAME HOUSE from the ground. They are the truth about the building, not
-a camera position to copy.
+The result is a real photograph: sharp, detailed, naturally lit.
 
-MAKE IT A PHOTOGRAPH, from that same viewpoint:
-- sharp throughout, no blur, no smearing, no melted geometry
-- real materials with real texture: individual roof shingles, the grain and
-  seams of the siding, the courses of the brick, the boards of the fence
-- clean straight architectural edges: the roof line, the eaves, the window
-  frames, the garage door panels, the corners of the walls
-- real glass in the windows, with reflection and depth rather than flat grey
-- lawn that reads as grass, concrete that reads as concrete, gravel that
-  reads as stones
-- natural sunlight, with the shadows falling exactly where the screenshot's
-  fall
-- the crisp detail and colour of a professional drone photograph
-
-TAKE FROM THE REFERENCE PHOTOGRAPHS:
-- the colour and material of every wall
-- the roof colour and pitch
-- the trim, the front door, the garage door, the porch, the railings
-- the fencing, the driveway, the path, the planting and the ground cover
-
-The screenshot may include Google Earth's own interface -- menus, a search
-box, a toolbar, a scale bar, a logo, a status line -- and Earth's map labels
-painted over the scene, such as house numbers floating above roofs and
-street names lying along the roads. None of that is part of the property.
-Render the landscape underneath instead: no menus, no toolbars, no floating
-numbers, no street names, and no band of interface at any edge.
-
-Do not add or remove buildings, vehicles, people or trees. Do not add text,
-logos or watermarks, and do not copy a watermark out of the reference
-photographs. Do not produce an illustration, a painting or a 3D render.
-
-This is a substantial upgrade, not a touch-up: the screenshot is soft and
-synthetic, the result is sharp and photographic. Do not return the first
-image unchanged -- and do not move the camera to achieve it."""
+Do not include Google Earth's interface, and do not include its map labels --
+no floating house numbers over the roofs, no street names along the roads."""
 
 
 def exterior_references(lead, limit=MAX_REFERENCES):
@@ -157,7 +136,15 @@ def enhance_capture(lead, url, references=None, cfg=None):
     if not path or not path.exists():
         raise EnhanceError("that capture is not on disk any more")
 
-    chosen = [u for u in (references or []) if u in (lead.photo_urls or [])]
+    # References can be listing photographs OR this property's other captures.
+    # Sending the top-down satellite alongside the oblique view is what tells
+    # the model the shape of the plot; sending only one leaves it guessing at
+    # the half it cannot see. Anything not belonging to this lead is dropped
+    # rather than trusted.
+    from services import dronepath
+
+    allowed = set(lead.photo_urls or []) | set(dronepath.images_of(lead.drone_path or {}))
+    chosen = [u for u in (references or []) if u in allowed and u != url]
     references = _paths_for(chosen or exterior_references(lead))
     if not references:
         raise EnhanceError(
