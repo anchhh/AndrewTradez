@@ -444,11 +444,15 @@ EXTERIOR_MOVES = [
         # constraints is not a better movement instruction.
         "MOVEMENT: one continuous drone flight in a single take. Begin exactly "
         "on the first photograph and arrive exactly at the final photograph, "
-        "travelling between them along the route described below. Change "
-        "altitude as that route needs -- climbing to clear the roof, dropping "
-        "again to settle -- rather than holding one height. Keep the building "
-        "centred and level, the speed even, and the motion flown rather than "
-        "animated: no cuts, no jumps, no hovering. Invent nothing in between.",
+        "travelling between them along the route described below. THE TWO "
+        "PHOTOGRAPHS ARE THE SAME HOUSE FROM OPPOSITE SIDES: the roof you "
+        "cross is its roof and the garden you land in is its own, directly "
+        "behind it. The two ends are never two different buildings; do not "
+        "travel past the property onto the next plot. Change altitude as the "
+        "route needs -- climbing to clear the ridge, settling behind it -- "
+        "rather than holding one height. Keep the speed even and the motion "
+        "flown, not animated: no cuts, no jumps, no hovering. Invent nothing "
+        "in between.",
     ),
     (
         "flyover_front_to_back",

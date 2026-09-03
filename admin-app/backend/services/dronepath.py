@@ -735,7 +735,9 @@ def describe(path):
     if span < 0.25:
         parts.append("a short distance only")
     elif span > 0.6:
-        parts.append("the full width of the plot, steadily")
+        # Was "the full width of the plot", which read as licence to keep
+        # going and land beyond the property.
+        parts.append("the length of this plot and no further, steadily")
     if curved:
         parts.append("curving as you go rather than travelling straight")
 
@@ -748,7 +750,8 @@ def describe(path):
     # renumbered the property mid-clip.
     if _near_centre(points, width, height):
         line += (" The path crosses the plot's middle: fly DIRECTLY OVER THE "
-                 "HOUSE, clearing the roof and descending beyond it.")
+                 "HOUSE, clearing its ridge and settling behind that same "
+                 "house -- not past it.")
     else:
         line += (" The path keeps to one side of the building: stay beside "
                  "the house and do not cross the roof.")
