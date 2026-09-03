@@ -16,6 +16,8 @@ const canvas = document.getElementById("dp-canvas");
 const ctx = canvas.getContext("2d");
 
 let points = [];      // [[x, y], ...] in the image's own pixels
+let views = [];       // every view captured at the Earth stage
+let current = null;   // the one being drawn on
 let natural = { w: 0, h: 0 };
 let references = [];
 
@@ -148,7 +150,7 @@ function payload() {
     points,
     width: natural.w,
     height: natural.h,
-    image: img.getAttribute("src"),
+    image: current || img.getAttribute("src"),
     references,
   };
 }
@@ -175,6 +177,54 @@ function useImage(src) {
 function noImage() {
   el("dp-empty").hidden = false;
   note("");
+}
+
+/* The captured views, as a strip under the canvas. Only shown when there is
+   more than one -- a chooser with a single option is furniture. */
+function renderViews() {
+  const box = el("dp-views");
+  if (views.length < 2) {
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = views.map((url, i) => `
+    <button type="button" class="dp-view${url === current ? " is-on" : ""}"
+            data-url="${url}">
+      <img src="${url}" alt="View ${i + 1}">
+    </button>`).join("");
+
+  box.querySelectorAll(".dp-view").forEach((button) => {
+    button.addEventListener("click", () => switchView(button.dataset.url));
+  });
+}
+
+/* Changing view abandons the line, because the points are in the old
+   picture's coordinates -- keeping them would draw the flight over the wrong
+   roof. Said out loud rather than done quietly. */
+async function switchView(url) {
+  if (url === current) return;
+  if (points.length && !confirm(
+      "The path you drew belongs to the view it was drawn on. Switching " +
+      "views clears it. Switch anyway?")) {
+    return;
+  }
+  try {
+    const res = await fetch(`/studio/api/leads/${lead}/drone-path`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "primary", image: url }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "couldn't switch view");
+    points = [];
+    current = url;
+    el("dp-described").textContent = "Draw a path to see it.";
+    renderViews();
+    useImage(url);
+    note("");
+  } catch (err) {
+    note(err.message);
+  }
 }
 
 /* An Earth screenshot, or any other overhead. Uploaded through the same
@@ -241,13 +291,16 @@ function renderRefs() {
     const body = await res.json();
     if (body.earth_url) el("dp-earth").href = body.earth_url;
     const saved = body.path || {};
+    views = body.images || [];
+    current = saved.image || views[0] || null;
+    renderViews();
     if (saved.points && saved.points.length) {
       points = saved.points;
       references = saved.references || [];
       renderRefs();
       el("dp-described").textContent = body.described || "—";
-      if (saved.image) { useImage(saved.image); return; }
     }
+    if (current) { useImage(current); return; }
   } catch (err) { /* a missing saved path just means drawing a new one */ }
   noImage();
 })();

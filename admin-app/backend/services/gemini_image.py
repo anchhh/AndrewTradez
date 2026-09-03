@@ -133,6 +133,35 @@ def edit_bytes(image_bytes, prompt, cfg=None, timeout=180):
                  prompt, cfg, timeout)
 
 
+def edit_with_references(local_path, prompt, reference_paths=(), cfg=None, timeout=240):
+    """Edit one photo with others alongside it for context.
+
+    The first image is the one being edited; the rest are shown to the model
+    so it can see the property's real colours and light. Order matters and is
+    stated in the prompt -- the model has no other way to know which of four
+    pictures it is meant to hand back.
+    """
+    cfg = cfg or load_config()
+    if not cfg["api_key"]:
+        raise GeminiNotConfigured(
+            "Gemini isn't connected. Put an API key in studio/gemini.json "
+            "(or set GEMINI_API_KEY)."
+        )
+
+    parts = [{"text": prompt}]
+    for path in [local_path, *reference_paths]:
+        mime = mimetypes.guess_type(path)[0] or "image/jpeg"
+        with open(path, "rb") as fh:
+            parts.append({"inline_data": {
+                "mime_type": mime,
+                "data": base64.b64encode(fh.read()).decode("ascii"),
+            }})
+
+    return _send({"contents": [{"parts": parts}],
+                  "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]}},
+                 cfg, timeout)
+
+
 def _edit(encoded, mime, prompt, cfg, timeout):
 
     payload = {
@@ -149,6 +178,10 @@ def _edit(encoded, mime, prompt, cfg, timeout):
         "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
     }
 
+    return _send(payload, cfg, timeout)
+
+
+def _send(payload, cfg, timeout):
     url = f"{BASE_URL}/models/{cfg['model']}:generateContent"
     try:
         resp = requests.post(

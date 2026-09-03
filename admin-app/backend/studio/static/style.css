@@ -5812,15 +5812,7 @@ gmp-map-3d {
   gap: 8px;
   padding: 7px 8px;
 }
-/* The one the flight path is drawn on, marked rather than merely first. */
-.ge-shot.is-primary { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.ge-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--accent);
-}
+.ge-shot-name { font-size: 0.76rem; color: var(--ink-soft); }
 .ge-x {
   border: 0;
   background: none;
@@ -5858,3 +5850,70 @@ gmp-map-3d {
   color: var(--ink-soft);
   font-size: 0.86rem;
 }
+
+/* The captured views, under the canvas. Thumbnails rather than names: one
+   Earth view is told from another by looking, not by reading. */
+.dp-views { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.dp-view {
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  overflow: hidden;
+}
+.dp-view img { width: 84px; height: 63px; object-fit: cover; display: block; }
+.dp-view.is-on { border-color: var(--accent); }
+
+/* ---------- stage 3: enhance ---------- */
+
+.en-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.en-head h2 { margin: 0 0 4px; }
+.en-head .hint { max-width: 62ch; }
+.en-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.en-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.en-item {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--cream-soft, #f6f2ea);
+}
+/* Corrected, marked on the frame rather than only in the caption -- the grid
+   is scanned for which ones changed. */
+.en-item.is-done { border-color: var(--accent); }
+.en-shot { position: relative; line-height: 0; }
+.en-shot img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.en-flag, .en-busy {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--accent);
+  color: #fff;
+}
+.en-busy { background: rgba(0, 0, 0, 0.62); }
+
+.en-item figcaption { display: grid; gap: 5px; padding: 8px 9px 10px; }
+.en-room { font-size: 0.8rem; font-weight: 600; }
+.en-note { font-size: 0.72rem; color: var(--ink-soft); line-height: 1.35; min-height: 1.35em; }
+.en-note.is-warn { color: var(--accent); }
+.en-buttons { display: flex; gap: 6px; flex-wrap: wrap; }

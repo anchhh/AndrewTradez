@@ -40,6 +40,12 @@
         <canvas id="dp-canvas"></canvas>
       </div>
 
+      {# Which captured view to draw on. It lives here rather than at the
+         capture stage because the answer shows immediately -- the picture
+         under the line changes -- and because the line is stored in that
+         picture's coordinates, so choosing is part of drawing. #}
+      <div class="dp-views" id="dp-views"></div>
+
       {# Nothing captured yet. The Earth stage is where a view comes from, so
          this points back at it rather than quietly fetching a lesser one. #}
       <p class="dp-empty" id="dp-empty" hidden>

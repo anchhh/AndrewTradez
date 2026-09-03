@@ -13,32 +13,30 @@ const el = (id) => document.getElementById(id);
 const note = (text) => { el("ge-note").textContent = text || ""; };
 
 let images = [];
-let primary = null;
 
-/* Every view captured for this property. The one the path is drawn on is
-   marked, because the path is stored in that picture's coordinates -- moving
-   it to another would be a line over the wrong roof. */
+/* Every view captured for this property.
+
+   No "draw on this" here any more: which view the flight is planned on is a
+   question for the planner, where the drawing actually happens and where the
+   answer is visible immediately. This stage is a collection. */
 function renderShots() {
   const box = el("ge-shots");
   if (!images.length) {
     box.innerHTML = "";
     return;
   }
-  box.innerHTML = images.map((url) => `
-    <figure class="ge-shot${url === primary ? " is-primary" : ""}" data-url="${url}">
-      <img src="${url}" alt="A captured view of this property">
+  box.innerHTML = images.map((url, i) => `
+    <figure class="ge-shot" data-url="${url}">
+      <img src="${url}" alt="Captured view ${i + 1}">
       <figcaption>
-        ${url === primary
-          ? `<span class="ge-badge">Drawing on this</span>`
-          : `<button type="button" class="btn-secondary btn-tiny" data-act="primary">Draw on this</button>`}
+        <span class="ge-shot-name">View ${i + 1}</span>
         <button type="button" class="ge-x" data-act="remove" aria-label="Remove">&times;</button>
       </figcaption>
     </figure>`).join("");
 
   box.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
-      const url = button.closest(".ge-shot").dataset.url;
-      change(button.dataset.act, url);
+      change(button.dataset.act, button.closest(".ge-shot").dataset.url);
     });
   });
 }
@@ -56,11 +54,8 @@ async function change(action, url) {
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "that didn't save");
     images = body.images || [];
-    primary = (body.path || {}).image || null;
     renderShots();
-    note(action === "primary"
-      ? "The flight path will be drawn on that view."
-      : "Saved.");
+    note("Saved.");
   } catch (err) {
     note(err.message);
   }
@@ -73,7 +68,6 @@ async function change(action, url) {
     const res = await fetch(`/studio/api/leads/${lead}/drone-path`);
     const body = await res.json();
     images = body.images || [];
-    primary = (body.path || {}).image || null;
     renderShots();
     if (images.length) {
       note(`${images.length} view${images.length > 1 ? "s" : ""} captured so far.`);

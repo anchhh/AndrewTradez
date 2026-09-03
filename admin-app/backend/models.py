@@ -83,6 +83,12 @@ class Lead(db.Model):
     # reused by every flight over it.
     drone_path_json = db.Column(db.Text, nullable=True)
 
+    # {original photo url: enhanced photo url}. The original stays the
+    # identity of a photo everywhere -- room labels, anchors, selections are
+    # all keyed by it -- and the enhanced file is only what gets rendered
+    # from. That way enhancing cannot quietly unsort a listing.
+    enhanced_photos_json = db.Column(db.Text, nullable=True)
+
     # Which folder this project sits in on the Projects page, or None for the
     # top level. A plain nullable column rather than a join table: a project
     # is in one folder, the way a file is in one folder.
@@ -157,6 +163,17 @@ class Lead(db.Model):
         if postcode and postcode not in line:
             line += " " + postcode
         return line.strip()
+
+    @property
+    def enhanced_photos(self):
+        try:
+            return json.loads(self.enhanced_photos_json or "{}")
+        except ValueError:
+            return {}
+
+    @enhanced_photos.setter
+    def enhanced_photos(self, value):
+        self.enhanced_photos_json = json.dumps(value or {})
 
     @property
     def drone_path(self):
@@ -248,6 +265,7 @@ class Lead(db.Model):
             "sold_package": self.sold_package,
             "folder_id": self.folder_id,
             "drone_path": self.drone_path,
+            "enhanced_photos": self.enhanced_photos,
             "sold_at": (self.sold_at.replace(tzinfo=timezone.utc).isoformat()
                         if self.sold_at else None),
             "photo_rooms": self.photo_rooms,

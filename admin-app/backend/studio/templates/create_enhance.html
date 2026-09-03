@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Enhance</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Enhance</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  <section class="card">
+    <div class="en-head">
+      <div>
+        <h2>Correct the photographs</h2>
+        <p class="hint">Gemini reads each photograph and says how far the
+          exposure, the white balance and the highlights are out. Those
+          numbers are applied to the real pixels &mdash; nothing is redrawn,
+          nothing is added, and the framing does not move. A photograph that
+          is already right is left alone.</p>
+      </div>
+      <div class="en-actions">
+        <button type="button" class="btn-send" id="en-all">Check every photo</button>
+        <span class="hint" id="en-note"></span>
+      </div>
+    </div>
+
+    {% if not configured %}
+      <p class="rn-scope-note is-warn">Gemini isn't connected, so nothing can
+        be judged. Add an API key to studio/gemini.json.</p>
+    {% endif %}
+
+    <div class="en-grid" id="en-grid"></div>
+  </section>
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ back_href }}">Back</a>
+    <a class="cta-btn" href="{{ next_href }}">Continue</a>
+  </div>
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__PHOTOS__ = {{ photos | tojson }};
+  window.__ROOMS__ = {{ rooms | tojson }};
+  window.__ENHANCED__ = {{ enhanced | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_enhance.js') }}"></script>
+</body>
+</html>

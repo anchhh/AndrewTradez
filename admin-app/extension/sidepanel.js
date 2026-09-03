@@ -673,23 +673,24 @@ async function loadShots() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return;
-    renderShots(apiBase, body.images || [], body.primary);
+    renderShots(apiBase, body.images || []);
   } catch (err) {
     /* the gallery is a convenience -- a capture still works without it */
   }
 }
 
-function renderShots(apiBase, images, primary) {
+function renderShots(apiBase, images) {
   const box = $("shots");
   // Stored as site-relative paths, so they need the backend's origin to load
-  // inside the panel.
+  // inside the panel. Numbered and nothing more: which view the flight is
+  // planned on is chosen in Studio, at the planner, and a second opinion
+  // here would only go stale.
   box.innerHTML = images
     .map((url, i) => {
       const src = url.startsWith("http") ? url : apiBase + url;
-      const chosen = url === primary;
-      return `<figure class="${chosen ? "is-primary" : ""}">
+      return `<figure>
           <img src="${src}" alt="Captured view ${i + 1}">
-          <figcaption>${chosen ? "Drawing on this" : `View ${i + 1}`}</figcaption>
+          <figcaption>View ${i + 1}</figcaption>
         </figure>`;
     })
     .join("");
@@ -724,7 +725,7 @@ async function captureAndSend() {
     if (!res.ok) throw new Error(body.error || `Send failed (${res.status})`);
 
     const count = (body.images || []).length;
-    renderShots(apiBase, body.images || [], body.primary);
+    renderShots(apiBase, body.images || []);
     setCreateStatus(
       `Sent to ${body.address} — ${count} view${count === 1 ? "" : "s"} on this ` +
         `listing now.` +

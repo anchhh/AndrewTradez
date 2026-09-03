@@ -1080,7 +1080,7 @@ STEP_FLOWS = {
 # Stages that exist in the bar but not yet in the app. Marked rather than
 # hidden: the numbering is the promise, and a gap in it is worse than a
 # stage that says it is coming.
-STEPS_SOON = {"Enhance"}
+STEPS_SOON = set()
 
 
 def _steps(style, current):
@@ -1146,6 +1146,10 @@ def _create_crumbs(here, style=None, project_id=None):
 
     if here == "earth":
         trail.append(("Google Earth", None))
+        return trail
+
+    if here == "enhance":
+        trail.append(("Enhance", None))
         return trail
 
     if here == "path":
@@ -1225,9 +1229,43 @@ def create_earth():
         "create_earth.html", lead=lead,
         earth_url=dronepath.earth_url(dronepath.full_address(lead)),
         back_href="/studio/create/video/listing?style=drone&lead_id=%s" % lead.id,
-        next_href="/studio/create/render?" + tail,
+        next_href=("/studio/create/video/enhance?lead_id=%s&style=drone" % lead.id
+                   + ("&project=%s" % quote(project_id) if project_id else "")),
         steps=_steps("drone", "Google Earth"),
         crumbs=_create_crumbs("earth", style="drone"))
+
+
+@studio_bp.route("/create/video/enhance")
+@login_required
+def create_enhance():
+    """Stage 3: correct the photographs before anything is made from them.
+
+    Needs a lead, because the photographs and the room labels that decide
+    which references go with which picture both live on one.
+    """
+    from services import gemini_image
+
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    style = (request.args.get("style") or "drone").strip().lower()
+    project_id = request.args.get("project")
+    tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
+    back = ("/studio/create/video/earth?lead_id=%s" % lead.id
+            + ("&project=%s" % quote(project_id) if project_id else ""))
+
+    return render_template(
+        "create_enhance.html", lead=lead,
+        photos=lead.photo_urls or [],
+        rooms=lead.photo_rooms or {},
+        enhanced=lead.enhanced_photos or {},
+        configured=gemini_image.is_configured(),
+        back_href=back,
+        next_href="/studio/create/render?" + tail,
+        steps=_steps(style, "Enhance"),
+        crumbs=_create_crumbs("enhance", style=style))
 
 
 @studio_bp.route("/create/video/path")
@@ -3057,6 +3095,69 @@ def api_lead_drone_path(lead_id):
     lead.drone_path = path
     db.session.commit()
     return jsonify({"path": path, "described": dronepath.describe(path)})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/enhance", methods=["POST"])
+@login_required
+def api_lead_enhance(lead_id):
+    """Judge one photograph and save the corrected version.
+
+    One photo per request rather than a whole listing: each is a separate
+    call to Google, a listing is thirty of them, and a browser holding one
+    request open for two minutes is a request that times out having done
+    most of the work invisibly.
+    """
+    from extensions import db
+    from services import enhance, gemini_image
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    photo = (request.get_json(silent=True) or {}).get("photo")
+    try:
+        url, corrections = enhance.enhance_photo(lead, photo)
+    except gemini_image.GeminiNotConfigured as exc:
+        return jsonify({"error": str(exc)}), 400
+    except enhance.EnhanceError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    mapping = dict(lead.enhanced_photos or {})
+    if url:
+        mapping[photo] = url
+    else:
+        # Nothing needed doing. Any earlier correction of this photo is
+        # dropped rather than left behind claiming to be current.
+        mapping.pop(photo, None)
+    lead.enhanced_photos = mapping
+    db.session.commit()
+
+    return jsonify({"photo": photo, "enhanced": url,
+                    "corrections": corrections,
+                    "note": corrections.get("note")})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/enhance/revert", methods=["POST"])
+@login_required
+def api_lead_enhance_revert(lead_id):
+    """Go back to the photograph as it was taken.
+
+    The file stays on disk -- it is one line of mapping that decides which
+    version anything renders from, and deleting the picture would make this
+    irreversible for no gain.
+    """
+    from extensions import db
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    photo = (request.get_json(silent=True) or {}).get("photo")
+    mapping = dict(lead.enhanced_photos or {})
+    mapping.pop(photo, None)
+    lead.enhanced_photos = mapping
+    db.session.commit()
+    return jsonify({"photo": photo, "enhanced": None})
 
 
 @studio_bp.route("/api/showcase/rebuild", methods=["POST"])
