@@ -67,6 +67,12 @@ MAX_IMAGES = 10
 # because a clip is longer.
 POLL_TIMEOUT = 300
 
+# Super-resolution, used at both ends of a generation. Tencent's, at "ultra",
+# because it was the one tested against this app's own output: on the same
+# front shot it turned mushed shingle into individual courses and a smeared
+# porch light into a fitting, at 2.4 cents and fifty seconds.
+UPSCALER = "tencent/image/upscaler"
+
 
 class AtlasImageError(Exception):
     """Atlas Cloud refused the edit, or never finished it."""
@@ -133,9 +139,43 @@ def edit(paths, prompt, cfg=None, on_tick=None, model=None):
     if resolution:
         payload["resolution"] = resolution
 
+    return _run(payload, cfg, on_tick=on_tick)
+
+
+def upscale(path, cfg=None, percent=1.0, kind="ultra", on_tick=None):
+    """Sharpen an image, optionally enlarging it. Returns bytes.
+
+    percent=1.0 keeps the size and restores detail, which is what a finished
+    generation needs; a larger factor is for giving the model something with
+    real pixels in it BEFORE it redraws.
+    """
+    cfg = cfg or video.load_config()
+    if not cfg.get("api_key"):
+        raise AtlasImageError("Atlas Cloud isn't connected.")
+    if not os.path.exists(path):
+        raise AtlasImageError("that image is not on disk")
+
+    try:
+        url = video.upload_image(path, cfg)
+    except video.VideoError as exc:
+        raise AtlasImageError(str(exc)) from exc
+
+    return _run({"model": UPSCALER, "image_url": url, "type": kind,
+                 "mode": "percent", "percent": float(percent),
+                 "encode_format": "PNG"}, cfg, on_tick=on_tick,
+                endpoint="generateImage")
+
+
+def _run(payload, cfg, on_tick=None, endpoint="generateVideo"):
+    """Submit, wait, fetch. Every model on this API works this way.
+
+    The endpoint differs only because the tools are documented under
+    generateImage while the editors were found under generateVideo, which
+    takes images perfectly well -- it is one queue behind both names.
+    """
     try:
         resp = requests.post(
-            "%s/model/generateVideo" % video.BASE_URL,
+            "%s/model/%s" % (video.BASE_URL, endpoint),
             headers={"Authorization": "Bearer %s" % cfg["api_key"],
                      "Content-Type": "application/json"},
             json=payload,
@@ -169,7 +209,7 @@ def edit(paths, prompt, cfg=None, on_tick=None, model=None):
         raise AtlasImageError("Atlas Cloud finished without returning an image")
 
     try:
-        got = requests.get(url, timeout=120)
+        got = requests.get(url, timeout=180)
         got.raise_for_status()
     except requests.RequestException as exc:
         raise AtlasImageError("the finished image could not be fetched: %s" % exc) from exc

@@ -278,11 +278,72 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None,
         raise EnhanceError("that prompt is too long to send")
 
     try:
-        blob = atlas_image.edit([str(path)] + references, wording, model=model)
+        blob = atlas_image.edit([_enlarged(path, cfg)] + references, wording,
+                                cfg=cfg, model=model)
     except atlas_image.AtlasImageError as exc:
         raise EnhanceError(str(exc)) from exc
 
-    return _save(UPLOAD_DIR, path, blob, "enhanced")
+    return _save(UPLOAD_DIR, path, _sharpened(blob, cfg), "enhanced")
+
+
+# The two passes that decide how the result LOOKS, as opposed to what is in
+# it. Both are super-resolution; they sit at opposite ends of the generation
+# for different reasons.
+#
+# An Earth capture is a browser screenshot, about 1400 across. Asking for 4K
+# from that is asking the model to spread 1.4 megapixels of information over
+# sixteen, and it does: at 1:1 the shingles were blurred blobs, the garage
+# door panels indistinct, the porch light a smear. Enlarging the capture
+# first gives it real pixels to redraw, and the same prompt with the same
+# references then came back with individual shingle courses.
+#
+# The second pass is for what the model still softens on its way out. Run on
+# the finished image at its own size, it restores micro-texture without
+# touching the composition -- and composition is the expensive part, so this
+# is the safe end to sharpen at.
+BASE_SCALE = 3.0
+BASE_ENOUGH = 2400  # already big enough that enlarging would only cost time
+
+
+def _enlarged(path, cfg):
+    """The capture with more pixels in it, or the capture.
+
+    Best-effort throughout: a sharpening step that fails must not lose the
+    generation behind it, so every failure here returns the original and the
+    run carries on.
+    """
+    from PIL import Image
+
+    try:
+        if Image.open(str(path)).width >= BASE_ENOUGH:
+            return str(path)
+        blob = atlas_image.upscale(str(path), cfg=cfg, percent=BASE_SCALE)
+    except Exception:  # noqa: BLE001 -- see above
+        return str(path)
+    return _temp(blob) or str(path)
+
+
+def _sharpened(blob, cfg):
+    """The finished image with its detail restored, or the finished image."""
+    handle = _temp(blob)
+    if not handle:
+        return blob
+    try:
+        return atlas_image.upscale(handle, cfg=cfg, percent=1.0)
+    except Exception:  # noqa: BLE001
+        return blob
+
+
+def _temp(blob):
+    import tempfile
+
+    try:
+        fh = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        fh.write(blob)
+        fh.close()
+        return fh.name
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def crop_capture(lead, url, box):

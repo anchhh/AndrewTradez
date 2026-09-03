@@ -316,9 +316,11 @@ el("gn-review-go").addEventListener("click", () => {
 async function generate(sideKey) {
   busy[sideKey] = "Generating…";
   render();
-  // Said out loud because it is not fast and it is not free: 4K on Pro takes
-  // the better part of a minute and costs about a quarter.
-  note("Generating through Atlas Cloud — a minute or two.");
+  // Said out loud because it is not fast and it is not free: three calls
+  // now -- enlarge the capture, redraw it, restore the detail -- and the
+  // middle one is the slow expensive one.
+  note("Sharpening the capture, redrawing it, then restoring detail — "
+       + "about two and a half minutes.");
   try {
     const res = await fetch(`/studio/api/leads/${lead}/generate-side`, {
       method: "POST",
