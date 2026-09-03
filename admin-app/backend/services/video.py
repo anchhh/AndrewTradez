@@ -442,8 +442,8 @@ EXTERIOR_MOVES = [
         # the number being there because a flyover once renumbered the
         # property mid-clip. A movement instruction that costs the prompt its
         # constraints is not a better movement instruction.
-        "MOVEMENT: one continuous drone flight, single take, from the first "
-        "photograph to the last along the route below. THE TWO PHOTOGRAPHS "
+        "MOVEMENT: one continuous drone flight, single take, first photograph "
+        "to last, along the route below. THE TWO PHOTOGRAPHS "
         "ARE THE SAME HOUSE FROM OPPOSITE SIDES and the shot is the reveal "
         "between them: climb over the front, clear the ridge, and as you pass "
         "it TURN THE CAMERA A FULL HALF-CIRCLE, 180 degrees, to face back at "
