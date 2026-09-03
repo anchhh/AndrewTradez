@@ -64,8 +64,15 @@
 
       <figure class="dr-recap-end is-route">
         <span class="dr-recap-tag">Route</span>
+        {# The line, not just the picture it was drawn on. Showing the bare
+           overhead here invited the reasonable question of whether the path
+           had been recorded at all. #}
         {% if flight.image %}
-          <img src="{{ flight.image }}" alt="The overhead the route was drawn on">
+          <div class="dr-route">
+            <img id="dr-route-img" src="{{ flight.image }}"
+                 alt="The overhead the route was drawn on">
+            <canvas id="dr-route-canvas"></canvas>
+          </div>
         {% else %}
           <div class="gn-placeholder">No route drawn</div>
         {% endif %}
@@ -176,6 +183,7 @@
   window.__RATES__ = {{ rates | tojson }};
   window.__DESCRIBED__ = {{ (described or "") | tojson }};
   window.__MOVE_NAME__ = {{ (move or "") | tojson }};
+  window.__FLIGHT__ = {{ flight | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_drone.js') }}"></script>
 </body>

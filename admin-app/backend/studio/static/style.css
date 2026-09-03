@@ -6771,3 +6771,6 @@ button.gn-review-shot {
   .dr-recap-arrow { transform: rotate(90deg); }
   .dr-recap-end.is-route { border-left: 0; padding-left: 0; }
 }
+.dr-route { position: relative; line-height: 0; }
+.dr-route img { width: 100%; border-radius: 9px; display: block; }
+.dr-route canvas { position: absolute; inset: 0; pointer-events: none; }

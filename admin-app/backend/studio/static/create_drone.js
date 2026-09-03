@@ -14,6 +14,7 @@ const made = window.__MADE__ || {};
 const rates = window.__RATES__ || {};
 const described = window.__DESCRIBED__ || "";
 const moveName = window.__MOVE_NAME__ || "Drone flight";
+const flight = window.__FLIGHT__ || {};
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { el("dr-note").textContent = text || ""; };
@@ -178,6 +179,56 @@ async function poll(jobId) {
   } catch (err) {
     setTimeout(() => poll(jobId), 6000);
   }
+}
+
+/* ---------- the route, drawn ---------- */
+
+/* The same line the flight stage drew, over the same picture. It is a
+   read-back and it should read back the thing itself: an overhead with no
+   line on it is indistinguishable from an overhead with no line SAVED. */
+function drawRoute() {
+  const img = el("dr-route-img");
+  const canvas = el("dr-route-canvas");
+  const points = flight.points || [];
+  if (!img || !canvas || points.length < 2 || !flight.width) return;
+
+  canvas.width = img.clientWidth;
+  canvas.height = img.clientHeight;
+  const sx = img.clientWidth / flight.width;
+  const sy = img.clientHeight / flight.height;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const line = points.map((p) => [p[0] * sx, p[1] * sy]);
+
+  // Dark casing under a light line, so it reads over a pale driveway and a
+  // dark roof alike -- the same pair the flight stage draws with.
+  [["rgba(12,10,8,0.55)", 5], ["#ff6b35", 2.5]].forEach((pair) => {
+    ctx.beginPath();
+    ctx.moveTo(line[0][0], line[0][1]);
+    line.slice(1).forEach((p) => ctx.lineTo(p[0], p[1]));
+    ctx.strokeStyle = pair[0];
+    ctx.lineWidth = pair[1];
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  });
+
+  [[line[0], "#ff6b35"], [line[line.length - 1], "#1f7a4d"]].forEach((end) => {
+    ctx.beginPath();
+    ctx.arc(end[0][0], end[0][1], 5, 0, Math.PI * 2);
+    ctx.fillStyle = end[1];
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+  });
+}
+
+if (el("dr-route-img")) {
+  const img = el("dr-route-img");
+  if (img.complete) drawRoute(); else img.addEventListener("load", drawRoute);
+  window.addEventListener("resize", drawRoute);
 }
 
 /* ---------- go ---------- */
