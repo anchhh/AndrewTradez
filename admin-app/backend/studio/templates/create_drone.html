@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>estly Studio &mdash; Drone shot</title>
+<link rel="stylesheet" href="{{ url_for('studio.static', filename='style.css') }}">
+</head>
+<body>
+{% include "_nav.html" %}
+<div class="wrap wrap-wide">
+  {% include "_create_back.html" %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Drone shot</h1>
+      <p class="sub">{{ lead.full_address }}</p>
+    </div>
+  </header>
+
+  {% include "_steps.html" %}
+
+  {% if not configured %}
+    <p class="rn-scope-note is-warn">{{ config_error or
+      "The video generator isn't connected. Add an Atlas Cloud key to
+       studio/atlascloud.json." }}</p>
+  {% endif %}
+
+  {% if not frames %}
+    <section class="card">
+      <h2>Nothing to fly over yet</h2>
+      <p class="hint">This shot is generated between two of the views captured
+        at stage 2. <a href="{{ back_href }}">Go back and capture some</a>.</p>
+    </section>
+  {% else %}
+
+  <section class="card">
+    <h2>The flight</h2>
+    <p class="hint">One shot across one property, between two real frames of
+      it. The model fills in what happens in between, which is why both ends
+      are pictures rather than descriptions.</p>
+
+    <div class="dr-ends">
+      <div class="dr-end">
+        <h3>Starts on</h3>
+        <div class="dr-frames" id="dr-start"></div>
+      </div>
+      <div class="dr-end">
+        <h3>Ends on</h3>
+        <p class="hint">Optional. With an ending the model interpolates
+          between two photographs instead of inventing the far side.</p>
+        <div class="dr-frames" id="dr-end"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>How it moves</h2>
+    <div class="dr-moves" id="dr-moves"></div>
+
+    <p class="dr-path" id="dr-path">
+      {% if described %}
+        <span>{{ described }}</span>
+      {% else %}
+        <span class="hint">No flight path drawn. The camera follows the move
+          above.</span>
+      {% endif %}
+      <a class="btn-tiny" href="{{ path_href }}">{{ described and "Edit path" or "Draw a path" }}</a>
+    </p>
+
+    <div class="rn-setall">
+      <span class="rn-setall-label">Length</span>
+      <select id="dr-duration" class="rn-select">
+        {% for seconds in durations %}
+          <option value="{{ seconds }}"{{ ' selected' if seconds == 10 }}>{{ seconds }} seconds</option>
+        {% endfor %}
+      </select>
+      <span class="rn-setall-label">Resolution</span>
+      <select id="dr-resolution" class="rn-select">
+        {% for res in resolutions %}<option value="{{ res }}">{{ res }}</option>{% endfor %}
+      </select>
+      <span class="hint" id="dr-cost"></span>
+    </div>
+  </section>
+
+  <div class="row action-row ge-actions">
+    <a class="btn-secondary" href="{{ back_href }}">Back</a>
+    <button type="button" class="cta-btn" id="dr-go">Generate the shot</button>
+    <span class="hint" id="dr-note"></span>
+  </div>
+
+  <section class="card" id="dr-running" hidden>
+    <h2 id="dr-run-title">Generating</h2>
+    <p class="hint" id="dr-run-sub"></p>
+    <div id="dr-result"></div>
+  </section>
+  {% endif %}
+</div>
+
+<script>
+  window.__LEAD__ = {{ lead.id | tojson }};
+  window.__FRAMES__ = {{ frames | tojson }};
+  window.__LABELS__ = {{ labels | tojson }};
+  window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+  window.__MOVES__ = {{ moves | tojson }};
+  window.__RATES__ = {{ rates | tojson }};
+</script>
+<script src="{{ url_for('studio.static', filename='create_drone.js') }}"></script>
+</body>
+</html>

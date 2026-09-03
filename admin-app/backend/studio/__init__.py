@@ -1073,7 +1073,12 @@ def _carry():
 # templates because inserting a stage used to mean renumbering two lists of
 # hand-written <li>s and hoping they agreed.
 STEP_FLOWS = {
-    "drone": ["Listing", "Google Earth", "Enhance", "Style & shots", "Clips"],
+    # Stage 4 is not the same job in the two flows and does not share a page.
+    # A walkthrough is a clip per photograph with a camera move on each; a
+    # drone shot is one flight between two frames of the same property. They
+    # were sharing the shots step, which meant a drone run arrived at a
+    # room-by-room picker that had nothing to do with it.
+    "drone": ["Listing", "Google Earth", "Enhance", "Drone shot", "Clips"],
     None: ["Listing", "Style & shots", "Clips"],
 }
 
@@ -1115,11 +1120,12 @@ STAGE_PAGES = {
     "earth": ("Google Earth", "/studio/create/video/earth"),
     "enhance": ("Enhance", "/studio/create/video/enhance"),
     "render": ("Style & shots", "/studio/create/render"),
+    "drone": ("Drone shot", "/studio/create/video/drone"),
 }
 
 # The stage each page belongs to, for pages that are not stages themselves.
 # The flight planner is opened from the shots step and belongs behind it.
-STAGE_OF = {"path": "render"}
+STAGE_OF = {"path": "drone"}
 
 
 def _create_crumbs(here, style=None, project_id=None):
@@ -1173,7 +1179,7 @@ def _create_crumbs(here, style=None, project_id=None):
     # Back is one step rather than a jump to the beginning.
     stage = STAGE_OF.get(here, here)
     labels = STEP_FLOWS.get(style if style == "drone" else None)
-    order = [key for key in ("listing", "earth", "enhance", "render")
+    order = [key for key in ("listing", "earth", "enhance", "render", "drone")
              if STAGE_PAGES[key][0] in labels]
 
     if stage not in order:
@@ -1309,6 +1315,9 @@ def create_enhance():
     style = (request.args.get("style") or "drone").strip().lower()
     project_id = request.args.get("project")
     tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
+    onward = ("/studio/create/video/drone?lead_id=%s&style=drone" % lead.id
+              + ("&project=%s" % quote(project_id) if project_id else "")
+              if style == "drone" else "/studio/create/render?" + tail)
     back = ("/studio/create/video/earth?lead_id=%s" % lead.id
             + ("&project=%s" % quote(project_id) if project_id else ""))
 
@@ -1332,9 +1341,60 @@ def create_enhance():
         rooms=lead.photo_rooms or {},
         configured=gemini_image.is_configured(),
         back_href=back,
-        next_href="/studio/create/render?" + tail,
+        next_href=onward,
         steps=_steps(style, "Enhance"),
         crumbs=_create_crumbs("enhance", style=style))
+
+
+@studio_bp.route("/create/video/drone")
+@login_required
+def create_drone():
+    """Stage 4 of a drone run, which is not stage 4 of a walkthrough.
+
+    A walkthrough turns each photograph into its own clip with its own camera
+    move. A drone shot is one flight across one property, between two frames
+    of it -- there is no per-room grain to choose, and the room-by-room picker
+    the other flow uses had nothing to say about it.
+
+    What this page chooses instead: which captured view the flight starts on,
+    which it ends on, how the camera moves between them and for how long.
+    """
+    from services import dronepath, video
+
+    lead_id = request.args.get("lead_id")
+    lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
+    if lead is None:
+        return redirect(url_for("studio.create", style="drone"))
+
+    path = lead.drone_path or {}
+    project_id = request.args.get("project")
+    cfg = video.load_config()
+
+    # Placed first, in plan order, because those are the views someone has
+    # already said something about. Everything else after, so a capture that
+    # was never filed is still usable.
+    placed = dronepath.placed(lead)
+    rest = [u for u in dronepath.images_of(path) if u not in placed]
+
+    return render_template(
+        "create_drone.html", lead=lead,
+        frames=placed + rest,
+        labels={url: slots[0] for url, slots in
+                ((u, dronepath.slots_for(path, u)) for u in placed + rest) if slots},
+        shot_labels=dronepath.SHOT_LABELS,
+        described=dronepath.describe(path),
+        path_href="/studio/create/video/path?lead_id=%s&style=drone" % lead.id,
+        moves=[{"key": key, "name": name, "note": note}
+               for key, name, note, _ in video.EXTERIOR_MOVES],
+        durations=video.model_info(cfg).get("durations") or [5, 8, 10],
+        resolutions=video.model_info(cfg).get("resolutions") or ["1080p"],
+        rates=video.model_info(cfg).get("rates") or {},
+        configured=bool(cfg.get("api_key")),
+        config_error=cfg.get("config_error"),
+        back_href=("/studio/create/video/enhance?lead_id=%s&style=drone" % lead.id
+                   + ("&project=%s" % quote(project_id) if project_id else "")),
+        steps=_steps("drone", "Drone shot"),
+        crumbs=_create_crumbs("drone", style="drone", project_id=project_id))
 
 
 @studio_bp.route("/create/video/path")
@@ -3787,6 +3847,86 @@ def api_video_generate():
             2,
         ),
     }), 201
+
+
+@studio_bp.route("/api/video/drone", methods=["POST"])
+@login_required
+def api_video_drone():
+    """Generate one drone shot from this property's captured views.
+
+    Separate from /api/video/generate on purpose. That one renders a clip per
+    listing photograph and validates every frame against lead.photo_urls --
+    which is right for a walkthrough and wrong here, because these frames are
+    Earth captures and are not listing photographs at all.
+
+    The prompt comes from the same exterior stack the flyover clips use, so
+    the rules a year of failed renders bought still apply, with the drawn
+    flight path carried in as site context.
+    """
+    from flask import current_app
+
+    from services import dronepath, video
+    from services.video_jobs import VideoJobBusy, start_job
+
+    cfg = video.load_config()
+    if not cfg["api_key"]:
+        return jsonify({"error": cfg.get("config_error") or
+                        "The video generator isn't connected."}), 400
+
+    data = request.get_json(silent=True) or {}
+    lead = get_owned_lead(int(data.get("lead_id") or 0)) if str(
+        data.get("lead_id") or "").isdigit() else None
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    path = lead.drone_path or {}
+    captures = set(dronepath.images_of(path))
+
+    start = (data.get("start") or "").strip()
+    end = (data.get("end") or "").strip()
+    if start not in captures:
+        return jsonify({"error": "That starting frame is not one of this "
+                                 "property's captures."}), 400
+    if end and end not in captures:
+        return jsonify({"error": "That ending frame is not one of this "
+                                 "property's captures."}), 400
+    if end and end == start:
+        return jsonify({"error": "A shot can't end on the frame it starts "
+                                 "from."}), 400
+
+    move = (data.get("move") or "").strip().lower()
+    if move not in dict((k, n) for k, n, _, _ in video.EXTERIOR_MOVES):
+        return jsonify({"error": "Unknown drone move."}), 400
+
+    info = video.model_info(cfg)
+    try:
+        seconds = int(data.get("duration") or 10)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Length must be a number."}), 400
+    if not video.MIN_DURATION <= seconds <= video.MAX_DURATION:
+        return jsonify({"error": "Length must be between %s and %s seconds."
+                        % (video.MIN_DURATION, video.MAX_DURATION)}), 400
+
+    resolution = (data.get("resolution") or "1080p").strip()
+    if resolution not in info["resolutions"]:
+        return jsonify({"error": "%s doesn't offer %s." % (info["label"], resolution)}), 400
+
+    # House number, plot geometry and the drawn flight, the same facts the
+    # exterior clips carry.
+    site = exterior_site_facts(lead, {})
+    spec = {"move": move, "duration": seconds, "resolution": resolution,
+            "site": site}
+    if end:
+        spec["anchor"] = end
+
+    try:
+        job = start_job(current_app._get_current_object(), session["user_id"],
+                        [start], lead_id=lead.id, duration=seconds,
+                        resolution=resolution, specs=[spec])
+    except VideoJobBusy as exc:
+        return jsonify({"error": str(exc)}), 409
+
+    return jsonify({"job_id": job.id, "estimated_cost": job.estimated_cost})
 
 
 @studio_bp.route("/api/video/jobs/<int:job_id>/cancel", methods=["POST"])
