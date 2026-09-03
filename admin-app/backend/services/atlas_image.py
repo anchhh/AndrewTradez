@@ -39,7 +39,10 @@ MODELS = [
     {
         "key": "google/nano-banana-pro/edit-ultra",
         "label": "Best",
-        "note": "Nano Banana Pro. 5028×3336, about 15¢.",
+        "note": "Nano Banana Pro. About 5100×3250, roughly 15¢.",
+        # 4k, not 8k. Asking for 8k returns exactly the same 5148x3258 --
+        # tested on the same capture -- so the higher setting buys nothing
+        # and the ceiling here is the model's, not the request's.
         "resolution": "4k",
     },
     {

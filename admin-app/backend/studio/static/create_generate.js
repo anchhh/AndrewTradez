@@ -88,14 +88,27 @@ function render() {
     const inputs = el(`gn-inputs-${side.key}`);
     if (!inputs) return;
     const all = [side.base, ...(side.references || [])].filter(Boolean);
-    inputs.innerHTML = all.map((url, i) => `
-      <button type="button" class="gn-input${i === 0 ? " is-base" : ""}"
-              data-url="${url}">
-        <img src="${url}" alt="">
-        <span>${i === 0 ? "Base" : escapeHtml(nameOf(url))}</span>
-      </button>`).join("");
+
+    // Numbered, because the order is not decoration: the model treats the
+    // first image as the subject and weighs the rest after it.
+    inputs.innerHTML = all.map((url, i) => {
+      const label = i === 0 ? "Base — redrawn" : nameOf(url);
+      return `
+        <button type="button" class="gn-input${i === 0 ? " is-base" : ""}"
+                data-url="${url}" title="${escapeHtml(label)} — click for full size">
+          <img src="${url}" alt="">
+          <span class="gn-input-n">${i + 1}</span>
+          <span class="gn-input-name">${escapeHtml(label)}</span>
+        </button>`;
+    }).join("");
+
     inputs.querySelectorAll(".gn-input").forEach((button) =>
       button.addEventListener("click", () => zoom(button.dataset.url)));
+
+    const count = el(`gn-count-${side.key}`);
+    if (count) {
+      count.textContent = `— all ${all.length}, in this order`;
+    }
   });
 
   document.querySelectorAll(".gn-go").forEach((button) => {

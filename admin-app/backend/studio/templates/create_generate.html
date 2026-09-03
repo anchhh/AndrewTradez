@@ -74,7 +74,14 @@
           </div>
 
           {% if side.base %}
-            <p class="gn-inputs-label hint">Generated from these</p>
+            {# The complete list, not a sample. Every image here goes to the
+               model, in this order, and the first is the one it redraws --
+               so being able to see them all is the difference between
+               trusting the result and guessing at it. #}
+            <p class="gn-inputs-label hint">
+              Generated from these
+              <span class="gn-inputs-count" id="gn-count-{{ side.key }}"></span>
+            </p>
             <div class="gn-inputs" id="gn-inputs-{{ side.key }}"></div>
           {% else %}
             <p class="hint">Nothing placed for this side yet.
