@@ -1272,11 +1272,16 @@ async function openLeadRenders(leadId) {
   // reading down the page follows the work.
   const ordered = [...done].sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
 
+  // The run somebody clicked to get here, marked and scrolled to. A
+  // listing with six renders is a long page, and "it is on here somewhere"
+  // is not an answer to "open this clip".
+  const wanted = new URLSearchParams(location.search).get("run");
+
   el("rn-clips").classList.add("rn-clips-grouped");
   el("rn-clips").innerHTML = ordered.map((run, n) => {
     const cost = run.cost != null ? run.cost : run.estimated_cost;
     return `
-      <section class="rn-run-block">
+      <section class="rn-run-block" id="rn-run-${run.id}">
         <h3 class="rn-run-title">
           <span class="rn-run-n">${n + 1}</span>
           <span>${run.clips.length} clip${run.clips.length === 1 ? "" : "s"}</span>
@@ -1300,8 +1305,23 @@ async function openLeadRenders(leadId) {
       </section>`;
   }).join("");
 
+  // Marked and scrolled to, if you came here to see one in particular.
+  if (wanted) {
+    const block = el("rn-run-" + wanted);
+    if (block) {
+      block.classList.add("is-here");
+      block.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  const cameFromClips =
+    new URLSearchParams(location.search).get("from") === "clips";
   el("rn-results-note").textContent =
-    "Separate clips from separate runs — stitching them into one video isn't built yet.";
+    "Separate clips from separate runs — stitching them into one video isn't "
+    + "built yet. "
+    + (cameFromClips
+       ? "Back returns to this property's videos."
+       : "Back goes to the shots, where you can change them and render again.");
 }
 
 /* ---------- trashing a clip ----------
@@ -1745,9 +1765,10 @@ function backToShots() {
 
 el("rn-again").addEventListener("click", () => {
   const params = new URLSearchParams(location.search);
-  if (params.get("from") === "clips" && params.get("lead_id")) {
+  const lead = params.get("lead_id") || params.get("lead");
+  if (params.get("from") === "clips" && lead) {
     window.location.href = "/studio/create/video/clips?lead_id="
-      + encodeURIComponent(params.get("lead_id"));
+      + encodeURIComponent(lead);
     return;
   }
   backToShots();

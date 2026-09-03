@@ -6903,3 +6903,9 @@ a.cl-style:hover { text-decoration: underline; }
   aspect-ratio: 16 / 9;
   background: repeating-linear-gradient(45deg, #e6ded2, #e6ded2 10px, #ddd4c6 10px, #ddd4c6 20px);
 }
+/* The run you clicked to get here. */
+.rn-run-block.is-here {
+  border-radius: 12px;
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+}

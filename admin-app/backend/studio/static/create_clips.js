@@ -62,8 +62,8 @@ function madeAt(run) {
   if (run.style === "drone") {
     return "/studio/create/video/drone?lead_id=" + lead + "&style=drone";
   }
-  return "/studio/create/render?job=" + run.id
-    + "&from=clips&lead_id=" + lead;
+  return "/studio/create/render?lead=" + lead
+    + "&from=clips&run=" + run.id;
 }
 
 async function load() {
