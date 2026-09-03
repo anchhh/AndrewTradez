@@ -51,10 +51,27 @@ function escapeHtml(value) {
    once. Walked in the plan's order rather than the object's, because the
    object arrives alphabetically sorted and that named a front overhead
    "Back". */
+function boxKeysOf(url) {
+  return slotOrder.filter((key) => (slots[key] || []).includes(url));
+}
+
 function boxesOf(url) {
-  return slotOrder
-    .filter((key) => (slots[key] || []).includes(url))
-    .map((key) => shotLabels[key] || "Capture");
+  return boxKeysOf(url).map((key) => shotLabels[key] || "Capture");
+}
+
+/* Front, Back or Neighbours, from the box's own key. Which GROUP a picture
+   belongs to is the question people actually ask of this list -- "where are
+   the neighbours" was asked of a panel that was already sending four of
+   them, under the name of the first box they happened to sit in. */
+const GROUPS = { front: "Front", back: "Back", nb: "Neighbours" };
+
+function groupsOf(url) {
+  const seen = [];
+  boxKeysOf(url).forEach((key) => {
+    const group = GROUPS[key.split("_")[0]];
+    if (group && !seen.includes(group)) seen.push(group);
+  });
+  return seen;
 }
 
 function nameOf(url) {
@@ -109,7 +126,8 @@ function render() {
 
     const inputs = el(`gn-inputs-${side.key}`);
     if (!inputs) return;
-    const all = [side.base, ...(side.references || [])].filter(Boolean);
+    const all = inputsOf(side);
+    const held = heldBack(side).length;
 
     // Numbered, because the order is not decoration: the model treats the
     // first image as the subject and weighs the rest after it.
@@ -129,7 +147,9 @@ function render() {
 
     const count = el(`gn-count-${side.key}`);
     if (count) {
-      count.textContent = `— all ${all.length}, in this order`;
+      count.textContent = held
+        ? `— ${all.length} of ${all.length + held}, in this order`
+        : `— all ${all.length}, in this order`;
     }
   });
 
@@ -148,8 +168,40 @@ function render() {
 
 let pending = null;
 
+/* Which references a side is sending. The ranking picks the first ten by
+   default; swapping one out is the only way anything below the line gets in,
+   because the ceiling is the model's and not ours. */
+const picks = {};
+
+function chosenFor(side) {
+  if (!picks[side.key]) picks[side.key] = (side.references || []).slice();
+  return picks[side.key];
+}
+
+/* Everything placed for this side that is not going. Named rather than
+   counted: "the last 3 do not go" does not answer "where are my
+   neighbours". */
+function heldBack(side) {
+  const chosen = chosenFor(side);
+  return (side.all || []).filter((url) => !chosen.includes(url));
+}
+
 function inputsOf(side) {
-  return [side.base, ...(side.references || [])].filter(Boolean);
+  return [side.base, ...chosenFor(side)].filter(Boolean);
+}
+
+/* Click a held-back picture to send it. Something has to come out to make
+   room, and it is the last one in -- the least important thing currently
+   going, by the same ranking. */
+function swapIn(side, url) {
+  const chosen = chosenFor(side);
+  if (chosen.length >= (side.limit || 9)) chosen.pop();
+  chosen.push(url);
+  picks[side.key] = chosen;
+}
+
+function swapOut(side, url) {
+  picks[side.key] = chosenFor(side).filter((u) => u !== url);
 }
 
 function review(sideKey) {
@@ -158,15 +210,16 @@ function review(sideKey) {
   pending = sideKey;
 
   const all = inputsOf(side);
+  const held = heldBack(side);
   el("gn-review-title").textContent = `Generate the ${side.label.toLowerCase()}`;
   el("gn-review-side").textContent = `— the ${side.key}`;
   el("gn-review-prompt").value = promptFor(sideKey);
 
   // The ceiling is the model's, so it is stated rather than hidden: someone
   // who filled every box should not have to wonder why nine went.
-  el("gn-review-count").textContent = side.over
-    ? `— ${all.length} of ${side.placed + 1}; the model takes ${all.length}, `
-      + `so the last ${side.over} on the board do not go`
+  el("gn-review-count").textContent = held.length
+    ? `— ${all.length} of ${all.length + held.length}; the model takes `
+      + `${all.length}`
     : `— all ${all.length}`;
 
   const model = document.querySelector('input[name="gn-model"]:checked');
@@ -183,19 +236,50 @@ function review(sideKey) {
     // The base says what it is doing, so its second line says where it came
     // from instead; the rest say how many other boxes hold the same picture,
     // because the board's count and this one will not match otherwise.
+    const groups = groupsOf(url);
     const also = i === 0
       ? `<span class="gn-review-also">${escapeHtml(boxes[0] || "")}</span>`
-      : boxes.length > 1
-        ? `<span class="gn-review-also">also in ${boxes.length - 1} other ${
-            boxes.length === 2 ? "box" : "boxes"}</span>`
+      : groups.length > 1
+        ? `<span class="gn-review-also">counts as ${
+            escapeHtml(groups.join(" · "))}</span>`
         : "";
     return `
       <figure class="gn-review-shot${i === 0 ? " is-base" : ""}"
+              data-url="${url}"
               title="${escapeHtml(boxes.join(" · ") || "Capture")}">
         <img src="${url}" alt="">
+        ${i === 0 ? "" : `<button type="button" class="gn-review-drop"
+             aria-label="Do not send this one">&times;</button>`}
         <figcaption><b>${i + 1}</b> ${escapeHtml(name)}${also}</figcaption>
       </figure>`;
   }).join("");
+
+  // Below the line, by name, and clickable. The model's ten is a hard
+  // ceiling, so this is a swap rather than an add -- but which ten is a
+  // judgement, and it belongs to whoever filled the board.
+  el("gn-review-held").hidden = !held.length;
+  el("gn-review-held-list").innerHTML = held.map((url) => `
+    <button type="button" class="gn-review-shot is-held" data-url="${url}"
+            title="${escapeHtml(boxesOf(url).join(" · "))} — click to send this
+instead of the last one">
+      <img src="${url}" alt="">
+      <figcaption>${escapeHtml(boxesOf(url)[0] || "Capture")}
+        <span class="gn-review-also">click to send</span></figcaption>
+    </button>`).join("");
+
+  el("gn-review-shots").querySelectorAll(".gn-review-shot").forEach((fig, i) => {
+    if (i === 0) return;  // the base is not a reference and cannot come out
+    fig.querySelector(".gn-review-drop").addEventListener("click", (e) => {
+      e.stopPropagation();
+      swapOut(side, fig.dataset.url);
+      review(sideKey);
+    });
+  });
+  el("gn-review-held-list").querySelectorAll(".is-held").forEach((button) =>
+    button.addEventListener("click", () => {
+      swapIn(side, button.dataset.url);
+      review(sideKey);
+    }));
 
   el("gn-review").hidden = false;
 }
@@ -243,6 +327,7 @@ async function generate(sideKey) {
         side: sideKey,
         model: (document.querySelector('input[name="gn-model"]:checked') || {}).value,
         prompt: promptFor(sideKey),
+        references: chosenFor(sides.find((s) => s.key === sideKey) || {}),
       }),
     });
     const body = await res.json();

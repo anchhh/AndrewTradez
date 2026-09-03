@@ -1363,14 +1363,16 @@ def create_generate():
              "back": "Where it lands."}
     sides = []
     for key in dronepath.SIDES:
-        base, references = dronepath.base_for(lead, key)
-        sent, placed = dronepath.reference_count(lead, key)
+        base, ranked = dronepath._ordered(lead, key)
         sides.append({"key": key, "label": key.title(), "note": notes[key],
-                      "base": base, "references": references,
-                      # What did not fit. The model takes ten including the
-                      # base, and a full board is larger than that, so this
-                      # is said out loud rather than silently dropped.
-                      "over": max(0, placed - sent), "placed": placed})
+                      "base": base,
+                      # The whole board, in ranked order, NOT cut to the
+                      # model's ten. The page cuts it, shows what fell off
+                      # the end by name, and lets it be swapped back in --
+                      # "three did not go" is not an answer to "where are my
+                      # neighbours".
+                      "references": ranked[:dronepath.MAX_REFERENCES],
+                      "all": ranked, "limit": dronepath.MAX_REFERENCES})
 
     return render_template(
         "create_generate.html", lead=lead,
@@ -3359,6 +3361,12 @@ def api_generate_side(lead_id):
     if side not in dronepath.SIDES:
         return jsonify({"error": "There is no such side."}), 400
 
+    # Which references, when the page has been rearranged. Checked inside
+    # enhance_capture against what this lead actually owns, so an edited
+    # request cannot reach for another listing's photographs.
+    chosen = data.get("references")
+    chosen = [u for u in chosen if isinstance(u, str)]         if isinstance(chosen, list) else None
+
     if request.method == "DELETE":
         path = dronepath.set_generated(lead, side, None)
         db.session.commit()
@@ -3375,6 +3383,8 @@ def api_generate_side(lead_id):
             return jsonify({"error": "That image is not on disk."}), 400
     else:
         base, references = dronepath.base_for(lead, side)
+        if chosen is not None:
+            references = chosen[:dronepath.MAX_REFERENCES]
         if not base:
             return jsonify({"error": "Nothing is placed for the %s of this "
                                      "property yet." % side}), 400
