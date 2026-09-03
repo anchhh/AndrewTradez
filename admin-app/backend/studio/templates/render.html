@@ -75,6 +75,9 @@
     <div class="step-nav">
       <button type="button" class="btn-secondary" id="rn-back">Back</button>
       <span id="rn-note" class="hint"></span>
+      {# Forward without rendering. Render was the only way to step 3, so
+         looking at clips you already had cost the price of making more. #}
+      <button type="button" class="btn-secondary" id="rn-next" hidden></button>
       <button type="button" class="btn-send" id="rn-go" disabled>Render</button>
     </div>
   </section>
@@ -96,10 +99,16 @@
 
     <ul class="scn-gen-list" id="rn-list"></ul>
 
+    {# Finished clips, while the rest are still going. They were kept as they
+       landed and shown only at the end, so a six-clip run was five minutes of
+       watching a bar when the first clip was ready after one. #}
+    <div class="rn-clips" id="rn-live"></div>
+
     <div class="step-nav">
+      <button type="button" class="btn-secondary" id="rn-running-back">Back</button>
       <span class="hint">
-        Clips are generated one at a time and kept as they land — closing this
-        page stops the run, but nothing already finished is lost.
+        Clips are generated one at a time and kept as they land — going back
+        stops the run, but nothing already finished is lost.
       </span>
       <button type="button" class="btn-secondary" id="rn-cancel">Stop</button>
     </div>

@@ -1041,6 +1041,24 @@ function setProgress(done, total) {
   }
 }
 
+/* The clips that have landed, while the others are still running.
+
+   They were being held back until the whole job finished: on a six-clip run
+   that is five minutes of watching a progress bar with the first clip sitting
+   ready behind it. Same markup as the results grid, so a clip does not change
+   shape when the run ends. */
+function renderLive(clips) {
+  const done = (clips || []).filter((c) => c && c.video_url);
+  const box = el("rn-live");
+  if (!box) return;
+  box.innerHTML = done.map((clip, i) => `
+    <figure class="rn-clip">
+      <video src="${escapeHtml(clip.video_url)}" controls playsinline
+             preload="metadata"></video>
+      <figcaption>Clip ${i + 1}${clip.move ? " · " + escapeHtml(moveName(clip.move)) : ""}</figcaption>
+    </figure>`).join("");
+}
+
 function renderClipList(clips, total) {
   el("rn-list").innerHTML = Array.from({ length: total }, (_, i) => {
     const clip = clips[i];
@@ -1129,6 +1147,7 @@ async function pollJob(jobId) {
   state.job = job;
   setProgress(job.clips_done, job.clips_total);
   renderClipList(job.clips || [], job.clips_total);
+  renderLive(job.clips || []);
 
   if (job.status === "queued" || job.status === "running") {
     // Slower than Scenery's poll on purpose: clips take minutes, not seconds.
@@ -1645,6 +1664,39 @@ async function init() {
 
 el("rn-recommend").addEventListener("click", useRecommended);
 el("rn-go").addEventListener("click", startRender);
+/* On to the clips this listing already has, without making more.
+
+   Shown only when there are some: a button offering to show you nothing is
+   worse than no button. Wired once the saved renders have loaded, which is
+   also when the count is known. */
+async function wireNextToClips() {
+  const next = el("rn-next");
+  if (!next || !project.lead_id) return;
+  let clips = 0;
+  try {
+    const res = await fetch("/studio/api/video/jobs");
+    if (!res.ok) return;
+    clips = ((await res.json()).renders || [])
+      .filter((r) => String(r.lead_id) === String(project.lead_id))
+      .reduce((n, run) => n + (run.clips || [])
+        .filter((c) => c.video_url && !c.deleted_at).length, 0);
+  } catch (err) {
+    return;  // no count, no button: better than a button that lies
+  }
+  if (!clips) return;
+  next.textContent = `Next: ${clips} clip${clips === 1 ? "" : "s"} →`;
+  next.hidden = false;
+}
+
+wireNextToClips();
+
+el("rn-next").addEventListener("click", () => {
+  show("rn-setup", false);
+  show("rn-results", true);
+  markStep(3);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
 el("rn-back").addEventListener("click", () => {
   // Carry the listing, not only the project: a render opened from a lead has
   // no project behind it and was landing on an empty listing step.
@@ -1697,6 +1749,18 @@ document.querySelectorAll("#steps .step").forEach((li) => {
     }
     if (step === 2) backToShots();
   });
+});
+
+/* Back out of a run. Stops it the way Stop does -- there is no version of
+   "go back" that leaves clips being paid for behind you -- and says so on the
+   button beside it rather than doing it silently. */
+el("rn-running-back").addEventListener("click", async () => {
+  if (state.job) {
+    await fetch(`/studio/api/video/jobs/${state.job.id}/cancel`, { method: "POST" })
+      .catch(() => {});
+  }
+  state.polling = false;
+  backToShots();
 });
 
 el("rn-cancel").addEventListener("click", async () => {

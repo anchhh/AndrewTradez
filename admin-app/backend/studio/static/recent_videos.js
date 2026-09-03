@@ -12,7 +12,7 @@
    one panel of it, and somebody who clicked a video thumbnail asked for the
    videos. This page does not try to be a second gallery. */
 
-(async function recentVideos() {
+async function recentVideos() {
   const card = document.getElementById("rv-card");
   const grid = document.getElementById("rv-grid");
   if (!card || !grid) return;
@@ -54,7 +54,10 @@
   const homes = new Map();
   runs.forEach((run) => {
     const clips = (run.clips || []).filter((c) => c.video_url);
-    if (!clips.length) return;
+    // A run still going counts even with nothing finished yet. It was
+    // skipped, so starting a render and coming back here showed no sign of
+    // it -- the one thing somebody returning to this page wants to know.
+    if (!clips.length && !run.running) return;
     const key = run.lead_id ? "lead:" + run.lead_id : "run:" + run.id;
     let home = homes.get(key);
     if (!home) {
@@ -62,24 +65,30 @@
         lead: run.lead_id,
         job: run.id,
         name: run.address || "No listing",
-        poster: clips[0].video_url,
+        poster: clips.length ? clips[0].video_url : null,
         clips: 0,
+        running: 0,
         latest: null,
         styles: new Set(),
       };
       homes.set(key, home);
     }
     home.clips += clips.length;
+    if (run.running) home.running += 1;
     if (run.style) home.styles.add(run.style);
     const made = when(run.created_at);
-    if (made && (!home.latest || made > home.latest)) {
+    if (made && (!home.latest || made > home.latest) && clips.length) {
       home.latest = made;
       home.poster = clips[0].video_url;
     }
   });
 
-  const list = [...homes.values()].sort(
-    (a, b) => (b.latest ? b.latest.getTime() : 0) - (a.latest ? a.latest.getTime() : 0));
+  // Anything rendering first: it is the only row on this page that changes
+  // while you look at it.
+  const list = [...homes.values()].sort((a, b) => {
+    if (!!b.running !== !!a.running) return b.running - a.running;
+    return (b.latest ? b.latest.getTime() : 0) - (a.latest ? a.latest.getTime() : 0);
+  });
   if (!list.length) return;
 
   const STYLES = { drone: "drone", walkthrough: "walkthrough", basic: "basic" };
@@ -94,19 +103,33 @@
     const kinds = [...home.styles].map((s) => STYLES[s]).filter(Boolean);
     // #t=0.5 so the poster frame is half a second in: the first frame of a
     // drone shot is often the sky.
-    return '<a class="rv-tile" href="' + esc(href) + '">' +
-      '<video src="' + esc(home.poster) + '#t=0.5" preload="metadata" muted></video>' +
+    const poster = home.poster
+      ? '<video src="' + esc(home.poster) + '#t=0.5" preload="metadata" muted></video>'
+      : '<span class="rv-blank"></span>';
+    const counts = [];
+    if (home.clips) counts.push(home.clips + (home.clips === 1 ? " clip" : " clips"));
+    if (home.running) counts.push(home.running + " rendering…");
+    return '<a class="rv-tile' + (home.running ? " is-running" : "") +
+      '" href="' + esc(href) + '">' + poster +
       '<span class="rv-name">' + esc(home.name) + "</span>" +
-      '<span class="rv-sub">' + home.clips +
-      (home.clips === 1 ? " clip" : " clips") +
+      '<span class="rv-sub">' + esc(counts.join(" · ")) +
       (kinds.length ? " · " + esc(kinds.join(", ")) : "") +
       (home.latest ? " · " + esc(ago(home.latest)) : "") + "</span></a>";
   }).join("");
 
   const clips = list.reduce((n, h) => n + h.clips, 0);
+  const busy = list.reduce((n, h) => n + h.running, 0);
   document.getElementById("rv-note").textContent =
     list.length + (list.length === 1 ? " property" : " properties") + ", " +
     clips + (clips === 1 ? " clip" : " clips") +
+    (busy ? ", " + busy + " still rendering" : "") +
     " — open one to see its videos.";
   card.hidden = false;
-}());
+
+  // While something is running this page is out of date the moment it
+  // renders. Polled slowly: a clip takes minutes, and the only thing that
+  // changes is a count.
+  if (busy) setTimeout(recentVideos, 15000);
+}
+
+recentVideos();
