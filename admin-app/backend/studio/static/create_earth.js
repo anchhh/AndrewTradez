@@ -61,19 +61,31 @@ el("ge-lightbox").addEventListener("click", (e) => {
 });
 
 /* A magnifier corner for anything that already does something else when
-   clicked -- a chip in a box, a tile in the picker. */
+   clicked -- a chip in a box, a tile in either strip, a tile in the picker.
+
+   A span rather than a button, deliberately. The picker's tiles ARE buttons,
+   and a button inside a button is invalid HTML: the parser closes the outer
+   one when it meets the inner, which put every tile's label outside its own
+   frame and made the picker look broken. role and tabindex give it the
+   behaviour a button would have had. */
 function zoomButton(url) {
-  return `<button type="button" class="ge-zoom" data-act="zoom" data-url="${url}"
-                  aria-label="See it full size">&#10530;</button>`;
+  return `<span class="ge-zoom" role="button" tabindex="0" data-act="zoom"
+                data-url="${url}" title="See it full size"
+                aria-label="See it full size">&#10530;</span>`;
 }
 
 function wireZoom(root) {
-  root.querySelectorAll('[data-act="zoom"]').forEach((button) =>
-    button.addEventListener("click", (e) => {
+  root.querySelectorAll('[data-act="zoom"]').forEach((control) => {
+    const open = (e) => {
       e.stopPropagation();
       e.preventDefault();
-      zoom(button.dataset.url);
-    }));
+      zoom(control.dataset.url);
+    };
+    control.addEventListener("click", open);
+    control.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") open(e);
+    });
+  });
 }
 
 /* ---------- the plan ---------- */
@@ -297,9 +309,9 @@ function renderPicker() {
               data-url="${url}">
         <img src="${url}" alt="">
         ${zoomButton(url)}
-        <span>${escapeHtml(elsewhere
-          ? `in ${shotName(slots[url])}`
-          : (found.shot.source === "listing" ? roomLabel(url) : "Capture"))}</span>
+        <span title="${escapeHtml(elsewhere ? `In ${shotName(slots[url])}` : "")}">${
+          escapeHtml(elsewhere ? shotName(slots[url]) : (
+            found.shot.source === "listing" ? roomLabel(url) : "Not placed"))}</span>
       </button>`;
   }).join("");
 
@@ -321,9 +333,18 @@ function renderPicker() {
     : (picked.size ? "1 selected" : "none selected");
 }
 
+/* Short enough to fit a tile: "Front · 3D" rather than "Front — Satellite
+   3D". The full name is on the tile's title attribute for anyone who wants
+   it. */
+const SHORT = {
+  "Street views": "Street", "Satellite overhead": "Overhead",
+  "Satellite 3D": "3D", "Reference photos": "Reference",
+};
+
 function shotName(slot) {
   const found = shotFor(slot);
-  return found ? `${found.group.label} — ${found.shot.label}` : slot;
+  if (!found) return slot;
+  return `${found.group.label} · ${SHORT[found.shot.label] || found.shot.label}`;
 }
 
 el("ge-picker-cancel").addEventListener("click", () => { el("ge-picker").hidden = true; });

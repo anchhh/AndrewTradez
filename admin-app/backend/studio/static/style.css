@@ -6287,9 +6287,24 @@ button.en-shot {
   opacity: 0;
   transition: opacity 0.12s;
 }
+/* Always there rather than on hover. A control you have to discover by
+   waving the mouse over things is a control most people never find, and this
+   one answers the question the whole stage is about: which view is this? */
+.ge-zoom { opacity: 0.72; display: flex; align-items: center; justify-content: center; }
 .ge-shot:hover .ge-zoom,
 .ge-box-chip:hover .ge-zoom,
 .en-pick-item:hover .ge-zoom,
 .ge-zoom:focus { opacity: 1; }
 .ge-zoom:hover { background: var(--accent); }
 .ge-box-chip, .ge-shot, .en-pick-item { position: relative; }
+
+/* One line, clipped. Tiles of different heights make a grid look broken, and
+   the full name is on the title attribute anyway. */
+.en-pick-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The picker's own grid, a touch wider than stage 3's so a street view is
+   recognisable rather than merely present. */
+.ge-picker-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
