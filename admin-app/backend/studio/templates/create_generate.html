@@ -99,6 +99,49 @@
   </div>
 </div>
 
+{# The confirmation. Generating is the one action on this page that spends
+   money and takes a minute, and until now the button did it immediately off
+   a list of thumbnails -- the prompt, which decides more about the result
+   than anything else here, was not on the page at all. So: the exact text
+   that will be sent, the exact images in the exact order, and then a yes. #}
+<div class="gn-review" id="gn-review" hidden>
+  <div class="en-crop-panel gn-review-panel">
+    <div class="en-crop-head">
+      <strong id="gn-review-title"></strong>
+      <span>This is exactly what gets sent. Nothing runs until you confirm.</span>
+    </div>
+
+    <div class="gn-review-body">
+      <div class="gn-review-col">
+        <h4 class="gn-review-h">The prompt</h4>
+        <p class="hint">Editable, for this run. It reads the way it does
+          because it was rewritten against results &mdash; the long careful
+          version made a worse picture than this one.</p>
+        <textarea id="gn-review-prompt" class="gn-review-prompt"
+                  spellcheck="false" rows="18"></textarea>
+        <button type="button" class="btn-secondary btn-tiny gn-review-reset"
+                id="gn-review-reset">
+          Back to the default wording
+        </button>
+      </div>
+
+      <div class="gn-review-col">
+        <h4 class="gn-review-h">The images <span class="hint" id="gn-review-count"></span></h4>
+        <p class="hint">In this order. The first is the one being redrawn;
+          the rest are what it matches against.</p>
+        <div class="gn-review-shots" id="gn-review-shots"></div>
+        <p class="hint" id="gn-review-model"></p>
+      </div>
+    </div>
+
+    <div class="en-crop-actions">
+      <span class="en-crop-spacer"></span>
+      <button type="button" class="btn-secondary" id="gn-review-cancel">Cancel</button>
+      <button type="button" class="btn-send" id="gn-review-go">Generate</button>
+    </div>
+  </div>
+</div>
+
 <div class="ge-lightbox" id="ge-lightbox" hidden>
   <button type="button" class="ge-lightbox-x" id="ge-lightbox-x"
           aria-label="Close">&times;</button>
@@ -111,6 +154,7 @@
   window.__GENERATED__ = {{ generated | tojson }};
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
   window.__SLOTS__ = {{ slots | tojson }};
+  window.__PROMPT__ = {{ prompt | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_generate.js') }}"></script>
 </body>

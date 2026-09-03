@@ -21,7 +21,14 @@ const sides = window.__SIDES__ || [];
 const shotLabels = window.__SHOT_LABELS__ || {};
 const slots = window.__SLOTS__ || {};
 
+const defaultPrompt = window.__PROMPT__ || "";
+
 let generated = window.__GENERATED__ || {};
+/* One prompt, shared by both columns: it is the same job twice, and having
+   edited it for the front only to find the back still on the old wording is
+   a trap rather than a feature. Lives for the visit -- an edit is a thing
+   you are trying, not a setting. */
+let prompt = defaultPrompt;
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { el("gn-note").textContent = text || ""; };
@@ -117,6 +124,72 @@ function render() {
   });
 }
 
+/* ---------- the confirmation ---------- */
+
+/* What a run will consist of, shown before it costs anything. The button used
+   to fire straight into a paid minute-long call off the strength of a row of
+   thumbnails, and the single biggest input -- the wording -- was not visible
+   anywhere on the page. */
+
+let pending = null;
+
+function inputsOf(side) {
+  return [side.base, ...(side.references || [])].filter(Boolean);
+}
+
+function review(sideKey) {
+  const side = sides.find((s) => s.key === sideKey);
+  if (!side || !side.base) return;
+  pending = sideKey;
+
+  const all = inputsOf(side);
+  el("gn-review-title").textContent = `Generate the ${side.label.toLowerCase()}`;
+  el("gn-review-prompt").value = prompt;
+  el("gn-review-count").textContent = `— all ${all.length}`;
+
+  const model = document.querySelector('input[name="gn-model"]:checked');
+  const label = model ? model.closest(".en-model").querySelector("strong") : null;
+  el("gn-review-model").textContent = label
+    ? `Model: ${label.textContent} — change it behind this box if that is wrong.`
+    : "";
+
+  el("gn-review-shots").innerHTML = all.map((url, i) => {
+    const name = i === 0 ? "Base — redrawn" : nameOf(url);
+    return `
+      <figure class="gn-review-shot${i === 0 ? " is-base" : ""}">
+        <img src="${url}" alt="">
+        <figcaption><b>${i + 1}</b> ${escapeHtml(name)}</figcaption>
+      </figure>`;
+  }).join("");
+
+  el("gn-review").hidden = false;
+}
+
+function closeReview() {
+  el("gn-review").hidden = true;
+  pending = null;
+}
+
+el("gn-review-cancel").addEventListener("click", closeReview);
+el("gn-review-reset").addEventListener("click", () => {
+  el("gn-review-prompt").value = defaultPrompt;
+});
+el("gn-review").addEventListener("click", (e) => {
+  if (e.target.id === "gn-review") closeReview();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !el("gn-review").hidden) closeReview();
+});
+
+el("gn-review-go").addEventListener("click", () => {
+  const sideKey = pending;
+  // Remembered before the box closes, so the next confirmation opens on the
+  // wording that just ran rather than throwing the edit away.
+  prompt = el("gn-review-prompt").value.trim() || defaultPrompt;
+  closeReview();
+  if (sideKey) generate(sideKey);
+});
+
 /* ---------- generating ---------- */
 
 async function generate(sideKey) {
@@ -132,6 +205,7 @@ async function generate(sideKey) {
       body: JSON.stringify({
         side: sideKey,
         model: (document.querySelector('input[name="gn-model"]:checked') || {}).value,
+        prompt: prompt,
       }),
     });
     const body = await res.json();
@@ -146,7 +220,7 @@ async function generate(sideKey) {
 }
 
 document.querySelectorAll(".gn-go").forEach((button) =>
-  button.addEventListener("click", () => generate(button.dataset.side)));
+  button.addEventListener("click", () => review(button.dataset.side)));
 
 /* ---------- bringing the shot back ---------- */
 

@@ -1347,7 +1347,7 @@ def create_generate():
     board at stage 2 feeds one of these two columns, with the neighbours in
     both.
     """
-    from services import atlas_image, dronepath
+    from services import atlas_image, dronepath, enhance
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1371,6 +1371,7 @@ def create_generate():
         "create_generate.html", lead=lead,
         sides=sides,
         generated=dronepath.generated_of(path),
+        prompt=enhance.PROMPT,
         models=atlas_image.MODELS,
         default_model=atlas_image.MODEL,
         slots=dronepath.slots_of(path),
@@ -3371,9 +3372,14 @@ def api_generate_side(lead_id):
             return jsonify({"error": "Nothing is placed for the %s of this "
                                      "property yet." % side}), 400
         try:
+            # The page shows this text before it asks for a confirmation, so
+            # what arrives here is what was on screen -- edited or not. Sent
+            # every time rather than only when changed: "what I saw" and
+            # "what ran" are the same string or the confirmation was theatre.
             image = enhance.enhance_capture(
                 lead, base, references=references,
-                model=(data.get("model") or "").strip() or None)
+                model=(data.get("model") or "").strip() or None,
+                prompt=data.get("prompt"))
         except enhance.EnhanceError as exc:
             return jsonify({"error": str(exc)}), 400
 

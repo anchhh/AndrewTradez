@@ -52,7 +52,20 @@ class EnhanceError(Exception):
 #
 # What is left: the task, which images are which, and the two failures that
 # were real -- Earth's interface, and its map labels.
-PROMPT = """Use the attached satellite and aerial views of this property,
+def _reflow(text):
+    """Paragraphs on one line each.
+
+    The text below is wrapped to the source file's margin, which never
+    mattered while it only went to a model. It is on screen now, and a
+    sentence broken across three lines in a textarea reads as damage. Blank
+    lines still separate paragraphs; everything else is one flowing line.
+    """
+    sep = chr(10) * 2
+    return sep.join(" ".join(block.split())
+                    for block in text.split(sep) if block.strip())
+
+
+PROMPT = _reflow("""Use the attached satellite and aerial views of this property,
 together with the ground photographs of the same home, to produce a
 realistic drone photograph of it from above.
 
@@ -82,7 +95,7 @@ in the foreground are all read from the first image and from nothing else.
 The result is a real photograph: sharp, detailed, naturally lit.
 
 Do not include Google Earth's interface, and do not include its map labels --
-no floating house numbers over the roofs, no street names along the roads."""
+no floating house numbers over the roofs, no street names along the roads.""")
 
 
 def exterior_references(lead, limit=MAX_REFERENCES):
@@ -160,13 +173,24 @@ def _trimmed(path):
         return str(path)  # not worth failing a generation over
 
 
-def enhance_capture(lead, url, references=None, cfg=None, model=None):
+# A ceiling on an edited prompt. Not a rule about what to write -- it is
+# there so a paste accident cannot send a novel to a paid endpoint.
+MAX_PROMPT = 6000
+
+
+def enhance_capture(lead, url, references=None, cfg=None, model=None,
+                    prompt=None):
     """Redraw one Earth capture as a photograph of this house.
 
     `references` is what to match against -- this property's other captures
     and its listing photographs. Chosen by hand when the caller passes them,
     because which side of a house a view shows is obvious to a person and
     guesswork here, and the board's own order otherwise.
+
+    `prompt` overrides the default wording for this one run. The page shows
+    the real text before it spends anything, and a prompt you can read but
+    not change is a strange thing to show someone -- especially this one,
+    which is only what it is because it was rewritten against results.
 
     Returns the saved URL of the new image. The capture it came from is left
     on disk untouched: reverting is a swap, not a restore.
@@ -196,8 +220,12 @@ def enhance_capture(lead, url, references=None, cfg=None, model=None):
 
     # The capture first: Atlas passes the list straight through and the model
     # treats the first image as the subject. Everything after it is context.
+    wording = (prompt or "").strip() or PROMPT
+    if len(wording) > MAX_PROMPT:
+        raise EnhanceError("that prompt is too long to send")
+
     try:
-        blob = atlas_image.edit([str(path)] + references, PROMPT, model=model)
+        blob = atlas_image.edit([str(path)] + references, wording, model=model)
     except atlas_image.AtlasImageError as exc:
         raise EnhanceError(str(exc)) from exc
 
