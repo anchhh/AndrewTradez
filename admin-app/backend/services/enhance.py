@@ -82,12 +82,25 @@ SIDE_RULES = {
     "back": {
         "name": "BACK",
         "other": "front",
-        "shows": "the garden and whatever sits in it -- lawn, patio, deck, "
-                 "fence line -- in the foreground, the rear elevation facing "
-                 "the camera, and the street only in the distance behind the "
-                 "house",
+        # Where the CAMERA stands, not just what is in shot.
+        #
+        # The old wording -- garden in the foreground, house behind it, street
+        # beyond -- describes a camera standing outside the rear fence,
+        # looking back at the property. That is a fine photograph and a
+        # ruinous end frame: the front frame looks north from over the street
+        # and this one looks south from over the neighbour's garden, so any
+        # flight between them has to cross the house, LEAVE the plot, and turn
+        # around. The clip panning onto the next lot was not the model going
+        # wrong; it was the only route between the two viewpoints it was
+        # given.
+        "shows": "the rear of the house from high above this property's OWN "
+                 "back garden, looking down: the roof and the rear elevation "
+                 "together in the upper half, the patio and lawn directly "
+                 "below the camera, and this plot's own fence line around "
+                 "them",
         "never": "no front door, no driveway, no garage doors, no street "
-                 "frontage in the foreground",
+                 "frontage, and no view taken from beyond the rear fence "
+                 "looking back at the property",
     },
 }
 
@@ -134,7 +147,9 @@ The result is a real photograph: sharp, detailed, naturally lit.
 Do not include Google Earth's interface, and do not include its map labels --
 no floating house numbers over the roofs, no street names along the roads.
 
-The camera is over the %(name)s of the house, looking at the %(name)s."""
+The camera is over the %(name)s of the house, looking at the %(name)s, and it
+is INSIDE this property's own boundary -- above its roof, its drive or its
+garden, never standing on a neighbouring plot to look back at it."""
 
 
 def prompt_for(side):
