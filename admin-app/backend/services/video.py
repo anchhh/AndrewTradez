@@ -436,18 +436,19 @@ EXTERIOR_MOVES = [
         "Drone flight",
         "One continuous flight between the two shots, at whatever heights the "
         "route needs",
-        "MOVEMENT: one continuous drone flight, shot in a single take. Begin "
-        "exactly on the first photograph and arrive exactly at the final "
-        "photograph provided, travelling between them along the route "
-        "described below. Fly it the way a drone operator filming this "
-        "property would: climb, descend and change altitude wherever the "
-        "route calls for it -- rising to clear the roof, dropping again to "
-        "settle over the garden -- rather than holding one height throughout. "
-        "Keep the building centred and level, keep the speed even, and let "
-        "the movement look flown rather than animated: no cuts, no jumps, no "
-        "sudden acceleration, no hovering in place. The building beneath you "
-        "is the same building in both photographs -- travel between them, and "
-        "invent nothing in between.",
+        # Kept tight. The first draft of this said the same thing three ways
+        # over 751 characters, which pushed the prompt down to the last rung
+        # of the ladder and lost the site orientation AND the house number --
+        # the number being there because a flyover once renumbered the
+        # property mid-clip. A movement instruction that costs the prompt its
+        # constraints is not a better movement instruction.
+        "MOVEMENT: one continuous drone flight in a single take. Begin exactly "
+        "on the first photograph and arrive exactly at the final photograph, "
+        "travelling between them along the route described below. Change "
+        "altitude as that route needs -- climbing to clear the roof, dropping "
+        "again to settle -- rather than holding one height. Keep the building "
+        "centred and level, the speed even, and the motion flown rather than "
+        "animated: no cuts, no jumps, no hovering. Invent nothing in between.",
     ),
     (
         "flyover_front_to_back",
@@ -642,6 +643,15 @@ def exterior_prompt(move, cfg=None, site=None):
         # Orientation goes before the address: a wrong house number is a
         # compliance problem, a missing bearing is only a worse flight path.
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION,
+         instruction, flight, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
+        # Then the LONG no-invention goes short, before the address does. It
+        # is stated twice by design -- before the movement and after it -- and
+        # this keeps both statements while shortening the first. The address
+        # outranks the difference: a wrong house number is a compliance
+        # problem, a shorter phrasing of a rule that is still present twice is
+        # not. Without this rung the longest flight sentences knocked the
+        # house number out of the prompt by four characters.
+        [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, EXT_NO_INVENTION_SHORT,
          instruction, flight, address, EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],
         [EXT_ONLY_THE_CAMERA, EXT_NEVER_CHANGE_SHORT, instruction, flight,
          EXT_TEMPORAL, EXT_NO_INVENTION_SHORT],

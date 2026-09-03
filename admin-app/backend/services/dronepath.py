@@ -591,12 +591,52 @@ def bearing(start, end):
     return best[1]
 
 
+# How close to the middle of the frame a line has to pass before it counts as
+# crossing the house. The captures are cropped tight to the subject at stage
+# 3 -- that is the stage's whole instruction -- so the centre of the frame is
+# the building, and the two fixed ends both sit on the vertical centre line,
+# which makes the default straight run an over-the-roof flight by
+# construction.
+OVER_HOUSE = 0.16
+
+
+def _near_centre(points, width, height):
+    """Does the line pass over the middle of the frame?
+
+    Measured to the SEGMENTS rather than the points: a straight A-to-B path
+    is two points at the top and bottom of the frame and nothing near the
+    middle, yet it crosses the house squarely. Testing the corners of a line
+    is not testing the line.
+    """
+    cx, cy = width / 2.0, height / 2.0
+    best = None
+    for i in range(len(points) - 1):
+        (ax, ay), (bx, by) = points[i], points[i + 1]
+        dx, dy = bx - ax, by - ay
+        length = dx * dx + dy * dy
+        # Where the centre falls along this segment, clamped to its ends so a
+        # segment that merely POINTS at the house does not count as crossing
+        # it.
+        t = 0.0 if not length else max(0.0, min(
+            1.0, ((cx - ax) * dx + (cy - ay) * dy) / length))
+        gap = math.hypot((ax + t * dx - cx) / width, (ay + t * dy - cy) / height)
+        best = gap if best is None else min(best, gap)
+    return best is not None and best <= OVER_HOUSE
+
+
 def describe(path):
     """The drawn line, as a sentence the model can act on.
 
     Deliberately about the CAMERA, not the scenery. What the line crosses is
-    a matter for the photographs; what it says about the flight is a heading
-    and a distance, and those are things a prompt can carry.
+    a matter for the photographs; what it says about the flight is a heading,
+    a distance, whether it turns, and whether it goes over the house.
+
+    That last one is the altitude cue, and it comes from the drawing rather
+    than from a setting: a line straight through the middle of the plot is a
+    drone flying OVER the property, which means clearing the roof and coming
+    down the far side. A line that keeps to one side is not, and telling it to
+    climb over a roof it never reaches is how a clip ends up looking flown by
+    nobody.
     """
     points = (path or {}).get("points") or []
     if len(points) < 2:
@@ -630,4 +670,18 @@ def describe(path):
         parts.append("the full width of the plot, steadily")
     if curved:
         parts.append("curving as you go rather than travelling straight")
-    return ", ".join(parts) + ". Hold that heading; do not reverse or circle back."
+
+    line = ", ".join(parts) + ". Hold that heading; do not reverse or circle back."
+
+    # Kept short on purpose. The prompt runs against a 2,500-character
+    # ceiling and this sentence is ranked above the site context but below
+    # nothing -- a wordier version of it pushed the house number out of the
+    # prompt entirely, and the house number is there because a flyover once
+    # renumbered the property mid-clip.
+    if _near_centre(points, width, height):
+        line += (" The path crosses the plot's middle: fly DIRECTLY OVER THE "
+                 "HOUSE, clearing the roof and descending beyond it.")
+    else:
+        line += (" The path keeps to one side of the building: stay beside "
+                 "the house and do not cross the roof.")
+    return line
