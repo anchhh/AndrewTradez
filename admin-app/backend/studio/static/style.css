@@ -6389,3 +6389,23 @@ button.en-shot {
 }
 .dr-path span { flex: 1 1 240px; }
 .dr-video { width: 100%; max-width: 900px; border-radius: 10px; display: block; margin-top: 10px; }
+
+/* Which model redraws the capture. Radios rather than a dropdown: one of
+   these is billed per image and the other is not, and that is worth reading
+   before choosing rather than after. */
+.en-models { display: grid; gap: 8px; margin: 4px 0 10px; }
+.en-model {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--cream-soft, #f6f2ea);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.en-model input { margin-top: 3px; flex: 0 0 auto; }
+.en-model strong { display: block; font-weight: 600; }
+.en-model .hint { font-size: 0.72rem; }
+.en-model:has(input:checked) { border-color: var(--accent); }

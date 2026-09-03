@@ -1334,6 +1334,8 @@ def create_enhance():
         # person saying which images describe this property; guessing from
         # room labels is what it replaced.
         references=dronepath.placed(lead) or enhance.exterior_references(lead),
+        models=enhance.MODELS,
+        default_model=enhance._model_settings()[0],
         # Every photo on the listing, so the picker can offer the interior
         # ones too -- a capture of the back garden is better matched against
         # a photo of the back garden than against the front elevation.
@@ -3281,7 +3283,8 @@ def api_capture_enhance(lead_id):
     return _capture_edit(
         lead_id,
         lambda lead, image, data: enhance.enhance_capture(
-            lead, image, references=data.get("references")))
+            lead, image, references=data.get("references"),
+            model=(data.get("model") or "").strip() or None))
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/captures/crop", methods=["POST"])

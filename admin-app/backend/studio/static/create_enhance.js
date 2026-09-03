@@ -294,8 +294,9 @@ el("en-pick-cancel").addEventListener("click", () => { el("en-pick").hidden = tr
 el("en-pick-go").addEventListener("click", () => {
   const url = pickUrl;
   const references = [...chosen];
+  const model = (document.querySelector('input[name="en-model"]:checked') || {}).value;
   el("en-pick").hidden = true;
-  post("enhance", url, { references });
+  post("enhance", url, { references, model });
 });
 
 // Escape closes whichever overlay is open, because an overlay that can only

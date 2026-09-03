@@ -45,14 +45,54 @@ EXTERIOR_ROOMS = ("exterior_front", "exterior_back", "aerial", "outdoor_space")
 # prompt: four times the pixels, and the difference between "melted" and
 # "photograph". Both are settings rather than constants because the newer
 # model's free allowance is Google's to change.
-MODEL = "gemini-3.1-flash-image"
+# The models this stage can use, and what choosing one costs.
+#
+# Google Flow itself has no API -- it is a web tool, and nothing here drives
+# it. What it does have is a model, and that model is on this key: the shot
+# that was made by hand in Flow was Nano Banana Pro, which the API calls
+# gemini-3-pro-image. So "recreate what I made in Flow" is a model choice
+# plus the prompt and the mix of inputs, not an integration with Flow.
+#
+# Listed with their trade rather than ranked, because the right one depends
+# on whether this run is a look or a keeper.
+MODELS = [
+    {
+        "key": "gemini-3.1-flash-image",
+        "label": "Flash",
+        "note": "Fast and cheap. 2K output. Good enough to judge a framing.",
+        "size": "2K",
+    },
+    {
+        "key": "gemini-3-pro-image",
+        "label": "Pro — the model Flow uses",
+        "note": "Nano Banana Pro. Slower and billed per image; this is what "
+                "made the shot you liked.",
+        "size": "2K",
+    },
+]
+
+MODEL_KEYS = {m["key"]: m for m in MODELS}
+
+# The default is the cheaper one on purpose. A stage that quietly ran the
+# billed model every time a button was pressed would be a stage that spends
+# money without being asked.
+MODEL = MODELS[0]["key"]
 IMAGE_SIZE = "2K"
 
 
-def _model_settings(cfg=None):
+def _model_settings(cfg=None, model=None):
+    """Which model and size this run uses.
+
+    A model named by the caller wins, then the configured one, then Flash.
+    Anything unrecognised falls back rather than being sent, because an
+    unknown model string reaches Google as a 404 halfway through a run.
+    """
     cfg = cfg or gemini_image.load_config()
-    return (cfg.get("enhance_model") or MODEL,
-            cfg.get("enhance_image_size") or IMAGE_SIZE)
+    chosen = model or cfg.get("enhance_model") or MODEL
+    if chosen not in MODEL_KEYS:
+        chosen = MODEL
+    return chosen, (cfg.get("enhance_image_size")
+                    or MODEL_KEYS[chosen].get("size") or IMAGE_SIZE)
 
 
 class EnhanceError(Exception):
@@ -130,7 +170,7 @@ def _paths_for(urls):
     return paths
 
 
-def enhance_capture(lead, url, references=None, cfg=None):
+def enhance_capture(lead, url, references=None, cfg=None, model=None):
     """Redraw one Earth capture as a photograph of this house.
 
     `references` is the listing photos to match against. Chosen by hand when
@@ -162,7 +202,7 @@ def enhance_capture(lead, url, references=None, cfg=None):
             "this listing has no exterior photos, so there is nothing to "
             "match the building against. Add some at the listing step first.")
 
-    model, image_size = _model_settings(cfg)
+    model, image_size = _model_settings(cfg, model)
     try:
         blob = gemini_image.edit_with_references(
             str(path), PROMPT, references, cfg=cfg,

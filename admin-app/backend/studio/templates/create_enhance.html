@@ -98,6 +98,23 @@
         shape of the plot; the photographs give it the building.</span>
       <span class="en-crop-size" id="en-pick-count"></span>
     </div>
+
+    {# Which model redraws it. Flow has no API, so this is not an integration
+       with Flow -- it is the model Flow uses, named as such, because that is
+       the honest version of "recreate what I made there". #}
+    <div class="en-models">
+      {% for model in models %}
+        <label class="en-model">
+          <input type="radio" name="en-model" value="{{ model.key }}"
+                 {{ 'checked' if model.key == default_model }}>
+          <span>
+            <strong>{{ model.label }}</strong>
+            <span class="hint">{{ model.note }}</span>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+
     <div class="en-pick-grid" id="en-pick-grid"></div>
     <div class="en-crop-actions">
       <button type="button" class="btn-secondary btn-tiny" id="en-pick-default">Reset</button>
