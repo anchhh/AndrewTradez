@@ -514,6 +514,66 @@ def clear_flight(lead):
     return _stamped(lead, path)
 
 
+def progress(lead):
+    """What this property already has, and how far the flow got.
+
+    The drone flow keeps everything on the lead -- captures, which box each
+    was placed in, the two generated shots, the drawn route -- so coming back
+    to a listing you have worked on restores it all. It just never SAID so.
+    The basic flow tells you it picked up where you left off, and a flow that
+    quietly reproduces a board you spent ten minutes filling is unsettling in
+    exactly the way that sentence fixes.
+    """
+    path = lead.drone_path or {}
+    made = generated_of(path)
+    placed = sum(len(v) for v in slots_of(path).values())
+    flight = flight_of(path)
+
+    done = []
+    captures = len(images_of(path))
+    if captures:
+        done.append("%d capture%s" % (captures, "" if captures == 1 else "s"))
+    if placed:
+        done.append("%d placed on the board" % placed)
+    if made.get("front") and made.get("back"):
+        done.append("both shots generated")
+    elif made.get("front") or made.get("back"):
+        done.append("one shot generated")
+    if flight.get("points"):
+        done.append("a route drawn")
+
+    # The furthest stage the work reaches, so "carry on" lands there rather
+    # than at the start of a flow you are halfway through.
+    if made.get("front") and made.get("back"):
+        stage = ("Drone shot", "/studio/create/video/drone?lead_id=%s&style=drone" % lead.id)
+        if flight.get("points"):
+            pass  # the shot stage is still the right place to carry on
+        else:
+            stage = ("Flight path", "/studio/create/video/flight?lead_id=%s&style=drone" % lead.id)
+    elif placed:
+        stage = ("Generate", "/studio/create/video/generate?lead_id=%s&style=drone" % lead.id)
+    elif captures:
+        stage = ("Crop", "/studio/create/video/crop?lead_id=%s&style=drone" % lead.id)
+    else:
+        stage = None
+
+    return {"done": done, "summary": ", ".join(done), "stage": stage}
+
+
+def clear_all(lead):
+    """Forget everything the drone flow knows about this property.
+
+    The captures stay on disk -- they cost a browser window and a crop, and
+    somebody starting the board again may want them back. What goes is every
+    decision made ON them.
+    """
+    path = dict(lead.drone_path or {})
+    for key in ("slots", "generated", "points", "width", "height",
+                "path_image", "route_image", "aerial_opening", "image"):
+        path.pop(key, None)
+    return _stamped(lead, path)
+
+
 def aerial_opening_of(path):
     """Which wide view the establishing shot opens on."""
     return (path or {}).get("aerial_opening")

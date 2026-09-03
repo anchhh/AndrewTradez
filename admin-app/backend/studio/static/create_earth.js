@@ -446,3 +446,25 @@ async function upload(file) {
     renderListing();
   } catch (err) { /* nothing captured yet is the normal case */ }
 })();
+
+
+/* Starting the board again. The captures survive -- they cost a browser
+   window and a crop, and wanting a clean board is not wanting them gone --
+   so this clears the decisions made on them and reloads. */
+(function wireReset() {
+  const button = document.getElementById("dr-reset");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    if (!window.confirm(
+        "Clear the board, both generated shots and the drawn route for this "
+        + "listing? The captures themselves are kept.")) return;
+    button.disabled = true;
+    try {
+      await fetch("/studio/api/leads/" + window.__LEAD__ + "/drone-path/reset",
+                  { method: "POST" });
+    } catch (err) {
+      /* the reload will show whether it took */
+    }
+    window.location.reload();
+  });
+}());

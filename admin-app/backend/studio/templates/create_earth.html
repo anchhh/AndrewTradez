@@ -20,6 +20,21 @@
   {% if shot_tab %}{% include "_drone_tabs.html" %}{% endif %}
   {% include "_steps.html" %}
 
+  {# Said out loud, the way the basic flow says it. Everything the drone flow
+     knows lives on the lead, so opening a listing you have worked on already
+     restores the board, the shots and the route -- it just never mentioned
+     it, and a flow that silently reproduces ten minutes of work is
+     unsettling in exactly the way this sentence fixes. #}
+  {% if resumed and resumed.summary %}
+    <p class="dr-resumed">
+      <span><b>Picked up where you left off</b> &mdash; {{ resumed.summary }}.</span>
+      {% if resumed.stage %}
+        <a class="btn-tiny" href="{{ resumed.stage[1] }}">Carry on at {{ resumed.stage[0] }}</a>
+      {% endif %}
+      <button type="button" class="btn-tiny" id="dr-reset">Start over</button>
+    </p>
+  {% endif %}
+
   <section class="card ge-card">
     <h2 class="ge-step">Step 1: Open Google Earth</h2>
     <p class="hint">Opens in a new tab, already searched for this address.

@@ -1339,6 +1339,7 @@ def create_earth():
     return render_template(
         "create_earth.html", lead=lead,
         **_shot_tabs(lead.id, project_id=project_id),
+        resumed=dronepath.progress(lead),
         plan=dronepath.SHOT_PLAN,
         captures=dronepath.images_of(path),
         slots=dronepath.slots_of(path),
@@ -3561,6 +3562,27 @@ def api_lead_drone_path(lead_id):
     lead.drone_path = path
     db.session.commit()
     return jsonify({"path": path, "described": dronepath.describe(path)})
+
+
+@studio_bp.route("/api/leads/<int:lead_id>/drone-path/reset", methods=["POST"])
+@login_required
+def api_drone_reset(lead_id):
+    """Forget what the drone flow knows about this property.
+
+    The captures survive -- they cost a browser window and a crop, and
+    starting the board again is not the same as wanting them gone. What goes
+    is every decision made on them.
+    """
+    from extensions import db
+    from services import dronepath
+
+    lead = get_owned_lead(lead_id)
+    if lead is None:
+        return jsonify({"error": "Lead not found."}), 404
+
+    dronepath.clear_all(lead)
+    db.session.commit()
+    return jsonify({"progress": dronepath.progress(lead)})
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/aerial", methods=["POST"])
