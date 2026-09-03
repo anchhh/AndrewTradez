@@ -346,17 +346,29 @@ $("btn-flow-fill").addEventListener("click", fillFlow);
    that is open -- in a form that can be pasted straight back. It reads and
    changes nothing. */
 
-function inspectFlowPage() {
+async function inspectFlowPage() {
+  /* Reports what the page contains, and what the composer's "+" opens.
+   *
+   * Deploy has guessed that second part twice and been wrong twice. Rather
+   * than guess a third time, this presses the button and lists what actually
+   * appears -- new inputs, new panels, new controls, new thumbnails -- which
+   * is enough to tell an upload menu from an asset picker. It reads; the one
+   * thing it changes is opening that menu.
+   */
   const lines = [];
   const say = (text) => lines.push(text);
+  const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+  const visible = (el) => el && el.offsetParent !== null;
+  const labelOf = (el) =>
+    ((el.getAttribute("aria-label") || "") + " " + (el.textContent || "")).trim();
 
   const path = (el, depth = 5) => {
     const parts = [];
     let node = el;
     for (let i = 0; node && i < depth && node !== document.body; i += 1) {
-      const id = node.id ? `#${node.id}` : "";
+      const id = node.id ? "#" + node.id : "";
       const cls = (node.className && typeof node.className === "string")
-        ? "." + node.className.trim().split(/\s+/).slice(0, 2).join(".")
+        ? "." + node.className.trim().split(/\+/).slice(0, 2).join(".")
         : "";
       parts.unshift(node.tagName.toLowerCase() + id + cls);
       node = node.parentElement;
@@ -365,51 +377,83 @@ function inspectFlowPage() {
   };
 
   const attrs = (el, names) => names
-    .map((name) => (el.getAttribute(name) ? `${name}="${el.getAttribute(name)}"` : ""))
+    .map((name) => (el.getAttribute(name) ? name + '="' + el.getAttribute(name) + '"' : ""))
     .filter(Boolean).join(" ");
 
-  say(`URL ${location.pathname}`);
-
-  const inputs = [...document.querySelectorAll('input[type="file"]')];
-  say(`\nFILE INPUTS (${inputs.length})`);
-  inputs.forEach((el, i) => {
-    say(`  [${i}] ${attrs(el, ["accept", "multiple", "name", "id", "aria-label"]) || "no attributes"}`);
-    say(`      visible=${el.offsetParent !== null} at ${path(el)}`);
+  const snapshot = () => ({
+    inputs: [...document.querySelectorAll('input[type="file"]')],
+    buttons: [...document.querySelectorAll('button, [role="button"], [role="menuitem"], [role="option"], [role="tab"]')].filter(visible),
+    panels: [...document.querySelectorAll('[role="dialog"], [role="menu"], [role="listbox"]')].filter(visible),
+    images: [...document.querySelectorAll("img")].filter(visible),
   });
 
-  const typables = [
-    ...document.querySelectorAll("textarea"),
+  say("URL " + location.pathname);
+
+  const before = snapshot();
+  say("\nBEFORE: " + before.inputs.length + " file inputs, " + before.buttons.length +
+      " controls, " + before.panels.length + " panels, " + before.images.length + " images");
+  before.inputs.forEach((el, i) => {
+    say("  input[" + i + "] " + (attrs(el, ["accept", "multiple", "id", "aria-label"]) ||
+        "no attributes") + " visible=" + visible(el));
+  });
+
+  const box = [
     ...document.querySelectorAll('[contenteditable="true"]'),
-  ].filter((el) => el.offsetParent !== null);
-  say(`\nTYPABLE (${typables.length})`);
-  typables.forEach((el, i) => {
-    say(`  [${i}] ${el.tagName.toLowerCase()} ${attrs(el, ["placeholder", "aria-label", "id"])}`);
-    say(`      w=${Math.round(el.getBoundingClientRect().width)} at ${path(el)}`);
-  });
-
-  // Everything clickable near the widest typable thing, which is where an
-  // "attach" control would live.
-  const box = typables.sort(
+    ...document.querySelectorAll("textarea"),
+  ].filter(visible).sort(
     (a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0];
-  if (box) {
-    let scope = box.parentElement;
-    for (let up = 0; up < 4 && scope && scope !== document.body; up += 1) {
-      scope = scope.parentElement;
-    }
-    const near = [...(scope || document).querySelectorAll('button, [role="button"]')]
-      .filter((el) => el.offsetParent !== null)
-      .slice(0, 25);
-    say(`\nCONTROLS NEAR THE PROMPT (${near.length})`);
-    near.forEach((el, i) => {
-      const label = (el.getAttribute("aria-label") || el.textContent || "").trim();
-      say(`  [${i}] "${label.slice(0, 40)}" ${attrs(el, ["id", "data-testid", "title"])}`);
-    });
+  say("\nPROMPT " + (box
+    ? (box.isContentEditable ? "contenteditable" : "textarea") + " at " + path(box)
+    : "not found"));
+
+  let scope = box ? box.parentElement : document.body;
+  for (let up = 0; up < 5 && scope && scope !== document.body; up += 1) {
+    scope = scope.parentElement;
+  }
+  const near = [...(scope || document).querySelectorAll('button, [role="button"]')]
+    .filter(visible);
+  const plus = near.find((el) => /^\s*add(_\d+)?/i.test(labelOf(el)));
+
+  if (!plus) {
+    say("\nNO + FOUND beside the prompt. Controls near it:");
+    near.slice(0, 14).forEach((el, i) =>
+      say("  [" + i + '] "' + labelOf(el).slice(0, 44) + '"'));
+    return lines.join("\n");
   }
 
-  const dialogs = [...document.querySelectorAll('[role="dialog"]')]
-    .filter((el) => el.offsetParent !== null);
-  say(`\nOPEN DIALOGS ${dialogs.length}`);
-  dialogs.forEach((el, i) => say(`  [${i}] ${path(el, 3)}`));
+  say('\nPRESSING "' + labelOf(plus).slice(0, 30) + '" at ' + path(plus, 3));
+  plus.click();
+  await wait(1400);
+
+  const after = snapshot();
+  say("AFTER: " + after.inputs.length + " file inputs, " + after.buttons.length +
+      " controls, " + after.panels.length + " panels, " + after.images.length + " images");
+
+  const isNew = (list, was) => list.filter((el) => !was.includes(el));
+
+  const newInputs = isNew(after.inputs, before.inputs);
+  say("\nNEW FILE INPUTS (" + newInputs.length + ")");
+  newInputs.forEach((el, i) =>
+    say("  [" + i + "] " + attrs(el, ["accept", "multiple", "id"]) + " at " + path(el)));
+
+  const newPanels = isNew(after.panels, before.panels);
+  say("\nNEW PANELS (" + newPanels.length + ")");
+  newPanels.forEach((el, i) => {
+    say("  [" + i + "] " + el.getAttribute("role") + " at " + path(el, 3));
+    say("      text: " + (el.textContent || "").trim().slice(0, 200));
+  });
+
+  const newButtons = isNew(after.buttons, before.buttons).slice(0, 30);
+  say("\nNEW CONTROLS (" + newButtons.length + ")");
+  newButtons.forEach((el, i) =>
+    say("  [" + i + "] " + (el.getAttribute("role") || el.tagName.toLowerCase()) +
+        ' "' + labelOf(el).slice(0, 44) + '" ' + attrs(el, ["data-testid", "id"])));
+
+  const newImages = isNew(after.images, before.images).slice(0, 12);
+  say("\nNEW IMAGES (" + newImages.length + ") -- if these appeared, the + opens a picker");
+  newImages.forEach((el, i) =>
+    say("  [" + i + "] alt=" + (el.getAttribute("alt") || "none").slice(0, 30) +
+        " at " + path(el, 4)));
 
   return lines.join("\n");
 }
