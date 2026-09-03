@@ -6151,3 +6151,44 @@ button.en-shot {
    reference and still be a photo of the house. */
 .ge-shot.is-used { opacity: 0.5; }
 .ge-shot.is-used .ge-shot-name::after { content: " · placed"; color: var(--accent); }
+
+/* A box that holds several. It keeps its label and hint at the top and its
+   contents underneath, rather than becoming the picture the way a one-image
+   box does -- there is always room for another answer. */
+.ge-box.is-multi { align-content: start; padding: 8px 9px; min-height: 88px; }
+.ge-box.is-multi.is-filled {
+  border-style: solid;
+  border-color: var(--accent);
+  padding: 8px 9px;
+  min-height: 0;
+}
+.ge-box.is-multi.is-filled::before { content: none; }
+.ge-box.is-multi.is-filled .ge-box-label,
+.ge-box.is-multi.is-filled .ge-box-hint {
+  position: static;
+  color: var(--ink);
+  padding: 0;
+  text-shadow: none;
+}
+.ge-box.is-multi.is-filled .ge-box-hint { color: var(--ink-soft); }
+.ge-box-count {
+  display: inline-block;
+  min-width: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.66rem;
+  text-align: center;
+}
+.ge-box-strip { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.ge-box-chip { position: relative; line-height: 0; }
+.ge-box-chip img {
+  width: 54px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  display: block;
+}
+.ge-box-chip .ge-box-x { top: -5px; right: -5px; width: 17px; height: 17px; font-size: 0.72rem; }

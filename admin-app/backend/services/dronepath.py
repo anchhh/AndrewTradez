@@ -187,8 +187,9 @@ SHOT_PLAN = [
              "hint": "Straight down, framed on the plot"},
             {"key": "front_3d", "label": "Satellite 3D",
              "hint": "Tilted, looking at the front of the house"},
-            {"key": "front_reference", "label": "Reference photo",
-             "hint": "A front elevation from the listing", "source": "listing"},
+            {"key": "front_reference", "label": "Reference photos",
+             "hint": "Front elevations from the listing — as many as show it well",
+             "source": "listing", "multi": True},
         ],
     },
     {
@@ -200,8 +201,9 @@ SHOT_PLAN = [
              "hint": "Straight down over the rear of the plot"},
             {"key": "back_3d", "label": "Satellite 3D",
              "hint": "Tilted, looking at the back of the house"},
-            {"key": "back_reference", "label": "Reference photo",
-             "hint": "A rear elevation from the listing", "source": "listing"},
+            {"key": "back_reference", "label": "Reference photos",
+             "hint": "Rear elevations from the listing — as many as show it well",
+             "source": "listing", "multi": True},
         ],
     },
     {
@@ -233,6 +235,17 @@ CAPTURE_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]]
 LISTING_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]
                  if shot.get("source") == "listing"]
 
+# Slots that hold more than one image. A capture slot is one shot -- there is
+# only one front overhead -- but "what does the front of this house look
+# like" is answered better by three photographs than by one, and the model is
+# being asked to match a building rather than to copy a picture.
+MULTI_SLOTS = {shot["key"] for group in SHOT_PLAN for shot in group["shots"]
+               if shot.get("multi")}
+
+# A ceiling per slot, because every image is another one the model has to
+# weigh and the capture has to stay the subject.
+MAX_PER_SLOT = 6
+
 
 def placed(lead):
     """Everything put in a box, in plan order.
@@ -242,8 +255,8 @@ def placed(lead):
     than whatever the room labels happened to pick out.
     """
     slots = slots_of(lead.drone_path or {})
-    by_slot = {slot: url for url, slot in slots.items()}
-    return [by_slot[key] for key in CAPTURE_SLOTS if key in by_slot]
+    return [url for key in CAPTURE_SLOTS
+            for url, slot in slots.items() if slot == key]
 
 
 def slots_of(path):
@@ -264,9 +277,16 @@ def set_slot(lead, url, slot):
     if slot and slot not in CAPTURE_SLOTS:
         raise PathError("there is no such shot in the plan")
 
+    # One image per slot, except the multi ones: re-taking the front overhead
+    # should replace the front overhead rather than leave two both claiming to
+    # be it, but a second front elevation is another answer to the same
+    # question, not a correction of the first.
+    keep_others = slot in MULTI_SLOTS
     slots = {u: s for u, s in slots_of(path).items()
-             if u != url and (not slot or s != slot)}
+             if u != url and (keep_others or not slot or s != slot)}
     if slot:
+        if sum(1 for s in slots.values() if s == slot) >= MAX_PER_SLOT:
+            raise PathError("that box already holds %d images" % MAX_PER_SLOT)
         slots[url] = slot
     path["slots"] = slots
     return _stamped(lead, path)

@@ -35,7 +35,7 @@ function escapeHtml(value) {
 }
 
 function placedIn(slot) {
-  return Object.keys(slots).find((url) => slots[url] === slot) || null;
+  return Object.keys(slots).filter((url) => slots[url] === slot);
 }
 
 /* ---------- the plan ---------- */
@@ -54,14 +54,36 @@ function renderPlan() {
 }
 
 function dropBox(shot) {
-  const url = placedIn(shot.key);
+  const urls = placedIn(shot.key);
+  const listing = shot.source === "listing";
+
+  // A box that holds several shows them as a strip and keeps its drop area,
+  // because there is always room for one more answer to "what does the front
+  // of this house look like". A box that holds one becomes the picture.
+  if (shot.multi) {
+    return `
+      <div class="ge-box is-multi${listing ? " is-listing" : ""}${
+        urls.length ? " is-filled" : ""}" data-slot="${shot.key}">
+        <span class="ge-box-label">${escapeHtml(shot.label)}${
+          urls.length ? ` <span class="ge-box-count">${urls.length}</span>` : ""}</span>
+        <span class="ge-box-hint">${escapeHtml(shot.hint)}</span>
+        ${urls.length ? `<div class="ge-box-strip">${urls.map((url) => `
+          <span class="ge-box-chip">
+            <img src="${url}" alt="">
+            <button type="button" class="ge-box-x" data-act="clear"
+                    data-url="${url}" aria-label="Take out">&times;</button>
+          </span>`).join("")}</div>` : ""}
+      </div>`;
+  }
+
+  const url = urls[0];
   return `
     <div class="ge-box${url ? " is-filled" : ""}${
-      shot.source === "listing" ? " is-listing" : ""}" data-slot="${shot.key}">
+      listing ? " is-listing" : ""}" data-slot="${shot.key}">
       ${url
         ? `<img src="${url}" alt="${escapeHtml(shot.label)}">
            <button type="button" class="ge-box-x" data-act="clear"
-                   aria-label="Take out">&times;</button>`
+                   data-url="${url}" aria-label="Take out">&times;</button>`
         : ""}
       <span class="ge-box-label">${escapeHtml(shot.label)}</span>
       <span class="ge-box-hint">${escapeHtml(shot.hint)}</span>
@@ -72,13 +94,11 @@ function wireBox(box) {
   const slot = box.dataset.slot;
   if (!slot) return;
 
-  const clear = box.querySelector('[data-act="clear"]');
-  if (clear) {
-    clear.addEventListener("click", () => {
-      const url = placedIn(slot);
-      if (url) place(url, "");
-    });
-  }
+  box.querySelectorAll('[data-act="clear"]').forEach((button) =>
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      place(button.dataset.url, "");
+    }));
 
   ["dragenter", "dragover"].forEach((name) =>
     box.addEventListener(name, (e) => {
