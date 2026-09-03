@@ -378,6 +378,26 @@ function exteriorMoveOptions() {
 
 /* An exterior photo must not keep an interior default. "Push in" on a drone
    shot is not a smaller version of the right move, it is the wrong one. */
+/* Why a move cannot be used on this property, or "" if it can.
+
+   Kept in step with services/site.check_move deliberately: the server
+   refuses these outright, and an option that can be chosen and then rejected
+   is worse than one that says why it is greyed out. */
+function blockedReason(move) {
+  const site = state.site;
+  if (!site) return "";
+
+  if (move === "flyover_front_to_back") {
+    // Watched it fail: in one leg the roof crossing has no photograph near
+    // it and smears. With an aerial there is a better path.
+    if (site.aerial_close) return "use the two legs instead";
+    if (!site.rear) return "needs a rear photo";
+  }
+  if (move === "rise_over_roof" && !site.aerial_close) return "needs an aerial";
+  if (move === "cross_to_rear" && !site.rear) return "needs a rear photo";
+  return "";
+}
+
 function defaultMoveFor(url) {
   if (!isExterior(url)) return state.defaultMove;
   const site = state.site;
@@ -672,14 +692,14 @@ function renderClipMoves() {
 
     const options = outside
       ? exteriorMoveOptions().map((o) => {
-          // A flyover with nowhere to land is not offered as a choice with a
-          // warning -- it is not a choice.
-          const blocked = o.value === "flyover_front_to_back"
-            && !(state.site && state.site.rear);
+          // Mirrors services/site.check_move, which is the real gate. A move
+          // that will be refused is shown greyed with the reason rather than
+          // offered and then rejected.
+          const why = blockedReason(o.value);
           return {
             value: o.value,
-            label: o.label + (blocked ? " — needs a rear photo" : ""),
-            disabled: blocked,
+            label: o.label + (why ? " — " + why : ""),
+            disabled: !!why,
           };
         })
       : moveOptions().map((o) => {

@@ -279,8 +279,29 @@ def check_move(move, photo, site):
 
     rear = (site or {}).get("rear")
     front = (site or {}).get("front")
+    aerial = (site or {}).get("aerial_close")
 
     if move == "flyover_front_to_back":
+        # Refused when there IS an aerial, because we have watched this fail.
+        #
+        # Rendered front-to-back in one leg, the camera reaches the ridge with
+        # no photograph anywhere near it and the roof turns to mush: shingles
+        # smear, the ridge line warps, and around the apex the frame collapses
+        # into a grey band before snapping to the rear. The two photographs it
+        # was given are both far away from the moment it fails.
+        #
+        # The aerial sits exactly where that hole is. Two legs through it give
+        # the model a real picture at the point it was previously guessing, so
+        # when one exists the one-leg version is not offered.
+        if aerial:
+            return {
+                "level": "blocked",
+                "reason": "This listing has an aerial of the house, so fly it in "
+                          "two legs -- front to aerial, then aerial to rear. In "
+                          "one leg the roof crossing has no photograph to work "
+                          "from and smears.",
+                "anchor": None,
+            }
         if not rear:
             return {
                 "level": "blocked",
@@ -307,8 +328,6 @@ def check_move(move, photo, site):
             "reason": "Front to rear, ending on a real photograph of the back.",
             "anchor": rear,
         }
-
-    aerial = (site or {}).get("aerial_close")
 
     if move == "rise_over_roof":
         if not aerial:
