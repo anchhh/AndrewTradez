@@ -116,6 +116,8 @@
   window.__PHOTOS__ = {{ photos | tojson }};
   window.__ROOMS__ = {{ rooms | tojson }};
   window.__DEFAULT_REFS__ = {{ references | tojson }};
+  window.__SLOTS__ = {{ slots | tojson }};
+  window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_enhance.js') }}"></script>
 </body>

@@ -102,6 +102,12 @@ def replace_image(lead, old_url, new_url, geometry_changed=True):
     originals[new_url] = originals.pop(old_url, old_url)
     path["originals"] = originals
 
+    # A cropped front overhead is still the front overhead.
+    slots = slots_of(path)
+    if old_url in slots:
+        slots[new_url] = slots.pop(old_url)
+        path["slots"] = slots
+
     if path.get("image") == old_url:
         path["image"] = new_url
         if geometry_changed:
@@ -136,6 +142,9 @@ def remove_image(lead, url):
     originals = dict(path.get("originals") or {})
     originals.pop(url, None)
     path["originals"] = originals
+    slots = slots_of(path)
+    slots.pop(url, None)
+    path["slots"] = slots
     if path.get("image") == url:
         path["image"] = images[0] if images else None
         path.pop("points", None)
@@ -148,6 +157,101 @@ def _stamped(lead, path):
     path["saved_at"] = datetime.now(timezone.utc).isoformat()
     lead.drone_path = path
     return path
+
+
+# What to capture, before anything is generated from it.
+#
+# A single oblique view leaves the model guessing at the half of the plot it
+# cannot see, and guessing is where invented patio furniture comes from. The
+# fix is coverage: the same property from a few angles and a few sources, so
+# every surface appears in at least one input.
+#
+# Grouped by what the flight actually needs. The front is the establishing
+# shot and gets the most; the back is where the flight lands; the
+# neighbours matter because a house is rebuilt in the context either side of
+# it and a model with no reference for that invents the street.
+#
+# "Reference" entries are not captures -- they are the listing's own
+# photographs, already on the lead. They are listed because the plan is
+# about what the enhancer will be given, and half of that comes from the
+# listing rather than from Earth.
+SHOT_PLAN = [
+    {
+        "key": "front",
+        "label": "Front",
+        "note": "The establishing shot. Worth getting all four.",
+        "shots": [
+            {"key": "front_street", "label": "Street view",
+             "hint": "Earth's ground-level view from the road"},
+            {"key": "front_overhead", "label": "Satellite overhead",
+             "hint": "Straight down, framed on the plot"},
+            {"key": "front_3d", "label": "Satellite 3D",
+             "hint": "Tilted, looking at the front of the house"},
+            {"key": "front_reference", "label": "Reference photo",
+             "hint": "A front elevation from the listing", "listing": "exterior_front"},
+        ],
+    },
+    {
+        "key": "back",
+        "label": "Back",
+        "note": "Where a front-to-back flight ends up.",
+        "shots": [
+            {"key": "back_overhead", "label": "Satellite overhead",
+             "hint": "Straight down over the rear of the plot"},
+            {"key": "back_3d", "label": "Satellite 3D",
+             "hint": "Tilted, looking at the back of the house"},
+            {"key": "back_reference", "label": "Reference photo",
+             "hint": "A rear elevation from the listing", "listing": "exterior_back"},
+        ],
+    },
+    {
+        "key": "neighbours",
+        "label": "Neighbours",
+        "note": "The house is rebuilt in its street; without these the "
+                "street gets invented too.",
+        "shots": [
+            {"key": "nb_overhead", "label": "Satellite overhead",
+             "hint": "Wider, both sides of the property"},
+            {"key": "nb_3d", "label": "Satellite 3D",
+             "hint": "Tilted along the row"},
+            {"key": "nb_street", "label": "Street view",
+             "hint": "Down the road, past the house"},
+        ],
+    },
+]
+
+# Flat lookup, for labelling one capture without walking the plan.
+SHOT_LABELS = {shot["key"]: "%s — %s" % (group["label"], shot["label"])
+               for group in SHOT_PLAN for shot in group["shots"]}
+
+CAPTURE_SLOTS = [shot["key"] for group in SHOT_PLAN for shot in group["shots"]
+                 if not shot.get("listing")]
+
+
+def slots_of(path):
+    """{capture url: slot key} for the captures that have been placed."""
+    return dict((path or {}).get("slots") or {})
+
+
+def set_slot(lead, url, slot):
+    """Say which shot in the plan a capture is.
+
+    One capture per slot: re-taking the front overhead should replace the
+    front overhead, not leave two of them both claiming to be it. The older
+    one stays in the gallery, just unplaced.
+    """
+    path = dict(lead.drone_path or {})
+    if url not in images_of(path):
+        raise PathError("that view is not one of this listing's captures")
+    if slot and slot not in CAPTURE_SLOTS:
+        raise PathError("there is no such shot in the plan")
+
+    slots = {u: s for u, s in slots_of(path).items()
+             if u != url and (not slot or s != slot)}
+    if slot:
+        slots[url] = slot
+    path["slots"] = slots
+    return _stamped(lead, path)
 
 
 def full_address(lead):

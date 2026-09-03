@@ -38,11 +38,41 @@
       <span>Open Google Earth</span>
     </a>
 
-    <h2 class="ge-step">Step 2: Capture the view</h2>
-    <p class="hint">Screenshot Earth with the extension, then bring it back
-      here with the Create tab. Take as many views as the flight needs
-      &mdash; a front angle, a top-down, the run itself. They appear below,
-      and you pick which one to draw the flight on later.</p>
+    <h2 class="ge-step">Step 2: Capture these views</h2>
+    <p class="hint">One angle leaves the enhancer guessing at the half of the
+      plot it cannot see. This is the set that covers a property: capture
+      each one with the extension, then say which is which below.</p>
+
+    {# The plan, as a checklist. Rendered from the server's list rather than
+       written out here, so adding a shot is one entry in one place. #}
+    <div class="ge-plan">
+      {% for group in plan %}
+        <section class="ge-plan-group">
+          <h3>{{ group.label }}</h3>
+          <p class="hint">{{ group.note }}</p>
+          <ul>
+            {% for shot in group.shots %}
+              {% set done = have_listing.get(shot.listing) if shot.listing
+                            else shot.key in slots.values() %}
+              <li class="ge-plan-shot{{ ' is-done' if done }}"
+                  data-slot="{{ shot.key }}">
+                <span class="ge-tick">{{ '✓' if done else '' }}</span>
+                <span>
+                  <strong>{{ shot.label }}</strong>
+                  <span class="hint">{{ shot.hint }}{% if shot.listing %}
+                    {{ '— already on the listing' if done
+                       else '— none on this listing yet' }}{% endif %}</span>
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endfor %}
+    </div>
+
+    <h2 class="ge-step">What you have captured</h2>
+    <p class="hint">Everything the extension has sent for this listing.
+      Label each one so the enhancer knows what it is looking at.</p>
     {# Several views of one property: a front angle, a top-down, the line the
        flight takes. One of them is drawn on, and which one is a choice --
        marked rather than assumed, because the path lives in that picture's

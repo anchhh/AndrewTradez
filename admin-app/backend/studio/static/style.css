@@ -6030,3 +6030,52 @@ button.en-shot {
   letter-spacing: 0.04em;
   color: var(--ink-soft);
 }
+
+/* The capture plan: three groups of shots to go and get. Laid out as a
+   checklist rather than prose because it is a list of errands. */
+.ge-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin: 12px 0 6px;
+}
+.ge-plan-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 13px;
+  background: var(--cream-soft, #f6f2ea);
+}
+.ge-plan-group h3 { margin: 0 0 2px; font-size: 0.9rem; }
+.ge-plan-group ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.ge-plan-shot { display: flex; gap: 8px; align-items: flex-start; font-size: 0.8rem; }
+.ge-plan-shot strong { display: block; font-weight: 600; }
+.ge-plan-shot .hint { font-size: 0.72rem; }
+/* An empty circle for a shot still to take, filled once it is labelled. */
+.ge-tick {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #fff;
+}
+.ge-plan-shot.is-done .ge-tick { background: #2f7a4f; border-color: #2f7a4f; }
+.ge-plan-shot.is-done strong { color: var(--ink); }
+
+.ge-slot {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 0.72rem;
+  padding: 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}

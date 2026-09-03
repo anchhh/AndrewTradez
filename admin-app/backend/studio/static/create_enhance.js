@@ -20,6 +20,15 @@ const canEnhance = window.__CAN_ENHANCE__;
 const photos = window.__PHOTOS__ || [];
 const rooms = window.__ROOMS__ || {};
 const defaultRefs = window.__DEFAULT_REFS__ || [];
+const slots = window.__SLOTS__ || {};
+const shotLabels = window.__SHOT_LABELS__ || {};
+
+/* What a capture is, from the plan it was labelled against at stage 2.
+   Falls back to its position, because an unlabelled view still has to be
+   referable to. */
+function captureName(url) {
+  return shotLabels[slots[url]] || `View ${captures.indexOf(url) + 1}`;
+}
 
 let captures = window.__CAPTURES__ || [];
 let originals = window.__ORIGINALS__ || {};
@@ -55,7 +64,7 @@ function render() {
           ${working ? `<span class="en-busy">${working}</span>` : ""}
         </button>
         <figcaption>
-          <span class="en-room">View ${i + 1}</span>
+          <span class="en-room">${escapeHtml(captureName(url))}</span>
           <span class="en-buttons">
             <button type="button" class="btn-secondary btn-tiny" data-act="view"
                     ${working ? "disabled" : ""}>Full size</button>
@@ -119,7 +128,7 @@ const cropCanvas = () => el("en-crop-canvas");
 function openView(url) {
   viewUrl = url;
   box = null;
-  el("en-view-name").textContent = `View ${captures.indexOf(url) + 1}`;
+  el("en-view-name").textContent = captureName(url);
   el("en-view-revert").hidden = !originals[url];
   el("en-view-enhance").disabled = !canEnhance;
   const img = cropImg();
@@ -256,7 +265,7 @@ function renderPicker() {
   el("en-pick-grid").innerHTML =
     (others.length
       ? `<p class="en-pick-head">Other views of this property</p>` +
-        others.map((url) => tile(url, `View ${captures.indexOf(url) + 1}`)).join("")
+        others.map((url) => tile(url, captureName(url))).join("")
       : "") +
     `<p class="en-pick-head">Photos of the house</p>` +
     photos.map((url) => tile(url, roomLabel(url))).join("");

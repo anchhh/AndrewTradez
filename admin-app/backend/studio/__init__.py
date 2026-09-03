@@ -1225,8 +1225,27 @@ def create_earth():
     project_id = request.args.get("project")
     tail = "project=%s" % quote(project_id) if project_id else "lead=%s" % lead.id
 
+    # Which listing photos already answer the plan's "reference" entries, so
+    # those rows can be ticked rather than asking for a capture that is
+    # already on the lead.
+    rooms = lead.photo_rooms or {}
+
+    def has_room(key):
+        for entry in rooms.values():
+            room = entry.get("room") if isinstance(entry, dict) else entry
+            if room == key:
+                return True
+        return False
+
+    path = lead.drone_path or {}
     return render_template(
         "create_earth.html", lead=lead,
+        plan=dronepath.SHOT_PLAN,
+        captures=dronepath.images_of(path),
+        slots=dronepath.slots_of(path),
+        have_listing={shot["listing"]: has_room(shot["listing"])
+                      for group in dronepath.SHOT_PLAN for shot in group["shots"]
+                      if shot.get("listing")},
         earth_url=dronepath.earth_url(dronepath.full_address(lead)),
         back_href="/studio/create/video/listing?style=drone&lead_id=%s" % lead.id,
         next_href=("/studio/create/video/enhance?lead_id=%s&style=drone" % lead.id
@@ -1263,6 +1282,8 @@ def create_enhance():
         "create_enhance.html", lead=lead,
         captures=dronepath.images_of(path),
         originals=path.get("originals") or {},
+        slots=dronepath.slots_of(path),
+        shot_labels=dronepath.SHOT_LABELS,
         references=enhance.exterior_references(lead),
         # Every photo on the listing, so the picker can offer the interior
         # ones too -- a capture of the back garden is better matched against
@@ -3050,6 +3071,7 @@ def api_lead_drone_path(lead_id):
         path = lead.drone_path or {}
         return jsonify({"path": path, "described": dronepath.describe(path),
                         "images": dronepath.images_of(path),
+                        "slots": dronepath.slots_of(path),
                         "earth_url": dronepath.earth_url(
                             dronepath.full_address(lead))})
 
@@ -3063,18 +3085,21 @@ def api_lead_drone_path(lead_id):
     # picture's coordinates means nothing over a different picture.
     action = (data.get("action") or "").strip()
     image = (data.get("image") or "").strip()
-    if not points and image and action in ("", "add", "primary", "remove"):
+    if not points and image and action in ("", "add", "primary", "remove", "slot"):
         try:
             if action == "primary":
                 path = dronepath.set_primary(lead, image)
             elif action == "remove":
                 path = dronepath.remove_image(lead, image)
+            elif action == "slot":
+                path = dronepath.set_slot(lead, image, (data.get("slot") or "").strip())
             else:
                 path = dronepath.add_image(lead, image)
         except dronepath.PathError as exc:
             return jsonify({"error": str(exc)}), 400
         db.session.commit()
         return jsonify({"path": path, "images": dronepath.images_of(path),
+                        "slots": dronepath.slots_of(path),
                         "described": dronepath.describe(path)})
 
     if not isinstance(points, list) or len(points) < 2:
