@@ -122,8 +122,7 @@ def _run(app, job_id):
                 return
 
             cfg = load_config()
-
-            _update(db, job, status="running", model=cfg["model"])
+            _update(db, job, status="running")
 
             clips = []
             for index, photo_url in enumerate(job.photos):
@@ -184,6 +183,9 @@ def _run(app, job_id):
                         resolution=spec["resolution"],
                         last_image=last_url,
                         move=spec["move"],
+                        # A clip may name its own model: the aerial's 4K
+                        # tier is a different endpoint, not a parameter.
+                        model=spec.get("model"),
                     )
                     entry["prediction_id"] = prediction_id
                     job.clips = clips
@@ -250,7 +252,7 @@ def _run(app, job_id):
 
 
 def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
-              resolution="1080p", specs=None, style=None):
+              resolution="1080p", specs=None, style=None, model=None):
     """Create a job for these photos and run it in the background."""
     from extensions import db
     from models import VideoJob
@@ -263,14 +265,15 @@ def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
         lead_id=lead_id,
         owner_id=owner_id,
         status="queued",
-        model=cfg["model"],
+        model=model or cfg["model"],
         style=style or None,
         prompt=prompt or None,
         duration=duration,
         resolution=resolution,
         estimated_cost=round(
             sum(estimate_cost((s or {}).get("duration") or duration, cfg,
-                              (s or {}).get("resolution") or resolution)
+                              (s or {}).get("resolution") or resolution,
+                              (s or {}).get("model") or model)
                 for s in (specs or [{}] * len(photos))),
             2,
         ),

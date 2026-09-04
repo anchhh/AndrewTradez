@@ -87,9 +87,8 @@
       </select>
       <span class="rn-setall-label">Quality</span>
       <select id="ae-res" class="rn-select">
-        {% for res in resolutions %}
-          <option value="{{ res }}"{{ ' selected' if res == '1440p-sr' }}>{{
-            '1440p (super-res)' if res == '1440p-sr' else res }}</option>
+        {% for q in qualities %}
+          <option value="{{ q.key }}"{{ ' selected' if q.key == '1080p' }}>{{ q.label }}</option>
         {% endfor %}
       </select>
       <span class="hint" id="ae-cost"></span>
@@ -150,7 +149,7 @@
   window.__WIDE__ = {{ wide | tojson }};
   window.__PICKS__ = {{ picks | tojson }};
   window.__LABELS__ = {{ labels | tojson }};
-  window.__RATES__ = {{ rates | tojson }};
+  window.__QUALITIES__ = {{ qualities | tojson }};
   window.__SMALL__ = {{ small | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_aerial.js') }}"></script>

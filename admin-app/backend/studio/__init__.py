@@ -1660,7 +1660,9 @@ def create_aerial():
         picks=picks,
         labels={u: ROOM_LABELS.get(room_of(u), "Listing photo") for u in wide},
         durations=video.model_info(cfg).get("durations") or [3, 4, 5, 6, 8, 10],
-        resolutions=video.model_info(cfg).get("resolutions") or ["1080p"],
+        qualities=[{"key": key, "label": label,
+                    "rate": video.rate_for(res, cfg, model)}
+                   for key, (model, res, label) in video.AERIAL_QUALITY.items()],
         small=sorted(_small_pictures(wide)),
         rates=video.resolved_rates(cfg),
         configured=bool(cfg.get("api_key")),
@@ -4561,10 +4563,14 @@ def api_video_drone():
         if seconds not in info["durations"]:
             return jsonify({"error": "%s doesn't do %s-second clips."
                             % (info["label"], seconds)}), 400
-        resolution = (data.get("resolution") or "1080p").strip().lower()
-        if resolution not in info["resolutions"]:
-            return jsonify({"error": "%s doesn't offer %s."
-                            % (info["label"], resolution)}), 400
+        # Quality is a model AND a resolution here, because on this
+        # provider they are not separable. See AERIAL_QUALITY.
+        quality = (data.get("quality") or "1080p").strip().lower()
+        if quality not in video.AERIAL_QUALITY:
+            return jsonify({"error": "Quality can be %s." % ", ".join(
+                video.AERIAL_QUALITY)}), 400
+        model, resolution, _ = video.AERIAL_QUALITY[quality]
+        info = video.model_info(cfg, model)
 
         typed = data.get("prompt")
         typed = typed.strip() if isinstance(typed, str) else ""
@@ -4576,12 +4582,14 @@ def api_video_drone():
         # made from it. The worker enlarges those once and keeps the copy.
         spec = {"move": dronepath.AERIAL_WARP, "duration": seconds,
                 "resolution": resolution, "anchor": picks[1], "sharpen": True}
+        if model:
+            spec["model"] = model
         if typed:
             spec["prompt"] = typed
         try:
             job = start_job(current_app._get_current_object(), session["user_id"],
                             picks[:1], lead_id=lead.id, duration=seconds,
-                            prompt=typed or None, style="aerial",
+                            prompt=typed or None, style="aerial", model=model,
                             resolution=resolution, specs=[spec])
         except VideoJobBusy as exc:
             return jsonify({"error": str(exc)}), 409

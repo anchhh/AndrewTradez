@@ -12,7 +12,7 @@
 const lead = window.__LEAD__;
 const wide = window.__WIDE__ || [];
 const labels = window.__LABELS__ || {};
-const rates = window.__RATES__ || {};
+const qualities = window.__QUALITIES__ || [];
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || ""; };
@@ -34,10 +34,14 @@ function esc(value) {
 
 const nameOf = (url) => labels[url] || "Listing photo";
 const seconds = () => Number(el("ae-secs").value) || 5;
-const resolution = () => el("ae-res").value || "1080p";
+/* Quality is a model AND a resolution together: 4K is a different endpoint
+   at nearly four times the price, not a parameter. The server owns that
+   table; this only shows what it sent. */
+const quality = () => el("ae-res").value || "1080p";
+const tier = () => qualities.find((q) => q.key === quality()) || qualities[0] || {};
 
 function cost() {
-  const rate = rates[resolution()] || rates["*"];
+  const rate = tier().rate;
   return rate ? rate * seconds() : null;
 }
 
@@ -149,9 +153,8 @@ function review(body) {
     "</figcaption></figure>").join("");
 
   const dollars = cost();
-  const label = resolution() === "1440p-sr" ? "1440p super-res" : resolution();
   el("ae-review-specs").textContent =
-    "One clip · " + seconds() + " seconds · " + label + " · "
+    "One clip · " + seconds() + " seconds · " + (tier().label || "") + " · "
     + (body.model || "the video model")
     + (dollars != null ? " · about $" + dollars.toFixed(2) : "")
     + (smallPicks().length ? " · frames enlarged first" : "");
@@ -195,7 +198,7 @@ async function generate() {
         start: picks[0],
         end: picks[1],
         duration: seconds(),
-        resolution: resolution(),
+        quality: quality(),
         // Sent every time, edited or not: "what I saw" and "what ran" are
         // the same string or the confirmation was theatre.
         prompt: promptNow(),

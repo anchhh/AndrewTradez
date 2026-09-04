@@ -59,6 +59,21 @@ MODELS = {
         # Kling says `sound`; Seedance says `generate_audio`.
         "audio_field": "sound",
     },
+    # Kuaishou's highest tier, and genuinely 4K rather than an upscale of
+    # 1080p. Its parameter table has no `resolution` at all -- the model IS
+    # the resolution -- so api_res maps to None, which means "send no
+    # resolution field". Nearly four times the price of Pro per second.
+    "kwaivgi/kling-v3.0-4k/image-to-video": {
+        "label": "Kling 3.0 4K",
+        "rates": {"*": 0.357},
+        "resolutions": ["4k"],
+        "api_res": {"4k": None},
+        "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        "last_frame": "end_image",
+        "negative": True,
+        "max_prompt": 2500,
+        "audio_field": "sound",
+    },
     "kwaivgi/kling-v3.0-std/image-to-video": {
         "label": "Kling 3.0 Standard",
         "rates": {"*": 0.071},
@@ -104,10 +119,15 @@ def resolved_rates(cfg=None):
     return {res: float(rates.get(res, max(rates.values()))) for res in info["resolutions"]}
 
 
-def model_info(cfg=None):
-    """What the configured model costs and supports."""
+def model_info(cfg=None, model=None):
+    """What a model costs and supports -- the configured one unless named.
+
+    Named, because a single render may use a different model from the one in
+    the config: the aerial's 4K tier is a different endpoint with a
+    different price, not a parameter.
+    """
     cfg = cfg or load_config()
-    return MODELS.get(cfg["model"], {
+    return MODELS.get(model or cfg["model"], {
         "label": cfg["model"],
         "rates": {"*": cfg.get("rate_per_second", DEFAULT_RATE_PER_SECOND)},
         "resolutions": ["720p", "1080p"],
@@ -481,6 +501,22 @@ AERIAL_NEGATIVE = (
     "cut, jump cut, dissolve, crossfade, slideshow, frozen frame, "
     "letterboxing, black bars"
 )
+
+
+# What the aerial offers, in the order the page shows them. Each is a model
+# and a resolution together, because on this provider they are not separable:
+# 4K is a different endpoint at nearly four times the price, and 1440p is a
+# super-resolution pass over 1080p on the same one.
+#
+# Measured on one 5-second shot, same frames: native 1080p came back at 31
+# Mbps, the 1440p pass at 1.3 Mbps. More pixels, a twentieth of the data --
+# sharper on a still frame and mushier in motion, which is why 1080p is the
+# default and 4K is the answer to "as good as it gets".
+AERIAL_QUALITY = {
+    "1080p": (None, "1080p", "1080p"),
+    "1440p": (None, "1440p-sr", "1440p super-res"),
+    "4k": ("kwaivgi/kling-v3.0-4k/image-to-video", "4k", "4K"),
+}
 
 
 def is_aerial_move(key):
@@ -970,17 +1006,23 @@ DEFAULT_DURATION = 5
 DEFAULT_RESOLUTION = "1080p"
 
 
-def rate_for(resolution, cfg=None):
+def rate_for(resolution, cfg=None, model=None):
     """Dollars per second of output at this resolution, for this model."""
     cfg = cfg or load_config()
-    rates = (cfg.get("rates") or {}) or model_info(cfg)["rates"]
+    # A named model is not the configured one, so the config's rate override
+    # -- which exists to correct the configured model's price -- must not
+    # be applied to it.
+    if model and model != cfg["model"]:
+        rates = model_info(cfg, model)["rates"]
+    else:
+        rates = (cfg.get("rates") or {}) or model_info(cfg)["rates"]
     if "*" in rates:
         return float(rates["*"])
     return float(rates.get(resolution, max(rates.values()) if rates
                            else cfg["rate_per_second"]))
 
 
-def estimate_cost(seconds, cfg=None, resolution=None):
+def estimate_cost(seconds, cfg=None, resolution=None, model=None):
     """Dollar cost of a clip, for warning before spending.
 
     Resolution is not optional in practice -- it is a 4x swing between 480p
@@ -988,7 +1030,7 @@ def estimate_cost(seconds, cfg=None, resolution=None):
     so an omission overstates rather than understates.
     """
     cfg = cfg or load_config()
-    return round(seconds * rate_for(resolution or "1080p", cfg), 3)
+    return round(seconds * rate_for(resolution or "1080p", cfg, model), 3)
 
 
 # The longest side a clip's start or end frame is uploaded at.
@@ -1079,7 +1121,8 @@ def upload_image(path, cfg=None):
 # which then fails for having no content. Probe with an empty body instead --
 # that is rejected on the missing model field before anything is made.
 def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p",
-                last_image=None, generate_audio=False, move=None, **extra):
+                last_image=None, generate_audio=False, move=None, model=None,
+                **extra):
     """Start a generation. Returns the prediction id to poll.
 
     Audio is off by default. The model will happily invent a soundtrack, it
@@ -1100,18 +1143,21 @@ def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p"
     _require(cfg)
 
     payload = {
-        "model": cfg["model"],
+        "model": model or cfg["model"],
         "prompt": prompt or REAL_ESTATE_PROMPT,
         # Their field is "image", not "image_url" -- an easy and silent mistake.
         "image": image_url,
         "duration": duration,
     }
-    info = model_info(cfg)
+    info = model_info(cfg, model)
     # Our labels are lowercase; Kling wants "1080P" and "1440P-SR", and a
     # resolution it does not recognise is ignored rather than refused --
-    # which reads as "the super-resolution tier did nothing".
-    payload["resolution"] = (info.get("api_res") or {}).get(
+    # which reads as "the super-resolution tier did nothing". A model whose
+    # tier IS its resolution maps to None and is sent no field at all.
+    wanted = (info.get("api_res") or {}).get(
         (resolution or "").strip().lower(), resolution)
+    if wanted:
+        payload["resolution"] = wanted
     # Audio off, under whatever this model calls it. A listing video gets music
     # laid over it later, and audio costs about 50% more.
     payload[info.get("audio_field", "generate_audio")] = generate_audio
