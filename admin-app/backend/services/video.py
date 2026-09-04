@@ -403,6 +403,54 @@ EXT_NEVER_CHANGE_SHORT = (
 )
 
 # The itemised bans that matter outdoors, for the negative prompt.
+# The aerial shot, in two legs.
+#
+# These prompts are deliberately tiny, and that is the whole finding. The
+# reference clip that finally looked right was made with a start frame, an
+# end frame and one sentence -- "warp speed drone POV, giving a sense of
+# fast travel". Everything this file does for the flyover -- the constraint
+# ladder, the no-invention rules, the house number, the 2,500-character
+# budget -- exists because that shot flies over a real building and must
+# not redraw it. The aerial travels between two photographs at speed. Told
+# not to warp, blur or change anything, it produces a slow drift, which is
+# exactly what was wrong with every attempt before this one.
+#
+# So they do not go through exterior_prompt(). They are sent as written.
+AERIAL_MOVES = [
+    (
+        "aerial_warp",
+        "Warp travel",
+        "Warp speed from the first photograph to the second",
+        "Warp speed drone POV, giving a sense of fast travel. One "
+        "continuous shot from the first frame to the last, accelerating "
+        "hard and rushing forward the whole way. Heavy motion blur and "
+        "streaking are welcome.",
+    ),
+    (
+        "aerial_settle",
+        "Settle",
+        "Slows out of the warp and eases onto the last photograph",
+        "Drone POV coming out of fast travel. One continuous shot from the "
+        "first frame to the last: still moving quickly at the start, then "
+        "slowing steadily and panning gently to come to rest exactly on the "
+        "final frame. Smooth and unhurried by the end.",
+    ),
+]
+
+AERIAL_PROMPTS = {key: prompt for key, _, _, prompt in AERIAL_MOVES}
+
+# Short, and it does not forbid the blur: this shot is meant to smear.
+AERIAL_NEGATIVE = (
+    "text, captions, subtitles, watermark, logo, on-screen graphics, "
+    "people, moving vehicles, cut, jump cut, dissolve, crossfade, "
+    "slideshow, frozen frame, letterboxing, black bars"
+)
+
+
+def is_aerial_move(key):
+    return (key or "").strip().lower() in AERIAL_PROMPTS
+
+
 EXT_NEGATIVE = (
     "invented rear elevation, invented extension, new building, extra storey, "
     "extra windows, extra doors, added deck, added patio, added pool, "
@@ -424,50 +472,6 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
-    # The aerial reel's second shot, and the whole back half of it: one
-    # slow continuous zoom from a wide view of the neighbourhood down to
-    # the front of the house. It is a real interpolation between two
-    # photographs -- the wide one and the front -- which is the one leg of
-    # the old descent that always came back right, given long enough to
-    # breathe. Slow is the instruction that matters: at five seconds and
-    # under it lurches, which is why the page offers no less.
-    (
-        "aerial_zoom",
-        "Aerial zoom",
-        "One long, slow zoom from high and far back down onto the front of "
-        "the house",
-        "MOVEMENT: one continuous drone shot, single take, slow throughout. "
-        "Begin exactly on the first photograph -- high and FAR BACK over the "
-        "neighbourhood, the house small in the frame -- and move steadily "
-        "FORWARD and DOWN toward the subject property, closing the distance "
-        "gently and evenly until you arrive exactly on the final photograph "
-        "with the front of the house filling the frame. The house in the "
-        "final photograph is the one you are moving toward; it is somewhere "
-        "in the first frame already. Lose height and distance together so "
-        "the streets leave the frame gradually. Keep it SLOW and unhurried "
-        "from first frame to last -- no rush, no sudden acceleration, no "
-        "rotation, no orbit, and do not pass the property. Invent nothing "
-        "in between.",
-    ),
-    # One shot of the aerial reel (services/whip.py). Each photograph is
-    # rendered on its own with this, and the reel's cuts are whips built
-    # from the clips' frames -- so this asks for motion inside the frame
-    # and nothing that would carry the camera somewhere the photograph
-    # does not show. The reference reel's shots are exactly this: a drone
-    # easing forward over what it is already looking at.
-    (
-        "aerial_push",
-        "Aerial push",
-        "A slow, steady forward drone push over exactly what the photograph "
-        "shows",
-        "MOVEMENT: a slow, steady forward push from a hovering drone, single "
-        "take, height held. Ease gently ahead toward the centre of the "
-        "photograph, gaining only a little closeness, so the scene stays "
-        "exactly this scene from a few metres nearer. No descent onto "
-        "anything, no rotation, no orbit, no tilt, no speed change, and do "
-        "not travel far enough to reveal what the photograph does not show. "
-        "Invent nothing.",
-    ),
     (
         # The drone flow's only move. The menu below it is a menu of legs --
         # rise, cross, orbit, pull back -- and picking one was picking a
@@ -725,7 +729,7 @@ EXTERIOR_PROMPTS = {key: instruction for key, _, _, instruction in EXTERIOR_MOVE
 MOVE_PROMPTS = {key: instruction for key, _, _, instruction in MOVES}
 MOVE_PROMPTS.update(EXTERIOR_PROMPTS)
 
-MOVE_NAMES = {key: name for key, name, _, _ in MOVES + EXTERIOR_MOVES}
+MOVE_NAMES = {key: name for key, name, _, _ in MOVES + EXTERIOR_MOVES + AERIAL_MOVES}
 DEFAULT_MOVE = "push_in"
 
 # The style cards are presets now, not the movement itself: picking one sets
@@ -755,7 +759,10 @@ NEVER_CHANGE_SHORT = (
 
 def negative_for(move=None):
     """The negative prompt for a clip. Outdoors names the outdoor failures --
-    telling a drone shot not to add cabinetry helps nobody."""
+    telling a drone shot not to add cabinetry helps nobody, and telling the
+    aerial not to warp forbids the shot."""
+    if is_aerial_move(move):
+        return AERIAL_NEGATIVE
     return EXT_NEGATIVE if is_exterior_move(move) else NEGATIVE_PROMPT
 
 
@@ -768,6 +775,11 @@ def prompt_for_clip(move=None, style=None, cfg=None, site=None):
     the harder case because the model has a whole timeline to drift over.
     """
     key = (move or "").strip().lower()
+
+    # The aerial is sent as written. See AERIAL_MOVES for why it is not put
+    # through the ladder below.
+    if key in AERIAL_PROMPTS:
+        return AERIAL_PROMPTS[key]
 
     # Outside is a different constraint list and a different failure -- an
     # invented rear elevation rather than an invented door.

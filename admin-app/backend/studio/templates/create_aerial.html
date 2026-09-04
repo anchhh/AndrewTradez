@@ -25,103 +25,87 @@
        studio/atlascloud.json." }}</p>
   {% endif %}
 
-  {% if not made.front %}
+  {% if wide | length < 3 %}
     <section class="card">
-      <h2>The last shot is missing</h2>
-      <p class="hint">This reel ends on the front of the house &mdash; the
-        same frame the flyover opens on &mdash; so that has to exist first.
-        <a href="{{ generate_href }}">Generate it at stage 4</a>.</p>
-    </section>
-  {% elif not wide %}
-    <section class="card">
-      <h2>Nothing to open on</h2>
-      <p class="hint">This reel opens on one of the listing's own aerial
-        photographs &mdash; a drone shot of the street or the plot from above
-        &mdash; and this listing has none, nor any other outdoor photograph.
-        Add some at the listing step.</p>
+      <h2>Not enough pictures</h2>
+      <p class="hint">This shot travels between three of the listing's own
+        photographs &mdash; aerials work best, other outdoor shots will do
+        &mdash; and this listing has {{ wide | length }}. Add some at the
+        listing step.</p>
     </section>
   {% else %}
 
   <section class="card">
     <div class="en-head">
       <div>
-        <h2>A wide shot, a whip, then one long zoom in</h2>
-        <p class="hint">The opening photo becomes a short drone push. It
-          rushes into a streak, and the second shot is there: one slow,
-          continuous zoom that starts far back over the neighbourhood and
-          closes gently onto the front of the house. Pick no closer view and
-          it is that zoom alone.</p>
+        <h2>Warp from one photo to the next</h2>
+        <p class="hint">Three pictures and two clips. The first warps from
+          photo one to photo two at speed &mdash; a start frame, an end
+          frame and one line about fast travel, which is all the reference
+          shot ever had. The second comes out of the warp and pans gently to
+          rest on photo three. They join into one continuous take, because
+          the first ends on exactly the frame the second begins on.</p>
       </div>
     </div>
 
     <div class="ae-ends" id="ae-ends">
       <figure class="ae-end">
-        <span class="dr-recap-tag">Opens on</span>
-        <img id="ae-open-img" src="{{ opening }}" alt="The opening wide view">
-        <figcaption id="ae-open-name">Choose below</figcaption>
+        <span class="dr-recap-tag">Starts on</span>
+        <img id="ae-img0" alt="The first photograph">
+        <figcaption id="ae-name0"></figcaption>
       </figure>
 
-      <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
-
-      {# Optional, and it is where the long zoom STARTS -- not a frame the
-         reel passes through. #}
-      <figure class="ae-end" id="ae-mid-wrap" hidden>
-        <span class="dr-recap-tag">Whips into</span>
-        <img id="ae-mid-img" alt="Where the zoom starts">
-        <figcaption>Zoom starts here
-          <button type="button" class="btn-tiny" id="ae-mid-clear">Remove</button>
-        </figcaption>
-      </figure>
-
-      <div class="dr-recap-arrow" id="ae-mid-arrow" aria-hidden="true" hidden>&rarr;</div>
+      <div class="dr-recap-arrow" aria-hidden="true">warp &rarr;</div>
 
       <figure class="ae-end">
-        <span class="dr-recap-tag">Zoom ends on</span>
-        <img src="{{ made.front }}" alt="The generated front shot">
-        <figcaption>The front
-          <a class="btn-tiny" href="{{ generate_href }}">Change</a>
-        </figcaption>
+        <span class="dr-recap-tag">Arrives on</span>
+        <img id="ae-img1" alt="The second photograph">
+        <figcaption id="ae-name1"></figcaption>
+      </figure>
+
+      <div class="dr-recap-arrow" aria-hidden="true">pan &rarr;</div>
+
+      <figure class="ae-end">
+        <span class="dr-recap-tag">Rests on</span>
+        <img id="ae-img2" alt="The third photograph">
+        <figcaption id="ae-name2"></figcaption>
       </figure>
     </div>
 
-    <p class="gn-inputs-label hint">
-      {% if fallback %}
-        Opens on &mdash; no aerial photographs on this listing, so these are
-        its other outdoor shots. One taken from the air works far better.
-      {% else %}
-        Opens on &mdash; this listing's aerial photographs
-      {% endif %}
-    </p>
-    <div class="fp-views" id="ae-views"></div>
+    {% if fallback %}
+      <p class="hint">No photographs on this listing are labelled aerial, so
+        these are its other outdoor shots. Ones taken from the air work far
+        better.</p>
+    {% endif %}
 
-    <p class="gn-inputs-label hint">Whip into &mdash; optional. The closer
-      view the long zoom starts from. Leave it out and the zoom starts from
-      the opening photo instead, with no cut at all.</p>
-    <div class="fp-views" id="ae-mids"></div>
+    <p class="gn-inputs-label hint">1 &mdash; where it starts</p>
+    <div class="fp-views" id="ae-pick0"></div>
+
+    <p class="gn-inputs-label hint">2 &mdash; where the warp arrives, and the
+      pan sets off from</p>
+    <div class="fp-views" id="ae-pick1"></div>
+
+    <p class="gn-inputs-label hint">3 &mdash; where it comes to rest</p>
+    <div class="fp-views" id="ae-pick2"></div>
   </section>
 
   <section class="card">
     <h2>Length</h2>
-    <div class="rn-setall" id="ae-open-row" hidden>
-      <span class="rn-setall-label">Opening push</span>
-      <select id="ae-open-secs" class="rn-select">
-        {% for seconds in open_choices %}
+    <div class="rn-setall">
+      <span class="rn-setall-label">The warp</span>
+      <select id="ae-warp-secs" class="rn-select">
+        {% for seconds in durations if seconds <= 5 %}
           <option value="{{ seconds }}"{{ ' selected' if seconds == 3 }}>{{ seconds }} seconds</option>
         {% endfor %}
       </select>
-    </div>
-    <div class="rn-setall">
-      <span class="rn-setall-label">The zoom</span>
-      <select id="ae-zoom-secs" class="rn-select">
-        {% for seconds in zoom_choices %}
-          <option value="{{ seconds }}"{{ ' selected' if seconds == 8 }}>{{ seconds }} seconds</option>
+      <span class="rn-setall-label">The pan</span>
+      <select id="ae-settle-secs" class="rn-select">
+        {% for seconds in durations if seconds >= 5 and seconds <= 10 %}
+          <option value="{{ seconds }}"{{ ' selected' if seconds == 5 }}>{{ seconds }} seconds</option>
         {% endfor %}
       </select>
       <span class="hint" id="ae-cost"></span>
     </div>
-    <p class="hint">The cut costs a {{ timing.rush }}-second whip out and a
-      {{ timing.land }}-second landing in. Give the zoom room: it travels a
-      long way and a short one lurches.</p>
   </section>
 
   <div class="row action-row ge-actions">
@@ -141,19 +125,24 @@
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          {# One box per shot, built by the script: the reel is one shot or
-             two, and a hidden second box kept in step with that choice is a
-             bug waiting for a quiet afternoon. #}
-          <div id="ae-review-prompts"></div>
+          <h4 class="gn-review-h">Clip 1 &mdash; the warp</h4>
+          <p class="hint">Photo 1 to photo 2. Editable, for this run.</p>
+          <textarea id="ae-review-prompt0" class="gn-review-prompt"
+                    spellcheck="false" rows="5"></textarea>
+
+          <h4 class="gn-review-h">Clip 2 &mdash; out of the warp</h4>
+          <p class="hint">Photo 2 to photo 3. Editable, for this run.</p>
+          <textarea id="ae-review-prompt1" class="gn-review-prompt"
+                    spellcheck="false" rows="5"></textarea>
 
           <button type="button" class="btn-secondary btn-tiny gn-review-reset"
                   id="ae-review-reset">Back to the default wording</button>
         </div>
 
         <div class="gn-review-col">
-          <h4 class="gn-review-h">The shots</h4>
-          <p class="hint">The zoom runs between its two photographs; the whip
-            is built from the clips' own frames.</p>
+          <h4 class="gn-review-h">The frames</h4>
+          <p class="hint">Each clip runs between two of them. They join into
+            one file when both land.</p>
           <div class="gn-review-shots" id="ae-review-frames"></div>
 
           <h4 class="gn-review-h">The settings</h4>
@@ -174,14 +163,9 @@
 <script>
   window.__LEAD__ = {{ lead.id | tojson }};
   window.__WIDE__ = {{ wide | tojson }};
-  window.__OPENING__ = {{ (opening or "") | tojson }};
-  window.__MIDDLE__ = {{ (middle or "") | tojson }};
-  window.__FRONT__ = {{ (made.front or "") | tojson }};
-  window.__SLOTS__ = {{ slots | tojson }};
-  window.__SLOT_ORDER__ = {{ slot_order | tojson }};
-  window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+  window.__PICKS__ = {{ picks | tojson }};
+  window.__LABELS__ = {{ labels | tojson }};
   window.__RATES__ = {{ rates | tojson }};
-  window.__TIMING__ = {{ timing | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_aerial.js') }}"></script>
 </body>

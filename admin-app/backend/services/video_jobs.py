@@ -181,23 +181,18 @@ def _run(app, job_id):
             # them, and a run that wants one video is built as one render.
             output = done[0]["video_url"] if len(done) == 1 else None
 
-            # Except the aerial, which is a reel: its clips are the shots,
-            # and the finished video is those clips cut together with whips
-            # (services/whip.py). Only when every shot landed -- a reel with
-            # a hole in it is not the reel that was confirmed. The clips
-            # stay on the job as they came back; if the cut fails, the log
-            # says why and the shots are the result.
+            # Except the aerial, whose two legs are one shot: leg one ends
+            # on the exact photograph leg two begins on, so end to end they
+            # are a single continuous take. Only when both landed -- half a
+            # shot is not the shot that was confirmed. The legs stay on the
+            # job as they came back; if the join fails, the log says why.
             if job.style == "aerial" and len(done) == len(clips) and len(done) > 1:
-                from services import whip
+                from services import reel
 
-                out_name = f"job{job.id}-reel.mp4"
-                # Per shot, because they are not the same length: a short
-                # opening push, then a long zoom.
-                lengths = [job.spec_for(i).get("each") or c.get("duration") or 3
-                           for i, c in enumerate(done)]
-                if whip.reel([os.path.join(CLIPS_DIRNAME, c["video_url"].rsplit("/", 1)[-1])
+                out_name = f"job{job.id}-aerial.mp4"
+                if reel.join([os.path.join(CLIPS_DIRNAME, c["video_url"].rsplit("/", 1)[-1])
                               for c in done],
-                             os.path.join(CLIPS_DIRNAME, out_name), lengths):
+                             os.path.join(CLIPS_DIRNAME, out_name)):
                     output = f"{CLIPS_URL_PREFIX}/{out_name}"
             _update(db, job, status="completed", output_url=output)
 

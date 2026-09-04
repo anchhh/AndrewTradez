@@ -1559,22 +1559,29 @@ def create_flight():
         crumbs=_create_crumbs("flight", style="drone", project_id=project_id))
 
 
+# What a picture is called under the aerial's pickers. The room labels are
+# machine keys; these are what a person would say.
+ROOM_LABELS = {
+    "aerial": "Aerial",
+    "exterior_front": "Front",
+    "exterior_back": "Back",
+    "outdoor_space": "Outdoors",
+}
+
+
 @studio_bp.route("/create/video/aerial")
 @login_required
 def create_aerial():
-    """The drone flow's second shot: the establishing one.
+    """The drone flow's second tab: the aerial.
 
-    A descent from a wide view of the neighbourhood onto the front of the
-    house -- ending exactly on the frame the flyover begins with, so the two
-    cut together with no seam. That is the whole point of it: another
-    handsome wide shot is easy, one that lands on a frame you already have is
-    what makes a sequence.
+    Its own shot, not the flyover's opening. Three of the listing's own
+    pictures: it warps from the first to the second at speed, comes out of
+    the warp and eases onto the third. Two renders, joined.
 
-    It borrows the flyover's stages rather than repeating them. The captures
-    come from stage 2, the front shot from stage 4; what is chosen here is
-    which wide view it opens on and how long it runs.
+    It borrows this flow's lead and tabs and nothing else -- the captures,
+    the board and the drawn route all belong to the flyover.
     """
-    from services import dronepath, video, whip
+    from services import dronepath, video
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1585,7 +1592,6 @@ def create_aerial():
     project_id = request.args.get("project")
     tail = "&project=%s" % quote(project_id) if project_id else ""
     cfg = video.load_config()
-    made = dronepath.generated_of(path)
 
     # What it can open on: the LISTING's own aerial photographs.
     #
@@ -1601,32 +1607,40 @@ def create_aerial():
         entry = rooms.get(url)
         return (entry.get("room") if isinstance(entry, dict) else entry) or ""
 
+    # Everything shot outdoors, aerials first: this is a shot about the
+    # place, and the pictures that suit it are the ones taken from above or
+    # outside. The flyover's generated front shot rides along at the end as
+    # one more option -- ending on it makes the two shots cut together --
+    # but nothing here requires it.
     photos = lead.photo_urls or []
+    ROOMS = ("aerial", "exterior_front", "outdoor_space", "exterior_back")
     wide = [u for u in photos if room_of(u) == "aerial"]
-    # None labelled aerial: offer the other outdoor photographs rather than an
-    # empty picker, and say which is which underneath.
-    fallback = not wide
-    if fallback:
-        wide = [u for u in photos
-                if room_of(u) in ("exterior_front", "outdoor_space")]
+    wide += [u for u in photos if room_of(u) in ROOMS[1:] and u not in wide]
+    fallback = not [u for u in photos if room_of(u) == "aerial"]
+    made = dronepath.generated_of(path)
+    for url in made.values():
+        if url and url not in wide:
+            wide.append(url)
+
+    # Three choices, remembered. Anything stored that is no longer on the
+    # listing falls back to the next unused picture rather than to nothing.
+    stored = [dronepath.aerial_opening_of(path), dronepath.aerial_middle_of(path),
+              dronepath.aerial_end_of(path)]
+    picks = []
+    for i in range(3):
+        url = stored[i] if stored[i] in wide and stored[i] not in picks else None
+        if not url:
+            url = next((u for u in wide if u not in picks), None)
+        picks.append(url)
 
     return render_template(
         "create_aerial.html", lead=lead,
         **_shot_tabs(lead.id, shot="aerial", project_id=project_id),
         wide=wide,
         fallback=fallback,
-        middle=(dronepath.aerial_middle_of(path)
-                if dronepath.aerial_middle_of(path) in wide else None),
-        opening=(dronepath.aerial_opening_of(path)
-                 if dronepath.aerial_opening_of(path) in wide
-                 else (wide[0] if wide else None)),
-        made=made,
-        shot_labels=dronepath.SHOT_LABELS,
-        slots=slots,
-        slot_order=dronepath.CAPTURE_SLOTS,
-        timing={"rush": whip.RUSH, "land": whip.LAND, "min_render": whip.MIN_RENDER},
-        open_choices=list(whip.OPEN_CHOICES),
-        zoom_choices=list(whip.ZOOM_CHOICES),
+        picks=picks,
+        labels={u: ROOM_LABELS.get(room_of(u), "Listing photo") for u in wide},
+        durations=video.model_info(cfg).get("durations") or [3, 4, 5, 6, 8, 10],
         rates=video.resolved_rates(cfg),
         configured=bool(cfg.get("api_key")),
         config_error=cfg.get("config_error"),
@@ -3602,7 +3616,7 @@ def api_drone_reset(lead_id):
 @studio_bp.route("/api/leads/<int:lead_id>/aerial", methods=["POST"])
 @login_required
 def api_lead_aerial(lead_id):
-    """Which wide view the establishing shot opens on."""
+    """The three pictures the aerial is built from."""
     from extensions import db
     from services import dronepath
 
@@ -3611,23 +3625,25 @@ def api_lead_aerial(lead_id):
         return jsonify({"error": "Lead not found."}), 404
 
     data = request.get_json(silent=True) or {}
-    opening = (data.get("opening") or "").strip()
-    middle = (data.get("middle") or "").strip()
+    picks = [(data.get(key) or "").strip() for key in ("opening", "middle", "end")]
     allowed = (set(lead.photo_urls or [])
-               | set(dronepath.images_of(lead.drone_path or {})))
-    for url in (opening, middle):
+               | set(dronepath.images_of(lead.drone_path or {}))
+               | set(dronepath.generated_of(lead.drone_path or {}).values()))
+    for url in picks:
         if url and url not in allowed:
             return jsonify({"error": "That view is not one of this "
                                      "property's pictures."}), 400
-    if middle and middle == opening:
-        return jsonify({"error": "The middle frame can't be the one it opens "
-                                 "on."}), 400
+    chosen = [u for u in picks if u]
+    if len(set(chosen)) != len(chosen):
+        return jsonify({"error": "The three have to be different "
+                                 "pictures."}), 400
 
-    dronepath.set_aerial_opening(lead, opening or None, middle or None)
+    dronepath.set_aerial(lead, picks)
     db.session.commit()
     path = lead.drone_path or {}
     return jsonify({"opening": dronepath.aerial_opening_of(path),
-                    "middle": dronepath.aerial_middle_of(path)})
+                    "middle": dronepath.aerial_middle_of(path),
+                    "end": dronepath.aerial_end_of(path)})
 
 
 @studio_bp.route("/api/leads/<int:lead_id>/flight", methods=["POST", "DELETE"])
@@ -4489,7 +4505,7 @@ def api_video_drone():
 
     start = (data.get("start") or "").strip()
     end = (data.get("end") or "").strip()
-    if start not in captures:
+    if (data.get("shot") or "").strip().lower() != "aerial" and start not in captures:
         return jsonify({"error": "That starting frame is not one of this "
                                  "property's captures."}), 400
     if end and end not in captures:
@@ -4499,78 +4515,57 @@ def api_video_drone():
         return jsonify({"error": "A shot can't end on the frame it starts "
                                  "from."}), 400
 
-    # The aerial is a reel of at most two shots: a short push over a wide
-    # photograph, a whip, and then ONE long slow zoom from the closer view
-    # down onto the front. The zoom is a real interpolation between those
-    # two photographs; the whip is built from the clips' own frames, so
-    # nothing between the two WIDE shots is generated -- the one time that
-    # was asked for, the model invented a different suburb on the way.
+    # The aerial: its own shot, and nothing to do with the flyover.
+    #
+    # Three photographs and two renders. The first warps from photograph one
+    # to photograph two -- start frame, end frame, and one sentence about
+    # fast travel, which is all the reference clip ever had. The second
+    # comes out of the warp and eases onto photograph three. Leg one ends on
+    # the exact frame leg two begins on, so joined they are one continuous
+    # take (services/reel.py).
     if (data.get("shot") or "").strip().lower() == "aerial":
-        from services import whip
-
-        middle = (data.get("middle") or "").strip()
-        if middle and middle not in captures:
-            return jsonify({"error": "That closer view is not one of this "
-                                     "property's pictures."}), 400
-        if middle and middle in (start, end):
-            return jsonify({"error": "The closer view has to be different "
-                                     "from the two ends."}), 400
-        if not end:
-            return jsonify({"error": "The reel needs the front shot to end "
-                                     "on."}), 400
-        try:
-            opening_seconds = int(data.get("opening") or 3)
-            zoom_seconds = int(data.get("zoom") or 8)
-        except (TypeError, ValueError):
-            return jsonify({"error": "Shot length must be a number."}), 400
-        if opening_seconds not in whip.OPEN_CHOICES:
-            return jsonify({"error": "The opening shot can be %s seconds."
-                            % ", ".join(str(s) for s in whip.OPEN_CHOICES)}), 400
-        if zoom_seconds not in whip.ZOOM_CHOICES:
-            return jsonify({"error": "The zoom can be %s seconds." % ", ".join(
-                str(s) for s in whip.ZOOM_CHOICES)}), 400
+        picks = [(data.get(key) or "").strip()
+                 for key in ("start", "middle", "end")]
+        if not all(picks):
+            return jsonify({"error": "Pick all three photographs."}), 400
+        for url in picks:
+            if url not in captures:
+                return jsonify({"error": "That picture is not one of this "
+                                         "property's."}), 400
+        if len(set(picks)) != 3:
+            return jsonify({"error": "The three have to be different "
+                                     "pictures."}), 400
 
         info = video.model_info(cfg)
-
-        def rendered_length(seconds):
-            # The model has a shortest clip and a fixed menu of lengths. A
-            # shorter shot is rendered at the nearest it will take and
-            # trimmed on the cut -- and priced at what is rendered.
-            want = max(seconds, whip.MIN_RENDER)
-            return want if want in info["durations"] else min(
-                d for d in info["durations"] if d >= want)
+        lengths = []
+        for key, fallback in (("warp", 3), ("settle", 5)):
+            try:
+                seconds = int(data.get(key) or fallback)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Length must be a number."}), 400
+            if seconds not in info["durations"]:
+                return jsonify({"error": "%s doesn't do %s-second clips."
+                                % (info["label"], seconds)}), 400
+            lengths.append(seconds)
 
         typed = data.get("prompts")
         if not isinstance(typed, list):
-            typed = [data.get("prompt")]
+            typed = []
         typed = [(t or "").strip() if isinstance(t, str) else "" for t in typed]
         if any(len(t) > 6000 for t in typed):
             return jsonify({"error": "That prompt is too long to send."}), 400
 
-        site = dict(exterior_site_facts(lead, {}), flight_path=None)
-
-        def shot(index, photo, move, seconds, anchor=None):
-            spec = {"move": move, "duration": rendered_length(seconds),
-                    "each": seconds, "resolution": "1080p", "site": site}
-            if anchor:
-                spec["anchor"] = anchor
-            if index < len(typed) and typed[index]:
-                spec["prompt"] = typed[index]
-            return spec
-
-        # With a closer view: the push over the wide shot, then the zoom
-        # from the closer view. Without one: the zoom alone, from the wide
-        # shot straight down onto the front, and no whip to build.
-        if middle:
-            frames = [start, middle]
-            specs = [shot(0, start, dronepath.AERIAL_MOVE, opening_seconds),
-                     shot(1, middle, dronepath.AERIAL_ZOOM, zoom_seconds, anchor=end)]
-        else:
-            frames = [start]
-            specs = [shot(0, start, dronepath.AERIAL_ZOOM, zoom_seconds, anchor=end)]
+        moves = (dronepath.AERIAL_WARP, dronepath.AERIAL_SETTLE)
+        specs = []
+        for i, move in enumerate(moves):
+            spec = {"move": move, "duration": lengths[i], "resolution": "1080p",
+                    "anchor": picks[i + 1]}
+            if i < len(typed) and typed[i]:
+                spec["prompt"] = typed[i]
+            specs.append(spec)
         try:
             job = start_job(current_app._get_current_object(), session["user_id"],
-                            frames, lead_id=lead.id, duration=specs[-1]["duration"],
+                            picks[:2], lead_id=lead.id, duration=lengths[0],
                             style="aerial", resolution="1080p", specs=specs)
         except VideoJobBusy as exc:
             return jsonify({"error": str(exc)}), 409
@@ -4652,7 +4647,7 @@ def api_video_drone_preview():
     from services import dronepath
 
     aerial = (data.get("shot") or "").strip().lower() == "aerial"
-    move = dronepath.AERIAL_ZOOM if aerial else dronepath.MOVE
+    move = dronepath.AERIAL_WARP if aerial else dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)
@@ -4665,12 +4660,12 @@ def api_video_drone_preview():
     # No cost here: the page already prices a clip from the rate table it was
     # given, and a second implementation of the same arithmetic is how two
     # screens end up showing different dollars.
-    # The aerial's shots carry different instructions -- a push, then a
-    # zoom -- and the confirmation shows what each one will be sent.
+    # The aerial's two legs carry different instructions -- the warp, then
+    # coming out of it -- and the confirmation shows both.
     shots = []
-    if aerial and (data.get("middle") or "").strip():
-        shots = [video.prompt_for_clip(move=dronepath.AERIAL_MOVE, cfg=cfg, site=site),
-                 video.prompt_for_clip(move=move, cfg=cfg, site=site)]
+    if aerial:
+        shots = [video.prompt_for_clip(move=dronepath.AERIAL_WARP, cfg=cfg),
+                 video.prompt_for_clip(move=dronepath.AERIAL_SETTLE, cfg=cfg)]
     return jsonify({
         "prompt": video.prompt_for_clip(move=move, cfg=cfg, site=site),
         "prompts": shots,

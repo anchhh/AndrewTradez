@@ -273,12 +273,11 @@ def group_of(slot):
 # a different shot than the one the flow is building.
 MOVE = "drone_flight"
 
-# The establishing shot on the drone flow's second tab: a short push over a
-# wide photograph, a whip, and then one long zoom down onto the front
-# (services/whip.py cuts them together). With no closer view chosen it is
-# the zoom alone.
-AERIAL_MOVE = "aerial_push"
-AERIAL_ZOOM = "aerial_zoom"
+# The aerial on the drone flow's second tab. Its own shot, not the
+# flyover's opening: three photographs, warp from the first to the second,
+# then slow out of it onto the third. Two renders joined (services/reel.py).
+AERIAL_WARP = "aerial_warp"
+AERIAL_SETTLE = "aerial_settle"
 
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything
@@ -581,28 +580,26 @@ def aerial_opening_of(path):
 
 
 def aerial_middle_of(path):
-    """The optional frame it passes through on the way down.
-
-    With one set, the model flies only from HERE down to the house, and the
-    jump from the opening photograph into this one is a whip -- a speed
-    blur built from the photograph (services/whip.py), added after the
-    render. Generating that stretch instead had the model turning the
-    neighbourhood into a different one on the way.
-    """
+    """The photograph the warp arrives on, and the settle leaves from."""
     return (path or {}).get("aerial_middle")
 
 
-def set_aerial_opening(lead, url, middle=None):
-    """Remember them, so the choices survive leaving the page."""
+def aerial_end_of(path):
+    """The photograph the shot comes to rest on."""
+    return (path or {}).get("aerial_end")
+
+
+AERIAL_KEYS = ("aerial_opening", "aerial_middle", "aerial_end")
+
+
+def set_aerial(lead, picks):
+    """Remember the three, so the choices survive leaving the page."""
     path = dict(lead.drone_path or {})
-    if url:
-        path["aerial_opening"] = url
-    else:
-        path.pop("aerial_opening", None)
-    if middle:
-        path["aerial_middle"] = middle
-    else:
-        path.pop("aerial_middle", None)
+    for key, url in zip(AERIAL_KEYS, list(picks) + [None, None, None]):
+        if url:
+            path[key] = url
+        else:
+            path.pop(key, None)
     return _stamped(lead, path)
 
 
