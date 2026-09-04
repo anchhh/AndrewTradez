@@ -1625,7 +1625,8 @@ def create_aerial():
         slots=slots,
         slot_order=dronepath.CAPTURE_SLOTS,
         timing={"rush": whip.RUSH, "land": whip.LAND, "min_render": whip.MIN_RENDER},
-        shot_choices=list(whip.SHOT_CHOICES),
+        open_choices=list(whip.OPEN_CHOICES),
+        zoom_choices=list(whip.ZOOM_CHOICES),
         rates=video.resolved_rates(cfg),
         configured=bool(cfg.get("api_key")),
         config_error=cfg.get("config_error"),
@@ -4498,12 +4499,12 @@ def api_video_drone():
         return jsonify({"error": "A shot can't end on the frame it starts "
                                  "from."}), 400
 
-    # The aerial is a reel: one short clip per photograph, each a slow
-    # forward push rendered on its own, cut together with speed whips when
-    # they have all landed (services/whip.py). Nothing between two
-    # photographs is generated -- the one time it was, the model invented a
-    # different suburb on the way -- so the shots need no anchors, and
-    # every one carries the same instruction.
+    # The aerial is a reel of at most two shots: a short push over a wide
+    # photograph, a whip, and then ONE long slow zoom from the closer view
+    # down onto the front. The zoom is a real interpolation between those
+    # two photographs; the whip is built from the clips' own frames, so
+    # nothing between the two WIDE shots is generated -- the one time that
+    # was asked for, the model invented a different suburb on the way.
     if (data.get("shot") or "").strip().lower() == "aerial":
         from services import whip
 
@@ -4518,33 +4519,59 @@ def api_video_drone():
             return jsonify({"error": "The reel needs the front shot to end "
                                      "on."}), 400
         try:
-            each = int(data.get("each") or 2)
+            opening_seconds = int(data.get("opening") or 3)
+            zoom_seconds = int(data.get("zoom") or 8)
         except (TypeError, ValueError):
             return jsonify({"error": "Shot length must be a number."}), 400
-        if each not in whip.SHOT_CHOICES:
-            return jsonify({"error": "Shots can be %s seconds." % ", ".join(
-                str(s) for s in whip.SHOT_CHOICES)}), 400
+        if opening_seconds not in whip.OPEN_CHOICES:
+            return jsonify({"error": "The opening shot can be %s seconds."
+                            % ", ".join(str(s) for s in whip.OPEN_CHOICES)}), 400
+        if zoom_seconds not in whip.ZOOM_CHOICES:
+            return jsonify({"error": "The zoom can be %s seconds." % ", ".join(
+                str(s) for s in whip.ZOOM_CHOICES)}), 400
+
         info = video.model_info(cfg)
-        # Rendered at the model's shortest length at least, and trimmed to
-        # the shot on the cut. Priced at what is rendered.
-        rendered = max(each, whip.MIN_RENDER)
-        if rendered not in info["durations"]:
-            rendered = min(d for d in info["durations"] if d >= rendered)
-        typed = data.get("prompt")
-        typed = typed.strip() if isinstance(typed, str) else ""
-        if len(typed) > 6000:
+
+        def rendered_length(seconds):
+            # The model has a shortest clip and a fixed menu of lengths. A
+            # shorter shot is rendered at the nearest it will take and
+            # trimmed on the cut -- and priced at what is rendered.
+            want = max(seconds, whip.MIN_RENDER)
+            return want if want in info["durations"] else min(
+                d for d in info["durations"] if d >= want)
+
+        typed = data.get("prompts")
+        if not isinstance(typed, list):
+            typed = [data.get("prompt")]
+        typed = [(t or "").strip() if isinstance(t, str) else "" for t in typed]
+        if any(len(t) > 6000 for t in typed):
             return jsonify({"error": "That prompt is too long to send."}), 400
+
         site = dict(exterior_site_facts(lead, {}), flight_path=None)
-        frames = [start] + ([middle] if middle else []) + [end]
-        specs = [{"move": dronepath.AERIAL_MOVE, "duration": rendered, "each": each,
-                  "resolution": "1080p", "site": site,
-                  **({"prompt": typed} if typed else {})}
-                 for _ in frames]
+
+        def shot(index, photo, move, seconds, anchor=None):
+            spec = {"move": move, "duration": rendered_length(seconds),
+                    "each": seconds, "resolution": "1080p", "site": site}
+            if anchor:
+                spec["anchor"] = anchor
+            if index < len(typed) and typed[index]:
+                spec["prompt"] = typed[index]
+            return spec
+
+        # With a closer view: the push over the wide shot, then the zoom
+        # from the closer view. Without one: the zoom alone, from the wide
+        # shot straight down onto the front, and no whip to build.
+        if middle:
+            frames = [start, middle]
+            specs = [shot(0, start, dronepath.AERIAL_MOVE, opening_seconds),
+                     shot(1, middle, dronepath.AERIAL_ZOOM, zoom_seconds, anchor=end)]
+        else:
+            frames = [start]
+            specs = [shot(0, start, dronepath.AERIAL_ZOOM, zoom_seconds, anchor=end)]
         try:
             job = start_job(current_app._get_current_object(), session["user_id"],
-                            frames, lead_id=lead.id, duration=rendered,
-                            prompt=typed or None, style="aerial",
-                            resolution="1080p", specs=specs)
+                            frames, lead_id=lead.id, duration=specs[-1]["duration"],
+                            style="aerial", resolution="1080p", specs=specs)
         except VideoJobBusy as exc:
             return jsonify({"error": str(exc)}), 409
         return jsonify({"job_id": job.id, "estimated_cost": job.estimated_cost})
@@ -4625,7 +4652,7 @@ def api_video_drone_preview():
     from services import dronepath
 
     aerial = (data.get("shot") or "").strip().lower() == "aerial"
-    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
+    move = dronepath.AERIAL_ZOOM if aerial else dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)
@@ -4638,8 +4665,15 @@ def api_video_drone_preview():
     # No cost here: the page already prices a clip from the rate table it was
     # given, and a second implementation of the same arithmetic is how two
     # screens end up showing different dollars.
+    # The aerial's shots carry different instructions -- a push, then a
+    # zoom -- and the confirmation shows what each one will be sent.
+    shots = []
+    if aerial and (data.get("middle") or "").strip():
+        shots = [video.prompt_for_clip(move=dronepath.AERIAL_MOVE, cfg=cfg, site=site),
+                 video.prompt_for_clip(move=move, cfg=cfg, site=site)]
     return jsonify({
         "prompt": video.prompt_for_clip(move=move, cfg=cfg, site=site),
+        "prompts": shots,
         "site": site,
         "seconds": seconds,
         "model": video.model_info(cfg).get("label"),

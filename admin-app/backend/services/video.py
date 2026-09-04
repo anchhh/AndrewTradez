@@ -424,6 +424,31 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
+    # The aerial reel's second shot, and the whole back half of it: one
+    # slow continuous zoom from a wide view of the neighbourhood down to
+    # the front of the house. It is a real interpolation between two
+    # photographs -- the wide one and the front -- which is the one leg of
+    # the old descent that always came back right, given long enough to
+    # breathe. Slow is the instruction that matters: at five seconds and
+    # under it lurches, which is why the page offers no less.
+    (
+        "aerial_zoom",
+        "Aerial zoom",
+        "One long, slow zoom from high and far back down onto the front of "
+        "the house",
+        "MOVEMENT: one continuous drone shot, single take, slow throughout. "
+        "Begin exactly on the first photograph -- high and FAR BACK over the "
+        "neighbourhood, the house small in the frame -- and move steadily "
+        "FORWARD and DOWN toward the subject property, closing the distance "
+        "gently and evenly until you arrive exactly on the final photograph "
+        "with the front of the house filling the frame. The house in the "
+        "final photograph is the one you are moving toward; it is somewhere "
+        "in the first frame already. Lose height and distance together so "
+        "the streets leave the frame gradually. Keep it SLOW and unhurried "
+        "from first frame to last -- no rush, no sudden acceleration, no "
+        "rotation, no orbit, and do not pass the property. Invent nothing "
+        "in between.",
+    ),
     # One shot of the aerial reel (services/whip.py). Each photograph is
     # rendered on its own with this, and the reel's cuts are whips built
     # from the clips' frames -- so this asks for motion inside the frame

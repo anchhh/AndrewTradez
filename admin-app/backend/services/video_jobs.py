@@ -191,10 +191,13 @@ def _run(app, job_id):
                 from services import whip
 
                 out_name = f"job{job.id}-reel.mp4"
-                each = job.spec_for(0).get("each") or clips[0].get("duration") or 3
+                # Per shot, because they are not the same length: a short
+                # opening push, then a long zoom.
+                lengths = [job.spec_for(i).get("each") or c.get("duration") or 3
+                           for i, c in enumerate(done)]
                 if whip.reel([os.path.join(CLIPS_DIRNAME, c["video_url"].rsplit("/", 1)[-1])
                               for c in done],
-                             os.path.join(CLIPS_DIRNAME, out_name), each):
+                             os.path.join(CLIPS_DIRNAME, out_name), lengths):
                     output = f"{CLIPS_URL_PREFIX}/{out_name}"
             _update(db, job, status="completed", output_url=output)
 

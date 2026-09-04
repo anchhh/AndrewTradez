@@ -103,22 +103,29 @@ def main():
     # The aerial reel's one move. No route, no ramp, no reveal -- but it
     # still has to fit and still has to carry the house number, and a
     # refactor of the ladder is how it would quietly stop doing either.
-    for label, facts in SITES.items():
-        prompt = video.exterior_prompt("aerial_push", cfg, site=dict(facts, flight_path=None))
-        longest = max(longest, len(prompt))
-        where = "aerial_push / %s" % label
-        if len(prompt) > limit:
-            failures.append((where, "prompt is %d characters, over the %d limit"
-                             % (len(prompt), limit)))
-        for clause, why in (
-            ("height held", "the push itself -- without it the model descends "
-                            "onto the nearest roof"),
-            ("It must read exactly", "the house number, same reason as above"),
-        ):
-            if clause not in prompt:
-                failures.append((where, 'missing "%s" -- %s' % (clause, why)))
+    for move, clause, why in (
+        ("aerial_push", "height held",
+         "the push itself -- without it the model descends onto the nearest roof"),
+        ("aerial_zoom", "FAR BACK",
+         "where the zoom starts. Without it the model opens already close and "
+         "there is nowhere left to travel"),
+        ("aerial_zoom", "SLOW and unhurried",
+         "the pace. This shot was made long on purpose; a fast one lurches"),
+    ):
+        for label, facts in SITES.items():
+            prompt = video.exterior_prompt(move, cfg, site=dict(facts, flight_path=None))
+            longest = max(longest, len(prompt))
+            where = "%s / %s" % (move, label)
+            if len(prompt) > limit:
+                failures.append((where, "prompt is %d characters, over the %d limit"
+                                 % (len(prompt), limit)))
+            for want, reason in ((clause, why),
+                                 ("It must read exactly",
+                                  "the house number, same reason as above")):
+                if want not in prompt:
+                    failures.append((where, 'missing "%s" -- %s' % (want, reason)))
 
-    cases = len(SHAPES) * len(SITES) + len(SITES)
+    cases = len(SHAPES) * len(SITES) + 3 * len(SITES)
     if failures:
         print("FAILED: %d problem(s) across %d cases\n" % (len(failures), cases))
         for where, what in failures:

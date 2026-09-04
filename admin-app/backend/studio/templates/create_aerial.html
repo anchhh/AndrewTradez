@@ -45,13 +45,12 @@
   <section class="card">
     <div class="en-head">
       <div>
-        <h2>Wide, whip, closer, whip, the front</h2>
-        <p class="hint">Each photo becomes a short drone push &mdash; a real
-          clip, rendered from that one picture &mdash; and every cut is a
-          speed whip: the shot rushes into a streak and the next one is just
-          there, settling. The whips are built from the clips' own frames,
-          so nothing between two photos is ever generated and the
-          surroundings cannot change.</p>
+        <h2>A wide shot, a whip, then one long zoom in</h2>
+        <p class="hint">The opening photo becomes a short drone push. It
+          rushes into a streak, and the second shot is there: one slow,
+          continuous zoom that starts far back over the neighbourhood and
+          closes gently onto the front of the house. Pick no closer view and
+          it is that zoom alone.</p>
       </div>
     </div>
 
@@ -64,11 +63,12 @@
 
       <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
 
-      {# Optional: a closer view between the wide shot and the front. #}
+      {# Optional, and it is where the long zoom STARTS -- not a frame the
+         reel passes through. #}
       <figure class="ae-end" id="ae-mid-wrap" hidden>
         <span class="dr-recap-tag">Whips into</span>
-        <img id="ae-mid-img" alt="The closer view in between">
-        <figcaption>Closer
+        <img id="ae-mid-img" alt="Where the zoom starts">
+        <figcaption>Zoom starts here
           <button type="button" class="btn-tiny" id="ae-mid-clear">Remove</button>
         </figcaption>
       </figure>
@@ -76,7 +76,7 @@
       <div class="dr-recap-arrow" id="ae-mid-arrow" aria-hidden="true" hidden>&rarr;</div>
 
       <figure class="ae-end">
-        <span class="dr-recap-tag">Ends on</span>
+        <span class="dr-recap-tag">Zoom ends on</span>
         <img src="{{ made.front }}" alt="The generated front shot">
         <figcaption>The front
           <a class="btn-tiny" href="{{ generate_href }}">Change</a>
@@ -94,26 +94,34 @@
     </p>
     <div class="fp-views" id="ae-views"></div>
 
-    <p class="gn-inputs-label hint">Whip into &mdash; optional. A closer view
-      of the same neighbourhood for a third shot in between.</p>
+    <p class="gn-inputs-label hint">Whip into &mdash; optional. The closer
+      view the long zoom starts from. Leave it out and the zoom starts from
+      the opening photo instead, with no cut at all.</p>
     <div class="fp-views" id="ae-mids"></div>
   </section>
 
   <section class="card">
     <h2>Length</h2>
+    <div class="rn-setall" id="ae-open-row" hidden>
+      <span class="rn-setall-label">Opening push</span>
+      <select id="ae-open-secs" class="rn-select">
+        {% for seconds in open_choices %}
+          <option value="{{ seconds }}"{{ ' selected' if seconds == 3 }}>{{ seconds }} seconds</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="rn-setall">
-      <span class="rn-setall-label">Each shot</span>
-      <select id="ae-each" class="rn-select">
-        {% for seconds in shot_choices %}
-          <option value="{{ seconds }}"{{ ' selected' if seconds == 2 }}>{{ seconds }} seconds</option>
+      <span class="rn-setall-label">The zoom</span>
+      <select id="ae-zoom-secs" class="rn-select">
+        {% for seconds in zoom_choices %}
+          <option value="{{ seconds }}"{{ ' selected' if seconds == 8 }}>{{ seconds }} seconds</option>
         {% endfor %}
       </select>
       <span class="hint" id="ae-cost"></span>
     </div>
-    <p class="hint">Every cut adds a {{ timing.rush }}-second whip out and a
-      {{ timing.land }}-second landing in. The model's shortest clip is
-      {{ timing.min_render }} seconds; a shorter shot is rendered at that and
-      trimmed.</p>
+    <p class="hint">The cut costs a {{ timing.rush }}-second whip out and a
+      {{ timing.land }}-second landing in. Give the zoom room: it travels a
+      long way and a short one lurches.</p>
   </section>
 
   <div class="row action-row ge-actions">
@@ -133,11 +141,10 @@
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          <h4 class="gn-review-h">The prompt, for every shot</h4>
-          <p class="hint">Each photo is rendered with this same instruction:
-            a slow forward push and nothing else. Editable, for this run.</p>
-          <textarea id="ae-review-prompt" class="gn-review-prompt"
-                    spellcheck="false" rows="12"></textarea>
+          {# One box per shot, built by the script: the reel is one shot or
+             two, and a hidden second box kept in step with that choice is a
+             bug waiting for a quiet afternoon. #}
+          <div id="ae-review-prompts"></div>
 
           <button type="button" class="btn-secondary btn-tiny gn-review-reset"
                   id="ae-review-reset">Back to the default wording</button>
@@ -145,7 +152,8 @@
 
         <div class="gn-review-col">
           <h4 class="gn-review-h">The shots</h4>
-          <p class="hint">In this order, each whipping into the next.</p>
+          <p class="hint">The zoom runs between its two photographs; the whip
+            is built from the clips' own frames.</p>
           <div class="gn-review-shots" id="ae-review-frames"></div>
 
           <h4 class="gn-review-h">The settings</h4>

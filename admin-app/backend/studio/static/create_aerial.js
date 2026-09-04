@@ -1,14 +1,14 @@
 /* The aerial reel.
 
-   Two or three shots, each a short drone push the model renders from one
-   photograph, cut together with speed-blur whips: the wide view of the
-   neighbourhood, optionally a closer one, and the front of the house. The
-   whips are built on the server from the clips' own frames -- nothing
-   between two photographs is ever generated, because the one time it was
-   the model invented a different suburb on the way.
+   A short push over a wide photograph, a whip, and then one long slow zoom
+   from a closer view down onto the front of the house. Two shots, one cut.
+   With no closer view chosen it is the zoom alone, from the wide shot
+   straight down onto the front, and there is nothing to cut.
 
-   What is chosen here: what it opens on, whether there is a closer view in
-   between, and how long each shot holds. */
+   The zoom is a real interpolation between two photographs. The whip is
+   built on the server from the clips' own frames -- nothing between the two
+   WIDE shots is ever generated, because the one time it was the model
+   invented a different suburb on the way. */
 
 const lead = window.__LEAD__;
 const wide = window.__WIDE__ || [];
@@ -17,7 +17,7 @@ const slots = window.__SLOTS__ || {};
 const slotOrder = window.__SLOT_ORDER__ || Object.keys(slots);
 const shotLabels = window.__SHOT_LABELS__ || {};
 const rates = window.__RATES__ || {};
-const timing = window.__TIMING__ || { rush: 0.35, land: 0.3, min_render: 3 };
+const timing = window.__TIMING__ || { rush: 0.6, land: 0.5, min_render: 3 };
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || ""; };
@@ -25,10 +25,14 @@ const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || 
 let opening = window.__OPENING__ || wide[0] || "";
 /* Optional, and never the same picture as either end. */
 let middle = window.__MIDDLE__ || "";
-/* The standard wording, shared by every shot, and the edit to it if any. */
-let standard = "";
-let edit = null;
-const promptNow = () => (edit === null ? standard : edit);
+/* One standard wording per shot, and one edit slot per shot: the push and
+   the zoom are different instructions and an edit to one leaves the other
+   alone. */
+let standards = [];
+let edits = [null, null];
+
+const shotCount = () => (middle ? 2 : 1);
+const promptNow = (i) => (edits[i] === null ? (standards[i] || "") : edits[i]);
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -42,21 +46,26 @@ function nameOf(url) {
   return "Listing photo";
 }
 
-const frames = () => (middle ? [opening, middle, front] : [opening, front]);
-const each = () => Number(el("ae-each").value) || 3;
+const openSecs = () => Number(el("ae-open-secs").value) || 3;
+const zoomSecs = () => Number(el("ae-zoom-secs").value) || 8;
 
-/* The model renders at least three seconds a shot; a shorter shot is
-   rendered at three and trimmed, and is priced at three. */
-const rendered = () => Math.max(each(), timing.min_render);
+/* The model renders at least three seconds; a shorter shot is rendered at
+   three, trimmed on the cut, and priced at three. */
+const rendered = (s) => Math.max(s, timing.min_render);
 
+/* Each shot, plus a whip out and a landing in for the one cut. */
 function seconds() {
-  const n = frames().length;
-  return n * each() + (n - 1) * (timing.rush + timing.land);
+  return middle
+    ? openSecs() + zoomSecs() + timing.rush + timing.land
+    : zoomSecs();
 }
 
 function cost() {
   const rate = rates["1080p"] || rates["*"];
-  return rate ? rate * rendered() * frames().length : null;
+  if (!rate) return null;
+  return middle
+    ? rate * (rendered(openSecs()) + zoomSecs())
+    : rate * zoomSecs();
 }
 
 /* ---------- what it opens on ---------- */
@@ -83,8 +92,9 @@ function paintViews() {
   if (opening) el("ae-open-name").textContent = nameOf(opening);
 }
 
-/* The optional closer view in between. Clicking the chosen one again
-   removes it. */
+/* The optional closer view. It is where the long zoom STARTS, so choosing
+   one turns a single zoom into a two-shot reel. Clicking the chosen one
+   again removes it. */
 function paintMiddles() {
   const box = el("ae-mids");
   if (!box) return;
@@ -112,13 +122,16 @@ function paintMiddles() {
 }
 
 function paintCost() {
-  const n = frames().length;
   const dollars = cost();
+  // The opening length only means anything when there is an opening shot.
+  el("ae-open-row").hidden = !middle;
   el("ae-cost").textContent =
-    n + " shots of " + each() + " s, about " + seconds().toFixed(1) + " seconds"
+    (middle ? "Two shots" : "One shot") + ", about " + seconds().toFixed(1)
+    + " seconds"
     + (dollars != null ? " — about $" + dollars.toFixed(2) : "")
-    + " (" + n + " clips of " + rendered() + " s rendered"
-    + (each() < timing.min_render ? ", trimmed" : "") + ").";
+    + (middle && openSecs() < timing.min_render
+       ? " (the opening is rendered at " + timing.min_render + " s and trimmed)"
+       : "") + ".";
 }
 
 function paintAll() {
@@ -127,7 +140,8 @@ function paintAll() {
   paintCost();
 }
 
-el("ae-each").addEventListener("change", paintCost);
+el("ae-open-secs").addEventListener("change", paintCost);
+el("ae-zoom-secs").addEventListener("change", paintCost);
 
 /* Remembered, so leaving the page does not throw the choice away. */
 async function save() {
@@ -159,11 +173,15 @@ el("ae-go").addEventListener("click", async () => {
     const res = await fetch("/studio/api/video/drone/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lead_id: lead, shot: "aerial" }),
+      body: JSON.stringify({ lead_id: lead, shot: "aerial", middle: middle }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || "couldn't read the prompt");
-    standard = body.prompt || "";
+    // Two instructions when there is an opening shot, one otherwise.
+    // Fetched rather than rebuilt here: a preview assembled its own way is
+    // a preview of something else.
+    standards = (body.prompts && body.prompts.length === 2)
+      ? body.prompts : [body.prompt || ""];
     note("");
     review(body);
   } catch (err) {
@@ -171,24 +189,48 @@ el("ae-go").addEventListener("click", async () => {
   }
 });
 
-function review(body) {
-  el("ae-review-prompt").value = promptNow();
+/* One editable box per shot, built here rather than sitting in the markup:
+   the reel is one shot or two, and a hidden second box that has to be kept
+   in step with the choice is a bug waiting for a quiet afternoon. */
+function paintPrompts() {
+  const heads = middle
+    ? ["Shot 1 — the opening push", "Shot 2 — the long zoom"]
+    : ["The prompt — one long zoom"];
+  const hints = middle
+    ? ["A slow forward push over the wide photo, height held.",
+       "From the closer view, far back, slowly down onto the front."]
+    : ["From the wide photo, far back, slowly down onto the front."];
+  el("ae-review-prompts").innerHTML = heads.map((head, i) =>
+    '<h4 class="gn-review-h">' + esc(head) + "</h4>" +
+    '<p class="hint">' + esc(hints[i]) + " Editable, for this run.</p>" +
+    '<textarea id="ae-review-prompt' + i + '" class="gn-review-prompt" ' +
+    'spellcheck="false" rows="10"></textarea>').join("");
+  for (let i = 0; i < shotCount(); i += 1) {
+    el("ae-review-prompt" + i).value = promptNow(i);
+  }
+}
 
-  const labels = middle
-    ? [["Opens on", nameOf(opening)], ["Whips into", nameOf(middle)],
-       ["Ends on", "The front"]]
-    : [["Opens on", nameOf(opening)], ["Ends on", "The front"]];
-  el("ae-review-frames").innerHTML = frames().map((url, i) =>
+function review(body) {
+  paintPrompts();
+
+  const shots = middle
+    ? [[opening, "Shot 1", nameOf(opening)],
+       [middle, "Shot 2 starts", nameOf(middle)],
+       [front, "and ends", "The front"]]
+    : [[opening, "Starts", nameOf(opening)], [front, "and ends", "The front"]];
+  el("ae-review-frames").innerHTML = shots.map((shot, i) =>
     '<figure class="gn-review-shot' + (i === 0 ? " is-base" : "") + '">' +
-    '<img src="' + esc(url) + '" alt="">' +
-    '<figcaption><b>' + (i + 1) + "</b> " + labels[i][0] +
-    '<span class="gn-review-also">' + esc(labels[i][1]) + "</span>" +
+    '<img src="' + esc(shot[0]) + '" alt="">' +
+    '<figcaption><b>' + (i + 1) + "</b> " + shot[1] +
+    '<span class="gn-review-also">' + esc(shot[2]) + "</span>" +
     "</figcaption></figure>").join("");
 
   const dollars = cost();
   el("ae-review-specs").textContent =
-    frames().length + " shots of " + each() + " s · about " + seconds().toFixed(1)
-    + " seconds · 1080p · " + (body.model || "the video model")
+    (middle ? openSecs() + " s push + " + zoomSecs() + " s zoom"
+            : zoomSecs() + " s zoom")
+    + " · about " + seconds().toFixed(1) + " seconds · 1080p · "
+    + (body.model || "the video model")
     + (dollars != null ? " · about $" + dollars.toFixed(2) : "");
 
   el("ae-review").hidden = false;
@@ -198,8 +240,8 @@ function closeReview() { el("ae-review").hidden = true; }
 
 el("ae-review-cancel").addEventListener("click", closeReview);
 el("ae-review-reset").addEventListener("click", () => {
-  edit = null;
-  el("ae-review-prompt").value = promptNow();
+  edits = [null, null];
+  paintPrompts();
 });
 el("ae-review").addEventListener("click", (e) => {
   if (e.target.id === "ae-review") closeReview();
@@ -209,8 +251,11 @@ window.addEventListener("keydown", (e) => {
 });
 
 el("ae-review-go").addEventListener("click", () => {
-  const typed = (el("ae-review-prompt").value || "").trim();
-  edit = typed && typed !== standard ? typed : null;
+  // Remembered per shot, so a second confirmation opens on what just ran.
+  for (let i = 0; i < shotCount(); i += 1) {
+    const typed = (el("ae-review-prompt" + i).value || "").trim();
+    edits[i] = typed && typed !== (standards[i] || "") ? typed : null;
+  }
   closeReview();
   generate();
 });
@@ -221,6 +266,8 @@ async function generate() {
   el("ae-go").disabled = true;
   note("Starting the render…");
   try {
+    const prompts = [];
+    for (let i = 0; i < shotCount(); i += 1) prompts.push(promptNow(i));
     const res = await fetch("/studio/api/video/drone", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -230,10 +277,11 @@ async function generate() {
         start: opening,
         middle: middle,
         end: front,
-        each: each(),
+        opening: openSecs(),
+        zoom: zoomSecs(),
         // Sent every time, edited or not: "what I saw" and "what ran" are
         // the same string or the confirmation was theatre.
-        prompt: promptNow(),
+        prompts: prompts,
       }),
     });
     const body = await res.json();
