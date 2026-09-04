@@ -425,17 +425,39 @@ AERIAL_MOVES = [
         "continuous shot from the first frame to the last: accelerate hard "
         "and rush forward, heavy motion blur and streaking welcome, then "
         "slow down and pan gently to come to rest exactly on the final "
-        "frame.",
+        "frame. The only thing that moves is the camera: every car is "
+        "parked, nobody is walking, nothing is driving. Buildings hold "
+        "their shape the whole way -- the last house is FLOWN UP TO, never "
+        "morphed, grown or assembled into place -- and the final second is "
+        "clean and sharp with the blur gone.",
     ),
 ]
 
 AERIAL_PROMPTS = {key: prompt for key, _, _, prompt in AERIAL_MOVES}
 
-# Short, and it does not forbid the blur: this shot is meant to smear.
+# The line this list has to walk: blur is the shot, morphing is the fault,
+# and they are easy to confuse. Speed smear across the WHOLE frame is what
+# fast travel looks like; a building changing shape while the camera passes
+# it is the model redrawing rather than moving, and that is what made the
+# last house appear to grow into place. So the geometry words are named and
+# "motion blur", "streaking" and "warp" on their own are not -- banning
+# those bans the shot.
+#
+# The traffic words earn their place too: "people, moving vehicles" was not
+# enough, and cars pulled away down the street in a still photograph's
+# neighbourhood.
 AERIAL_NEGATIVE = (
     "text, captions, subtitles, watermark, logo, on-screen graphics, "
-    "people, moving vehicles, cut, jump cut, dissolve, crossfade, "
-    "slideshow, frozen frame, letterboxing, black bars"
+    "people walking, pedestrians, moving cars, driving cars, traffic, "
+    "reversing cars, car headlights, moving bicycles, animals, "
+    "morphing buildings, buildings changing shape, houses growing, "
+    # "warped rooflines" would say this better and cannot be used: the
+    # prompt asks for WARP speed, and a negative that close to it costs the
+    # shot its whole subject. The guard fails on it for that reason.
+    "melting architecture, bending rooflines, bending walls, "
+    "shifting windows, building assembling itself, "
+    "cut, jump cut, dissolve, crossfade, slideshow, frozen frame, "
+    "letterboxing, black bars"
 )
 
 

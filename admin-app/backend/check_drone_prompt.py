@@ -103,10 +103,38 @@ def main():
     # The aerial reel's one move. No route, no ramp, no reveal -- but it
     # still has to fit and still has to carry the house number, and a
     # refactor of the ladder is how it would quietly stop doing either.
-    # The aerial's prompts are two short sentences sent as written, not
-    # built by the ladder, so there is nothing here that can be evicted.
-    # See AERIAL_MOVES in services/video.py for why they are so plain.
-    cases = len(SHAPES) * len(SITES)
+    # The aerial's prompt is sent as written, not built by the ladder, so
+    # nothing here can be evicted. What CAN go wrong is somebody tidying its
+    # negative prompt: the shot is speed, and the words that describe speed
+    # -- motion blur, streaking, warp -- sit one synonym away from the words
+    # that describe its fault, a building changing shape as the camera
+    # passes. Ban the first set and the clip comes back as a slow drift.
+    aerial_prompt = video.prompt_for_clip(move="aerial_warp", cfg=cfg)
+    aerial_negative = video.negative_for("aerial_warp")
+    for word in ("motion blur", "streaking", "warp"):
+        if word in aerial_negative:
+            failures.append(("aerial_warp / negative",
+                             '"%s" is forbidden -- that is the shot, not the '
+                             "fault. Name the geometry (morphing buildings, "
+                             "houses growing) instead." % word))
+    for clause, why in (
+        ("morphing buildings", "the fault itself: the last house grew into "
+                               "place rather than being flown up to"),
+        ("moving cars", "cars drove off down the street of a still "
+                        "photograph. 'moving vehicles' alone did not stop it"),
+    ):
+        if clause not in aerial_negative:
+            failures.append(("aerial_warp / negative",
+                             'missing "%s" -- %s' % (clause, why)))
+    for clause, why in (
+        ("FLOWN UP TO", "the arrival. Without it the house assembles itself "
+                        "in the final second"),
+        ("only thing that moves is the camera", "the parked cars"),
+    ):
+        if clause not in aerial_prompt:
+            failures.append(("aerial_warp / prompt",
+                             'missing "%s" -- %s' % (clause, why)))
+    cases = len(SHAPES) * len(SITES) + 1
     if failures:
         print("FAILED: %d problem(s) across %d cases\n" % (len(failures), cases))
         for where, what in failures:
