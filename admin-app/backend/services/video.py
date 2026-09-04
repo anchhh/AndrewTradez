@@ -59,12 +59,24 @@ MODELS = {
         # Kling says `sound`; Seedance says `generate_audio`.
         "audio_field": "sound",
     },
-    # Kuaishou's highest tier, and genuinely 4K rather than an upscale of
-    # 1080p. Its parameter table has no `resolution` at all -- the model IS
-    # the resolution -- so api_res maps to None, which means "send no
-    # resolution field". Nearly four times the price of Pro per second.
+    # Kuaishou's highest tier. Nearly four times the price of Pro per second.
+    #
+    # Its published parameter table lists no `resolution`, so the first run
+    # sent none -- and came back 1768x1172, exactly what Pro returns, for
+    # $1.78. The JSON schema behind that table does carry a `resolution`
+    # field defaulting to "1080P", so a second run sent resolution="4K"
+    # explicitly. Same 1768x1172. Whatever the name means, this provider
+    # does not return 4K frames from it, and no parameter reachable from
+    # here changes that -- so the field is omitted again and the label says
+    # what the file actually is.
+    #
+    # Neither run was wasted. At the SAME frame size and bitrate it renders
+    # the fast middle of a warp shot far better than Pro: detail 24.1
+    # against 16.0 on the same frames, measured on the third second, which
+    # is exactly where this shot looked worst. It is the best-looking tier
+    # available here; it is not a bigger one.
     "kwaivgi/kling-v3.0-4k/image-to-video": {
-        "label": "Kling 3.0 4K",
+        "label": "Kling 3.0 4K model (1080p out)",
         "rates": {"*": 0.357},
         "resolutions": ["4k"],
         "api_res": {"4k": None},
@@ -515,7 +527,9 @@ AERIAL_NEGATIVE = (
 AERIAL_QUALITY = {
     "1080p": (None, "1080p", "1080p"),
     "1440p": (None, "1440p-sr", "1440p super-res"),
-    "4k": ("kwaivgi/kling-v3.0-4k/image-to-video", "4k", "4K"),
+    # Named for what it does rather than what it is called upstream: it
+    # returns the same 1768x1172 as 1080p and renders motion far better.
+    "4k": ("kwaivgi/kling-v3.0-4k/image-to-video", "4k", "Best motion (4K model)"),
 }
 
 
