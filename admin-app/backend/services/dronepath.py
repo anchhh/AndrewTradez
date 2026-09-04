@@ -278,10 +278,6 @@ MOVE = "drone_flight"
 # videos -- it is a different shot of a different subject that happens to end
 # where the flyover starts.
 AERIAL_MOVE = "aerial_approach"
-# With a middle frame set: the same descent, flown THROUGH that frame. It
-# reaches the model as a named reference picture (Kling's `elements`), so
-# the three views are one render rather than two clips joined.
-AERIAL_VIA = "aerial_via"
 
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything
@@ -586,10 +582,11 @@ def aerial_opening_of(path):
 def aerial_middle_of(path):
     """The optional frame it passes through on the way down.
 
-    Kling takes a first frame and a last frame and nothing between, so this
-    is not a keyframe. It goes to the model as a reference picture the
-    prompt points at by name, and the flight is written to pass through it.
-    One render either way.
+    With one set, the model flies only from HERE down to the house, and the
+    jump from the opening photograph into this one is a whip -- a speed
+    blur built from the photograph (services/whip.py), added after the
+    render. Generating that stretch instead had the model turning the
+    neighbourhood into a different one on the way.
     """
     return (path or {}).get("aerial_middle")
 

@@ -100,17 +100,14 @@ def main():
                     failures.append(("%s / %s" % (shape, label),
                                      'missing "%s" -- %s' % (clause, why)))
 
-    # The aerial moves. Their whole point is a speed ramp, which every other
-    # exterior move forbids -- so the checks run the other way round here:
+    # The aerial. Its whole point is a speed ramp -- it begins already
+    # moving, because the cut into it is a whip -- which every other
+    # exterior move forbids, so the checks run the other way round here:
     # the ramp permission must be present, the even-speed rule must be
-    # absent, and the house number must still ride along. If a refactor ever
-    # hands them the flyover's temporal rule, the clip comes back as a steady
-    # glide and nobody is told why. The through-the-middle move must also
-    # still name its reference picture: without <<<element_1>>> in the text
-    # the picture is uploaded and never looked at.
-    for leg, must in (("aerial_via", "<<<element_1>>>"),
-                      ("aerial_via", "ACCELERATE"),
-                      ("aerial_approach", "DECELERATING")):
+    # absent, and the house number must still ride along. If a refactor
+    # ever hands it the flyover's temporal rule, the clip comes back as a
+    # steady glide and nobody is told why.
+    for leg, must in (("aerial_approach", "DECELERATING"),):
         for label, facts in SITES.items():
             prompt = video.exterior_prompt(leg, cfg, site=dict(facts, flight_path=None))
             longest = max(longest, len(prompt))
@@ -132,7 +129,7 @@ def main():
                 failures.append((where, "still carries 'no speed ramp' -- the "
                                         "flyover's temporal rule leaked in"))
 
-    cases = len(SHAPES) * len(SITES) + 3 * len(SITES)
+    cases = len(SHAPES) * len(SITES) + len(SITES)
     if failures:
         print("FAILED: %d problem(s) across %d cases\n" % (len(failures), cases))
         for where, what in failures:

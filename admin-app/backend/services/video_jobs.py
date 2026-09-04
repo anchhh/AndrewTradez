@@ -118,29 +118,6 @@ def _run(app, job_id):
                             last_url = upload_frame(anchor_path, cfg)
                             entry["anchor"] = anchor
 
-                    # A frame to fly THROUGH. Not a keyframe -- the model has
-                    # no slot for one -- but a named reference picture the
-                    # prompt points at as <<<element_1>>>. Missing on disk is
-                    # a failure, not a quiet render without it: the shot was
-                    # confirmed with three pictures and should run with three.
-                    elements = None
-                    via = spec.get("via")
-                    if via:
-                        via_path = local_path_for(via)
-                        if not os.path.exists(via_path):
-                            raise VideoError("middle frame missing on disk: %s"
-                                             % os.path.basename(via_path))
-                        elements = [{
-                            "element_name": "the view it flies through",
-                            "element_description": (
-                                "A closer aerial view of the same "
-                                "neighbourhood, passed through on the way "
-                                "down to the house."),
-                            "reference_type": "image_refer",
-                            "frontal_image": upload_frame(via_path, cfg),
-                        }]
-                        entry["via"] = via
-
                     prediction_id = submit_clip(
                         image_url,
                         # The site facts ride on the spec, put there when the
@@ -156,7 +133,6 @@ def _run(app, job_id):
                         resolution=spec["resolution"],
                         last_image=last_url,
                         move=spec["move"],
-                        elements=elements,
                     )
                     entry["prediction_id"] = prediction_id
                     job.clips = clips
@@ -203,6 +179,21 @@ def _run(app, job_id):
             # One clip is the video. Several are several: nothing here joins
             # them, and a run that wants one video is built as one render.
             output = done[0]["video_url"] if len(done) == 1 else None
+
+            # The aerial's whip: a wide photograph rushing into this clip's
+            # first frame, built from the photograph after the render rather
+            # than generated. The clip stays on the job as it came back; the
+            # finished video is the whip plus the clip. If the build fails
+            # the clip alone is the result, and the log says why.
+            whip_from = job.spec_for(0).get("whip_from") if output else None
+            if whip_from:
+                from services import whip
+
+                out_name = f"job{job.id}-whip.mp4"
+                if whip.compose(local_path_for(whip_from),
+                                os.path.join(CLIPS_DIRNAME, output.rsplit("/", 1)[-1]),
+                                os.path.join(CLIPS_DIRNAME, out_name)):
+                    output = f"{CLIPS_URL_PREFIX}/{out_name}"
             _update(db, job, status="completed", output_url=output)
 
             log.info("video job %s finished: %s of %s clips", job_id, len(done), len(clips))

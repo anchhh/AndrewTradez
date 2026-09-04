@@ -402,7 +402,7 @@ EXT_LOOK_RAMP = (
     "moving vehicles, no text, no captions, no watermark, no logos."
 )
 
-RAMP_MOVES = ("aerial_via", "aerial_approach")
+RAMP_MOVES = ("aerial_approach",)
 
 EXT_LOOK = (
     "Photorealistic real-estate drone footage, shot on a professional "
@@ -455,29 +455,11 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
-    # The aerial through a middle frame, as ONE render. Kling takes a first
-    # frame and a last frame and nothing between -- but it also takes
-    # `elements`, reference pictures the prompt can point at by name -- so
-    # the middle rides along as <<<element_1>>> and the instruction flies
-    # through it. One clip, one price, no join. The "speed up almost to a
-    # morph" that was asked for is the ramp through that reference.
-    (
-        "aerial_via",
-        "Aerial approach through a middle frame",
-        "Opens wide over the neighbourhood, rushes through a closer view of "
-        "it, and brakes down onto the front of the house",
-        "MOVEMENT: one continuous aerial drone flight, single take, three "
-        "views in order. Begin exactly on the first photograph, high over the "
-        "neighbourhood. Fly FORWARD and ACCELERATE toward the view shown in "
-        "<<<element_1>>> -- the same neighbourhood from closer in -- and rush "
-        "THROUGH that view at speed, streets and rooftops streaming past "
-        "beneath, motion blur welcome there. Then DECELERATE smoothly, "
-        "flying DOWN and FORWARD onto the subject property, and settle "
-        "gently and exactly onto the final photograph. The house in the "
-        "final photograph is the one you are descending onto; it is "
-        "somewhere in <<<element_1>>> already. Do not rotate, do not orbit, "
-        "do not pass the property. Invent nothing in between.",
-    ),
+    # The aerial. It begins already moving because the cut into it is a
+    # whip (services/whip.py): a wide photograph rushes to a streak and
+    # this clip is simply there, settling. Nothing between the wide shot
+    # and this clip's first frame is generated -- asking the model to fly
+    # that stretch had it inventing a different suburb on the way.
     (
         "aerial_approach",
         "Aerial approach",

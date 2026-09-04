@@ -90,6 +90,23 @@ async function load() {
   // thing being looked for.
   const tiles = [];
   runs.forEach((run) => {
+    // A run whose finished video is more than its clip -- the aerial with
+    // a whip built onto the front of it -- shows the video. The clip it was
+    // made from stays on the job as a working part.
+    const parts = (run.clips || []).map((c) => c.video_url).filter(Boolean);
+    if (run.output_url && parts.length && !parts.includes(run.output_url)) {
+      tiles.push({
+        url: run.output_url,
+        job: run.id,
+        group: SECTIONS.includes(run.style || "") ? (run.style || "") : "",
+        style: STYLES[run.style] || "Video",
+        origin: madeAt(run),
+        cost: run.cost != null ? run.cost : run.estimated_cost,
+        model: run.model_label || "",
+        made: run.created_at,
+      });
+      return;
+    }
     (run.clips || []).forEach((clip) => {
       if (!clip.video_url) return;
       tiles.push({

@@ -4526,9 +4526,11 @@ def api_video_drone():
     # noise and at worst a second instruction pulling the other way.
     if aerial:
         site = dict(site, flight_path=None)
-    # A frame to pass THROUGH on the way. The model has no slot for a
-    # middle keyframe, so it goes along as a named reference picture and
-    # the instruction flies through it -- still ONE render, one clip.
+    # A closer view to whip INTO. With one, the model flies only from it
+    # down to the house, and the jump from the opening photograph is a
+    # speed blur built from the photograph after the render. One render
+    # either way; nothing between the two wide shots is ever generated,
+    # because generating it turned the neighbourhood into another one.
     middle = (data.get("middle") or "").strip() if aerial else ""
     if middle and middle not in captures:
         return jsonify({"error": "That middle frame is not one of this "
@@ -4557,11 +4559,12 @@ def api_video_drone():
             spec["prompt"] = typed[index]
         return spec
 
-    photos = [start]
     if middle:
-        specs = [leg(0, end, dronepath.AERIAL_VIA)]
-        specs[0]["via"] = middle
+        photos = [middle]
+        specs = [leg(0, end, move)]
+        specs[0]["whip_from"] = start
     else:
+        photos = [start]
         specs = [leg(0, end, move)]
     wording = typed[0] if len(typed) == 1 else ""
 
@@ -4598,13 +4601,9 @@ def api_video_drone_preview():
     from services import dronepath
 
     aerial = (data.get("shot") or "").strip().lower() == "aerial"
-    middle = (data.get("middle") or "").strip() if aerial else ""
-    # The same choice the render makes: through the middle frame when there
-    # is one, straight down when there is not.
-    if aerial:
-        move = dronepath.AERIAL_VIA if middle else dronepath.AERIAL_MOVE
-    else:
-        move = dronepath.MOVE
+    # One move for the aerial whatever is chosen: a whip into it is added
+    # after the render and changes nothing the model is told.
+    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)

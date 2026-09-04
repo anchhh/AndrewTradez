@@ -25,8 +25,8 @@ let opening = window.__OPENING__ || wide[0] || "";
 /* Optional, and never the same picture as either end. */
 let middle = window.__MIDDLE__ || "";
 /* The standard wording, and the edit to it if any. One render whatever is
-   chosen: a middle frame rides along as a reference picture the prompt
-   flies through, not as a second clip. */
+   chosen: with a middle frame the model flies only from it down to the
+   house, and the whip from the opening photograph is built afterwards. */
 let standards = [];
 let edits = [null];
 
@@ -129,7 +129,7 @@ function renderCost() {
   el("ae-cost").textContent = (rate
     ? "About $" + (rate * seconds).toFixed(2) + " for " + seconds + " seconds"
     : seconds + " seconds")
-    + (middle ? " — one clip, flown through the middle frame." : ".");
+    + (middle ? " — plus a free 1.4 s whip from the first photo." : ".");
 }
 
 /* ---------- the confirmation ---------- */
@@ -162,13 +162,13 @@ el("ae-go").addEventListener("click", async () => {
 function review(body) {
   el("ae-review-prompt").value = promptNow(0);
   el("ae-review-hint1").textContent = middle
-    ? "Editable, for this run. <<<element_1>>> is the middle frame; keep "
-      + "that tag or the picture goes unused."
+    ? "Editable, for this run. This is the flight from the second photo "
+      + "down; the whip from the first is added after, not generated."
     : "Editable, for this run.";
 
   const ends = middle
-    ? [[opening, "Opens on", nameOf(opening)],
-       [middle, "Through", nameOf(middle)],
+    ? [[opening, "Whips from", nameOf(opening)],
+       [middle, "Flight opens on", nameOf(middle)],
        [front, "Lands on", "The front"]]
     : [[opening, "Opens on", nameOf(opening)],
        [front, "Lands on", "The front"]];
@@ -182,7 +182,7 @@ function review(body) {
   const seconds = Number(el("ae-duration").value);
   el("ae-review-specs").textContent =
     moveName + " · " +
-    seconds + " seconds" + (middle ? ", one clip through the middle" : "") +
+    seconds + " seconds" + (middle ? " plus a 1.4 s whip" : "") +
     " · " + el("ae-resolution").value +
     " · " + (body.model || "the video model");
 

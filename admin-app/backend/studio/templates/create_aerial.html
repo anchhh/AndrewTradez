@@ -63,12 +63,13 @@
 
       <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
 
-      {# Optional. The model takes a first frame and a last frame and no
-         keyframe between, so this is not one: it goes along as a named
-         reference picture and the flight is written to pass through it.
-         One render either way. #}
+      {# Optional. With one, the model flies only from it down to the
+         house; the jump from the opening photograph into it is a whip --
+         a speed blur built from the photograph after the render. Nothing
+         between the two wide shots is generated: generating it turned the
+         neighbourhood into a different one on the way. #}
       <figure class="ae-end" id="ae-mid-wrap" hidden>
-        <span class="dr-recap-tag">Through</span>
+        <span class="dr-recap-tag">Whips into</span>
         <img id="ae-mid-img" alt="The frame it passes through">
         <figcaption>Middle
           <button type="button" class="btn-tiny" id="ae-mid-clear">Remove</button>
@@ -96,9 +97,10 @@
     </p>
     <div class="fp-views" id="ae-views"></div>
 
-    <p class="gn-inputs-label hint">Through &mdash; optional. A view to rush
-      through on the way down. Still one clip: the picture rides along as a
-      reference the flight passes through.</p>
+    <p class="gn-inputs-label hint">Whip into &mdash; optional. A closer
+      view. The flight is rendered from here down to the house, and the
+      jump from the first photo into it is a half-second speed whip made
+      from the photo, so the surroundings can't change on the way.</p>
     <div class="fp-views" id="ae-mids"></div>
 
     <p class="hint"><b>{{ move }}.</b> It loses height and width together, so
@@ -141,9 +143,8 @@
       <div class="gn-review-body">
         <div class="gn-review-col">
           {# The whole point of this box is that what you read is what
-             runs. With a middle frame the wording names it as
-             <<<element_1>>>, which is how the model is told which picture
-             to fly through. #}
+             runs. The whip is not in it: that is built from the photo
+             after the render, and the model is never told about it. #}
           <h4 class="gn-review-h" id="ae-review-h1">The prompt</h4>
           <p class="hint" id="ae-review-hint1">Editable, for this run.</p>
           <textarea id="ae-review-prompt" class="gn-review-prompt"
@@ -155,8 +156,8 @@
 
         <div class="gn-review-col">
           <h4 class="gn-review-h">The frames</h4>
-          <p class="hint">It opens on the first and lands on the last; a
-            middle frame is flown through on the way.</p>
+          <p class="hint">It lands on the last. With three, the first
+            whips into the second and the flight is rendered from there.</p>
           <div class="gn-review-shots" id="ae-review-frames"></div>
 
           <h4 class="gn-review-h">The settings</h4>
