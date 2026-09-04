@@ -274,10 +274,9 @@ def group_of(slot):
 MOVE = "drone_flight"
 
 # The aerial on the drone flow's second tab. Its own shot, not the
-# flyover's opening: three photographs, warp from the first to the second,
-# then slow out of it onto the third. Two renders joined (services/reel.py).
+# flyover's opening: two of the listing's pictures and ONE render that warps
+# from the first to the last and settles on it.
 AERIAL_WARP = "aerial_warp"
-AERIAL_SETTLE = "aerial_settle"
 
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything
@@ -579,23 +578,18 @@ def aerial_opening_of(path):
     return (path or {}).get("aerial_opening")
 
 
-def aerial_middle_of(path):
-    """The photograph the warp arrives on, and the settle leaves from."""
-    return (path or {}).get("aerial_middle")
-
-
 def aerial_end_of(path):
     """The photograph the shot comes to rest on."""
     return (path or {}).get("aerial_end")
 
 
-AERIAL_KEYS = ("aerial_opening", "aerial_middle", "aerial_end")
+AERIAL_KEYS = ("aerial_opening", "aerial_end")
 
 
 def set_aerial(lead, picks):
-    """Remember the three, so the choices survive leaving the page."""
+    """Remember the two, so the choices survive leaving the page."""
     path = dict(lead.drone_path or {})
-    for key, url in zip(AERIAL_KEYS, list(picks) + [None, None, None]):
+    for key, url in zip(AERIAL_KEYS, list(picks) + [None, None]):
         if url:
             path[key] = url
         else:

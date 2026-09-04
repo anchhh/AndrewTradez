@@ -25,10 +25,10 @@
        studio/atlascloud.json." }}</p>
   {% endif %}
 
-  {% if wide | length < 3 %}
+  {% if wide | length < 2 %}
     <section class="card">
       <h2>Not enough pictures</h2>
-      <p class="hint">This shot travels between three of the listing's own
+      <p class="hint">This shot travels between two of the listing's own
         photographs &mdash; aerials work best, other outdoor shots will do
         &mdash; and this listing has {{ wide | length }}. Add some at the
         listing step.</p>
@@ -38,13 +38,12 @@
   <section class="card">
     <div class="en-head">
       <div>
-        <h2>Warp from one photo to the next</h2>
-        <p class="hint">Three pictures and two clips. The first warps from
-          photo one to photo two at speed &mdash; a start frame, an end
-          frame and one line about fast travel, which is all the reference
-          shot ever had. The second comes out of the warp and pans gently to
-          rest on photo three. They join into one continuous take, because
-          the first ends on exactly the frame the second begins on.</p>
+        <h2>Warp from one picture to the other</h2>
+        <p class="hint">One clip. A start frame, an end frame and one line
+          about fast travel &mdash; which is all the reference shot ever had.
+          It accelerates out of the first picture, rushes forward with the
+          streaking that gives the speed away, then slows and comes to rest
+          on the second.</p>
       </div>
     </div>
 
@@ -58,17 +57,9 @@
       <div class="dr-recap-arrow" aria-hidden="true">warp &rarr;</div>
 
       <figure class="ae-end">
-        <span class="dr-recap-tag">Arrives on</span>
-        <img id="ae-img1" alt="The second photograph">
-        <figcaption id="ae-name1"></figcaption>
-      </figure>
-
-      <div class="dr-recap-arrow" aria-hidden="true">pan &rarr;</div>
-
-      <figure class="ae-end">
         <span class="dr-recap-tag">Rests on</span>
-        <img id="ae-img2" alt="The third photograph">
-        <figcaption id="ae-name2"></figcaption>
+        <img id="ae-img1" alt="The last photograph">
+        <figcaption id="ae-name1"></figcaption>
       </figure>
     </div>
 
@@ -81,26 +72,16 @@
     <p class="gn-inputs-label hint">1 &mdash; where it starts</p>
     <div class="fp-views" id="ae-pick0"></div>
 
-    <p class="gn-inputs-label hint">2 &mdash; where the warp arrives, and the
-      pan sets off from</p>
+    <p class="gn-inputs-label hint">2 &mdash; where it comes to rest</p>
     <div class="fp-views" id="ae-pick1"></div>
-
-    <p class="gn-inputs-label hint">3 &mdash; where it comes to rest</p>
-    <div class="fp-views" id="ae-pick2"></div>
   </section>
 
   <section class="card">
     <h2>Length</h2>
     <div class="rn-setall">
-      <span class="rn-setall-label">The warp</span>
-      <select id="ae-warp-secs" class="rn-select">
-        {% for seconds in durations if seconds <= 5 %}
-          <option value="{{ seconds }}"{{ ' selected' if seconds == 3 }}>{{ seconds }} seconds</option>
-        {% endfor %}
-      </select>
-      <span class="rn-setall-label">The pan</span>
-      <select id="ae-settle-secs" class="rn-select">
-        {% for seconds in durations if seconds >= 5 and seconds <= 10 %}
+      <span class="rn-setall-label">The clip</span>
+      <select id="ae-secs" class="rn-select">
+        {% for seconds in durations if seconds <= 10 %}
           <option value="{{ seconds }}"{{ ' selected' if seconds == 5 }}>{{ seconds }} seconds</option>
         {% endfor %}
       </select>
@@ -125,15 +106,12 @@
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          <h4 class="gn-review-h">Clip 1 &mdash; the warp</h4>
-          <p class="hint">Photo 1 to photo 2. Editable, for this run.</p>
-          <textarea id="ae-review-prompt0" class="gn-review-prompt"
-                    spellcheck="false" rows="5"></textarea>
-
-          <h4 class="gn-review-h">Clip 2 &mdash; out of the warp</h4>
-          <p class="hint">Photo 2 to photo 3. Editable, for this run.</p>
-          <textarea id="ae-review-prompt1" class="gn-review-prompt"
-                    spellcheck="false" rows="5"></textarea>
+          <h4 class="gn-review-h">The prompt</h4>
+          <p class="hint">Short on purpose: this shot is speed, and the long
+            wording the flyover needs talks it out of moving. Editable, for
+            this run.</p>
+          <textarea id="ae-review-prompt" class="gn-review-prompt"
+                    spellcheck="false" rows="6"></textarea>
 
           <button type="button" class="btn-secondary btn-tiny gn-review-reset"
                   id="ae-review-reset">Back to the default wording</button>
@@ -141,8 +119,7 @@
 
         <div class="gn-review-col">
           <h4 class="gn-review-h">The frames</h4>
-          <p class="hint">Each clip runs between two of them. They join into
-            one file when both land.</p>
+          <p class="hint">One clip, running between these two.</p>
           <div class="gn-review-shots" id="ae-review-frames"></div>
 
           <h4 class="gn-review-h">The settings</h4>

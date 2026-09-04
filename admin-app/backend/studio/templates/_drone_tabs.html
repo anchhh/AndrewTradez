@@ -1,9 +1,9 @@
 {# The drone flow makes two shots, not one.
 
-   The flyover is the property; the aerial is where the property IS -- a warp
-   between three of the listing's own pictures. They share a lead and nothing
-   else: the captures, the board and the drawn route all belong to the
-   flyover, and the aerial picks its own frames.
+   The flyover is the property; the aerial is where the property IS -- one
+   clip warping between two of the listing's own pictures. They share a lead
+   and nothing else: the captures, the board and the drawn route all belong to
+   the flyover, and the aerial picks its own frames.
    They share a listing, a set of captures and a lead, and differ only in
    which shot is being built, so they are tabs on one process rather than two
    entries on the Create screen. #}
@@ -16,6 +16,6 @@
   <a class="pr-tab{{ ' is-on' if shot_tab == 'aerial' }}"
      href="{{ tab_aerial_href }}">
     <span class="pr-tab-name">Aerial</span>
-    <span class="pr-tab-note">Warp travel between three pictures</span>
+    <span class="pr-tab-note">Warp travel between two pictures</span>
   </a>
 </nav>

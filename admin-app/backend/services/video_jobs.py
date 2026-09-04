@@ -181,19 +181,6 @@ def _run(app, job_id):
             # them, and a run that wants one video is built as one render.
             output = done[0]["video_url"] if len(done) == 1 else None
 
-            # Except the aerial, whose two legs are one shot: leg one ends
-            # on the exact photograph leg two begins on, so end to end they
-            # are a single continuous take. Only when both landed -- half a
-            # shot is not the shot that was confirmed. The legs stay on the
-            # job as they came back; if the join fails, the log says why.
-            if job.style == "aerial" and len(done) == len(clips) and len(done) > 1:
-                from services import reel
-
-                out_name = f"job{job.id}-aerial.mp4"
-                if reel.join([os.path.join(CLIPS_DIRNAME, c["video_url"].rsplit("/", 1)[-1])
-                              for c in done],
-                             os.path.join(CLIPS_DIRNAME, out_name)):
-                    output = f"{CLIPS_URL_PREFIX}/{out_name}"
             _update(db, job, status="completed", output_url=output)
 
             log.info("video job %s finished: %s of %s clips", job_id, len(done), len(clips))

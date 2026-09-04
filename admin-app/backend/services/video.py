@@ -403,7 +403,7 @@ EXT_NEVER_CHANGE_SHORT = (
 )
 
 # The itemised bans that matter outdoors, for the negative prompt.
-# The aerial shot, in two legs.
+# The aerial shot. ONE clip: a first frame, a last frame, one prompt.
 #
 # These prompts are deliberately tiny, and that is the whole finding. The
 # reference clip that finally looked right was made with a start frame, an
@@ -415,25 +415,17 @@ EXT_NEVER_CHANGE_SHORT = (
 # not to warp, blur or change anything, it produces a slow drift, which is
 # exactly what was wrong with every attempt before this one.
 #
-# So they do not go through exterior_prompt(). They are sent as written.
+# So it does not go through exterior_prompt(). It is sent as written.
 AERIAL_MOVES = [
     (
         "aerial_warp",
         "Warp travel",
-        "Warp speed from the first photograph to the second",
+        "Warp speed from the first photograph to the last, slowing onto it",
         "Warp speed drone POV, giving a sense of fast travel. One "
-        "continuous shot from the first frame to the last, accelerating "
-        "hard and rushing forward the whole way. Heavy motion blur and "
-        "streaking are welcome.",
-    ),
-    (
-        "aerial_settle",
-        "Settle",
-        "Slows out of the warp and eases onto the last photograph",
-        "Drone POV coming out of fast travel. One continuous shot from the "
-        "first frame to the last: still moving quickly at the start, then "
-        "slowing steadily and panning gently to come to rest exactly on the "
-        "final frame. Smooth and unhurried by the end.",
+        "continuous shot from the first frame to the last: accelerate hard "
+        "and rush forward, heavy motion blur and streaking welcome, then "
+        "slow down and pan gently to come to rest exactly on the final "
+        "frame.",
     ),
 ]
 

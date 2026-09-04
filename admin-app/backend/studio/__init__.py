@@ -1574,9 +1574,9 @@ ROOM_LABELS = {
 def create_aerial():
     """The drone flow's second tab: the aerial.
 
-    Its own shot, not the flyover's opening. Three of the listing's own
-    pictures: it warps from the first to the second at speed, comes out of
-    the warp and eases onto the third. Two renders, joined.
+    Its own shot, not the flyover's opening. Two of the listing's own
+    pictures and one render: it warps from the first at speed and settles
+    on the last.
 
     It borrows this flow's lead and tabs and nothing else -- the captures,
     the board and the drawn route all belong to the flyover.
@@ -1622,12 +1622,11 @@ def create_aerial():
         if url and url not in wide:
             wide.append(url)
 
-    # Three choices, remembered. Anything stored that is no longer on the
+    # Two choices, remembered. Anything stored that is no longer on the
     # listing falls back to the next unused picture rather than to nothing.
-    stored = [dronepath.aerial_opening_of(path), dronepath.aerial_middle_of(path),
-              dronepath.aerial_end_of(path)]
+    stored = [dronepath.aerial_opening_of(path), dronepath.aerial_end_of(path)]
     picks = []
-    for i in range(3):
+    for i in range(2):
         url = stored[i] if stored[i] in wide and stored[i] not in picks else None
         if not url:
             url = next((u for u in wide if u not in picks), None)
@@ -3616,7 +3615,7 @@ def api_drone_reset(lead_id):
 @studio_bp.route("/api/leads/<int:lead_id>/aerial", methods=["POST"])
 @login_required
 def api_lead_aerial(lead_id):
-    """The three pictures the aerial is built from."""
+    """The two pictures the aerial is built from."""
     from extensions import db
     from services import dronepath
 
@@ -3625,7 +3624,7 @@ def api_lead_aerial(lead_id):
         return jsonify({"error": "Lead not found."}), 404
 
     data = request.get_json(silent=True) or {}
-    picks = [(data.get(key) or "").strip() for key in ("opening", "middle", "end")]
+    picks = [(data.get(key) or "").strip() for key in ("opening", "end")]
     allowed = (set(lead.photo_urls or [])
                | set(dronepath.images_of(lead.drone_path or {}))
                | set(dronepath.generated_of(lead.drone_path or {}).values()))
@@ -3635,14 +3634,13 @@ def api_lead_aerial(lead_id):
                                      "property's pictures."}), 400
     chosen = [u for u in picks if u]
     if len(set(chosen)) != len(chosen):
-        return jsonify({"error": "The three have to be different "
+        return jsonify({"error": "The two have to be different "
                                  "pictures."}), 400
 
     dronepath.set_aerial(lead, picks)
     db.session.commit()
     path = lead.drone_path or {}
     return jsonify({"opening": dronepath.aerial_opening_of(path),
-                    "middle": dronepath.aerial_middle_of(path),
                     "end": dronepath.aerial_end_of(path)})
 
 
@@ -4517,56 +4515,45 @@ def api_video_drone():
 
     # The aerial: its own shot, and nothing to do with the flyover.
     #
-    # Three photographs and two renders. The first warps from photograph one
-    # to photograph two -- start frame, end frame, and one sentence about
-    # fast travel, which is all the reference clip ever had. The second
-    # comes out of the warp and eases onto photograph three. Leg one ends on
-    # the exact frame leg two begins on, so joined they are one continuous
-    # take (services/reel.py).
+    # Two of the listing's pictures and ONE render. A first frame, a last
+    # frame and one sentence about fast travel, which is all the reference
+    # clip ever had. Anything that makes this two renders makes it two
+    # clips, and one clip is the whole requirement.
     if (data.get("shot") or "").strip().lower() == "aerial":
-        picks = [(data.get(key) or "").strip()
-                 for key in ("start", "middle", "end")]
+        picks = [(data.get(key) or "").strip() for key in ("start", "end")]
         if not all(picks):
-            return jsonify({"error": "Pick all three photographs."}), 400
+            return jsonify({"error": "Pick both pictures."}), 400
         for url in picks:
             if url not in captures:
                 return jsonify({"error": "That picture is not one of this "
                                          "property's."}), 400
-        if len(set(picks)) != 3:
-            return jsonify({"error": "The three have to be different "
+        if picks[0] == picks[1]:
+            return jsonify({"error": "The two have to be different "
                                      "pictures."}), 400
 
         info = video.model_info(cfg)
-        lengths = []
-        for key, fallback in (("warp", 3), ("settle", 5)):
-            try:
-                seconds = int(data.get(key) or fallback)
-            except (TypeError, ValueError):
-                return jsonify({"error": "Length must be a number."}), 400
-            if seconds not in info["durations"]:
-                return jsonify({"error": "%s doesn't do %s-second clips."
-                                % (info["label"], seconds)}), 400
-            lengths.append(seconds)
+        try:
+            seconds = int(data.get("duration") or 5)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Length must be a number."}), 400
+        if seconds not in info["durations"]:
+            return jsonify({"error": "%s doesn't do %s-second clips."
+                            % (info["label"], seconds)}), 400
 
-        typed = data.get("prompts")
-        if not isinstance(typed, list):
-            typed = []
-        typed = [(t or "").strip() if isinstance(t, str) else "" for t in typed]
-        if any(len(t) > 6000 for t in typed):
+        typed = data.get("prompt")
+        typed = typed.strip() if isinstance(typed, str) else ""
+        if len(typed) > 6000:
             return jsonify({"error": "That prompt is too long to send."}), 400
 
-        moves = (dronepath.AERIAL_WARP, dronepath.AERIAL_SETTLE)
-        specs = []
-        for i, move in enumerate(moves):
-            spec = {"move": move, "duration": lengths[i], "resolution": "1080p",
-                    "anchor": picks[i + 1]}
-            if i < len(typed) and typed[i]:
-                spec["prompt"] = typed[i]
-            specs.append(spec)
+        spec = {"move": dronepath.AERIAL_WARP, "duration": seconds,
+                "resolution": "1080p", "anchor": picks[1]}
+        if typed:
+            spec["prompt"] = typed
         try:
             job = start_job(current_app._get_current_object(), session["user_id"],
-                            picks[:2], lead_id=lead.id, duration=lengths[0],
-                            style="aerial", resolution="1080p", specs=specs)
+                            picks[:1], lead_id=lead.id, duration=seconds,
+                            prompt=typed or None, style="aerial",
+                            resolution="1080p", specs=[spec])
         except VideoJobBusy as exc:
             return jsonify({"error": str(exc)}), 409
         return jsonify({"job_id": job.id, "estimated_cost": job.estimated_cost})
@@ -4660,15 +4647,8 @@ def api_video_drone_preview():
     # No cost here: the page already prices a clip from the rate table it was
     # given, and a second implementation of the same arithmetic is how two
     # screens end up showing different dollars.
-    # The aerial's two legs carry different instructions -- the warp, then
-    # coming out of it -- and the confirmation shows both.
-    shots = []
-    if aerial:
-        shots = [video.prompt_for_clip(move=dronepath.AERIAL_WARP, cfg=cfg),
-                 video.prompt_for_clip(move=dronepath.AERIAL_SETTLE, cfg=cfg)]
     return jsonify({
         "prompt": video.prompt_for_clip(move=move, cfg=cfg, site=site),
-        "prompts": shots,
         "site": site,
         "seconds": seconds,
         "model": video.model_info(cfg).get("label"),
