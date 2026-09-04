@@ -130,6 +130,14 @@ def main():
         ("FLOWN UP TO", "the arrival. Without it the house assembles itself "
                         "in the final second"),
         ("only thing that moves is the camera", "the parked cars"),
+        ("OPEN LOCKED ON THE FIRST PHOTOGRAPH",
+         "the opening beat. Without it the wide aerial starts moving and "
+         "softening immediately, and the shot has no clean frame to leave "
+         "from"),
+        ("any blur comes from the speed of the camera",
+         "the distinction the whole shot turns on. Blur is the subject; "
+         "objects deforming is the fault, and one sentence has to say which "
+         "is which because the negative cannot"),
     ):
         if clause not in aerial_prompt:
             failures.append(("aerial_warp / prompt",

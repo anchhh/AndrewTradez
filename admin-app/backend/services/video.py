@@ -422,14 +422,20 @@ AERIAL_MOVES = [
         "Warp travel",
         "Warp speed from the first photograph to the last, slowing onto it",
         "Warp speed drone POV, giving a sense of fast travel. One "
-        "continuous shot from the first frame to the last: accelerate hard "
-        "and rush forward, heavy motion blur and streaking welcome, then "
-        "slow down and pan gently to come to rest exactly on the final "
-        "frame. The only thing that moves is the camera: every car is "
-        "parked, nobody is walking, nothing is driving. Buildings hold "
-        "their shape the whole way -- the last house is FLOWN UP TO, never "
-        "morphed, grown or assembled into place -- and the final second is "
-        "clean and sharp with the blur gone.",
+        "continuous shot. OPEN LOCKED ON THE FIRST PHOTOGRAPH exactly as it "
+        "is -- pin-sharp and completely still, every roof, street, tree and "
+        "parked car precisely where the photograph has them -- and hold it "
+        "for a beat before anything happens. Then accelerate hard and rush "
+        "forward, heavy motion blur and streaking welcome, then slow down "
+        "and pan gently to come to rest exactly on the final frame. The "
+        "only thing that moves is the camera: every car stays parked, "
+        "nobody is walking, nothing is driving. Buildings, streets, cars "
+        "and trees keep their shape and their places the whole way -- any "
+        "blur comes from the speed of the camera, never from things "
+        "bending, melting, sliding about or rebuilding themselves -- and "
+        "the last house is FLOWN UP TO, never morphed, grown or assembled "
+        "into place. The final second is clean and sharp with the blur "
+        "gone.",
     ),
 ]
 
@@ -456,6 +462,11 @@ AERIAL_NEGATIVE = (
     # shot its whole subject. The guard fails on it for that reason.
     "melting architecture, bending rooflines, bending walls, "
     "shifting windows, building assembling itself, "
+    # The opening beat specifically. The wide aerial went soft and its
+    # rooftops ran together the moment the acceleration began, which is the
+    # model redrawing the neighbourhood rather than travelling across it.
+    "smeared rooftops, mushy buildings, dissolving streets, "
+    "wobbling houses, drifting trees, sliding cars, "
     "cut, jump cut, dissolve, crossfade, slideshow, frozen frame, "
     "letterboxing, black bars"
 )
