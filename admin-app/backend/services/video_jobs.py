@@ -229,12 +229,12 @@ def _duration(ffmpeg, path):
 def stitch(job_id, urls):
     """Join clips that share their frames into one file. Returns its URL.
 
-    Concatenation without re-encoding first: the legs come from the same
-    model at the same settings, so their streams match and the join costs
-    nothing in quality or time. If the demuxer refuses -- a resolution or
-    codec that differs after all -- it re-encodes, which is slower and still
-    right. If both fail the job keeps its separate clips and says so in the
-    log rather than failing a render that already cost money.
+    Always a re-encode, never a stream copy: the legs come from the same
+    model at the same settings and still do not share a frame size, so they
+    are scaled to one before the join (see below). A minute of encoding is
+    the price. If anything fails, or the result is not as long as its parts,
+    the job keeps its separate clips and says so in the log rather than
+    failing a render that already cost money.
     """
     import subprocess
 
