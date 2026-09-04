@@ -402,7 +402,7 @@ EXT_LOOK_RAMP = (
     "moving vehicles, no text, no captions, no watermark, no logos."
 )
 
-RAMP_MOVES = ("aerial_in", "aerial_approach")
+RAMP_MOVES = ("aerial_via", "aerial_approach")
 
 EXT_LOOK = (
     "Photorealistic real-estate drone footage, shot on a professional "
@@ -455,25 +455,28 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
-    # The aerial, in two legs that meet on a middle frame. Written as halves
-    # of ONE flight: the first accelerates into the middle, the second
-    # arrives at speed and brakes onto the front. Cut together they read as
-    # a single ramp through the middle -- the "speed up almost to a morph"
-    # that was asked for -- without either clip containing a cut.
+    # The aerial through a middle frame, as ONE render. Kling takes a first
+    # frame and a last frame and nothing between -- but it also takes
+    # `elements`, reference pictures the prompt can point at by name -- so
+    # the middle rides along as <<<element_1>>> and the instruction flies
+    # through it. One clip, one price, no join. The "speed up almost to a
+    # morph" that was asked for is the ramp through that reference.
     (
-        "aerial_in",
-        "Aerial approach — first leg",
-        "Opens wide over the neighbourhood and accelerates in toward the "
-        "middle frame",
-        "MOVEMENT: the first half of one continuous aerial drone flight, "
-        "single take. Begin exactly on the first photograph, high over the "
-        "neighbourhood, and fly FORWARD toward the second, which is the same "
-        "neighbourhood from closer in. Start steady and ACCELERATE as you go, "
-        "so by the last second you are rushing toward the second photograph "
-        "and arrive on it at speed -- streets and rooftops streaming past "
-        "beneath, motion blur welcome in that final stretch. Ease down a "
-        "little but do not descend onto any house yet, do not rotate, do not "
-        "orbit. Invent nothing in between.",
+        "aerial_via",
+        "Aerial approach through a middle frame",
+        "Opens wide over the neighbourhood, rushes through a closer view of "
+        "it, and brakes down onto the front of the house",
+        "MOVEMENT: one continuous aerial drone flight, single take, three "
+        "views in order. Begin exactly on the first photograph, high over the "
+        "neighbourhood. Fly FORWARD and ACCELERATE toward the view shown in "
+        "<<<element_1>>> -- the same neighbourhood from closer in -- and rush "
+        "THROUGH that view at speed, streets and rooftops streaming past "
+        "beneath, motion blur welcome there. Then DECELERATE smoothly, "
+        "flying DOWN and FORWARD onto the subject property, and settle "
+        "gently and exactly onto the final photograph. The house in the "
+        "final photograph is the one you are descending onto; it is "
+        "somewhere in <<<element_1>>> already. Do not rotate, do not orbit, "
+        "do not pass the property. Invent nothing in between.",
     ),
     (
         "aerial_approach",

@@ -4526,11 +4526,9 @@ def api_video_drone():
     # noise and at worst a second instruction pulling the other way.
     if aerial:
         site = dict(site, flight_path=None)
-    # A frame to pass THROUGH on the way. No model on this provider takes
-    # one -- every video endpoint is first plus last and nothing between --
-    # so a three-frame move is rendered as two clips that meet on it. That is
-    # not a workaround: with a tool that interpolates between pairs, two legs
-    # IS what a start, a middle and an end are.
+    # A frame to pass THROUGH on the way. The model has no slot for a
+    # middle keyframe, so it goes along as a named reference picture and
+    # the instruction flies through it -- still ONE render, one clip.
     middle = (data.get("middle") or "").strip() if aerial else ""
     if middle and middle not in captures:
         return jsonify({"error": "That middle frame is not one of this "
@@ -4559,11 +4557,11 @@ def api_video_drone():
             spec["prompt"] = typed[index]
         return spec
 
+    photos = [start]
     if middle:
-        photos = [start, middle]
-        specs = [leg(0, middle, dronepath.AERIAL_IN), leg(1, end, move)]
+        specs = [leg(0, end, dronepath.AERIAL_VIA)]
+        specs[0]["via"] = middle
     else:
-        photos = [start]
         specs = [leg(0, end, move)]
     wording = typed[0] if len(typed) == 1 else ""
 
@@ -4600,7 +4598,13 @@ def api_video_drone_preview():
     from services import dronepath
 
     aerial = (data.get("shot") or "").strip().lower() == "aerial"
-    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
+    middle = (data.get("middle") or "").strip() if aerial else ""
+    # The same choice the render makes: through the middle frame when there
+    # is one, straight down when there is not.
+    if aerial:
+        move = dronepath.AERIAL_VIA if middle else dronepath.AERIAL_MOVE
+    else:
+        move = dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)
@@ -4610,19 +4614,11 @@ def api_video_drone_preview():
     site = exterior_site_facts(lead, {})
     if aerial:
         site = dict(site, flight_path=None)
-    # An aerial with a middle frame is two clips with two instructions, and
-    # the confirmation has to show both -- the whole point of it is that what
-    # you read is what runs.
-    legs = []
-    if aerial and (data.get("middle") or "").strip():
-        legs = [video.prompt_for_clip(move=dronepath.AERIAL_IN, cfg=cfg, site=site),
-                video.prompt_for_clip(move=move, cfg=cfg, site=site)]
     # No cost here: the page already prices a clip from the rate table it was
     # given, and a second implementation of the same arithmetic is how two
     # screens end up showing different dollars.
     return jsonify({
         "prompt": video.prompt_for_clip(move=move, cfg=cfg, site=site),
-        "prompts": legs,
         "site": site,
         "seconds": seconds,
         "model": video.model_info(cfg).get("label"),

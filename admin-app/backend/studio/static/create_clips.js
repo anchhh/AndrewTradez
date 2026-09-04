@@ -90,22 +90,6 @@ async function load() {
   // thing being looked for.
   const tiles = [];
   runs.forEach((run) => {
-    // A run whose clips were joined into one file -- the aerial's two legs
-    // -- is one video, and the legs are its working parts. Show the video.
-    const legs = (run.clips || []).map((c) => c.video_url).filter(Boolean);
-    if (run.output_url && legs.length > 1 && !legs.includes(run.output_url)) {
-      tiles.push({
-        url: run.output_url,
-        job: run.id,
-        group: SECTIONS.includes(run.style || "") ? (run.style || "") : "",
-        style: STYLES[run.style] || "Video",
-        origin: madeAt(run),
-        cost: run.cost != null ? run.cost : run.estimated_cost,
-        model: run.model_label || "",
-        made: run.created_at,
-      });
-      return;
-    }
     (run.clips || []).forEach((clip) => {
       if (!clip.video_url) return;
       tiles.push({

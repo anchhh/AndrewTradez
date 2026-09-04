@@ -63,11 +63,10 @@
 
       <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
 
-      {# Optional. No video model on this provider takes a middle frame --
-         every one is first plus last and nothing between -- so a shot with
-         one is rendered as two clips that meet on it. That is not a
-         workaround: with a tool that interpolates between pairs, two legs is
-         what a start, a middle and an end ARE. #}
+      {# Optional. The model takes a first frame and a last frame and no
+         keyframe between, so this is not one: it goes along as a named
+         reference picture and the flight is written to pass through it.
+         One render either way. #}
       <figure class="ae-end" id="ae-mid-wrap" hidden>
         <span class="dr-recap-tag">Through</span>
         <img id="ae-mid-img" alt="The frame it passes through">
@@ -97,8 +96,9 @@
     </p>
     <div class="fp-views" id="ae-views"></div>
 
-    <p class="gn-inputs-label hint">Through &mdash; optional. A frame to pass
-      on the way down; it renders as two clips that meet on it.</p>
+    <p class="gn-inputs-label hint">Through &mdash; optional. A view to rush
+      through on the way down. Still one clip: the picture rides along as a
+      reference the flight passes through.</p>
     <div class="fp-views" id="ae-mids"></div>
 
     <p class="hint"><b>{{ move }}.</b> It loses height and width together, so
@@ -140,21 +140,14 @@
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          {# One instruction per clip. With a middle frame there are two
-             clips and two instructions -- the first accelerates into the
-             middle, the second brakes from it onto the front -- and the whole
-             point of this box is that what you read is what runs. #}
+          {# The whole point of this box is that what you read is what
+             runs. With a middle frame the wording names it as
+             <<<element_1>>>, which is how the model is told which picture
+             to fly through. #}
           <h4 class="gn-review-h" id="ae-review-h1">The prompt</h4>
           <p class="hint" id="ae-review-hint1">Editable, for this run.</p>
           <textarea id="ae-review-prompt" class="gn-review-prompt"
                     spellcheck="false" rows="12"></textarea>
-
-          <div id="ae-review-leg2" hidden>
-            <h4 class="gn-review-h">Leg 2 &mdash; middle to the front</h4>
-            <p class="hint">Arrives at speed and brakes onto the front.</p>
-            <textarea id="ae-review-prompt2" class="gn-review-prompt"
-                      spellcheck="false" rows="12"></textarea>
-          </div>
 
           <button type="button" class="btn-secondary btn-tiny gn-review-reset"
                   id="ae-review-reset">Back to the default wording</button>
@@ -162,7 +155,8 @@
 
         <div class="gn-review-col">
           <h4 class="gn-review-h">The frames</h4>
-          <p class="hint">It opens on the first and lands on the second.</p>
+          <p class="hint">It opens on the first and lands on the last; a
+            middle frame is flown through on the way.</p>
           <div class="gn-review-shots" id="ae-review-frames"></div>
 
           <h4 class="gn-review-h">The settings</h4>

@@ -118,6 +118,29 @@ def _run(app, job_id):
                             last_url = upload_frame(anchor_path, cfg)
                             entry["anchor"] = anchor
 
+                    # A frame to fly THROUGH. Not a keyframe -- the model has
+                    # no slot for one -- but a named reference picture the
+                    # prompt points at as <<<element_1>>>. Missing on disk is
+                    # a failure, not a quiet render without it: the shot was
+                    # confirmed with three pictures and should run with three.
+                    elements = None
+                    via = spec.get("via")
+                    if via:
+                        via_path = local_path_for(via)
+                        if not os.path.exists(via_path):
+                            raise VideoError("middle frame missing on disk: %s"
+                                             % os.path.basename(via_path))
+                        elements = [{
+                            "element_name": "the view it flies through",
+                            "element_description": (
+                                "A closer aerial view of the same "
+                                "neighbourhood, passed through on the way "
+                                "down to the house."),
+                            "reference_type": "image_refer",
+                            "frontal_image": upload_frame(via_path, cfg),
+                        }]
+                        entry["via"] = via
+
                     prediction_id = submit_clip(
                         image_url,
                         # The site facts ride on the spec, put there when the
@@ -133,6 +156,7 @@ def _run(app, job_id):
                         resolution=spec["resolution"],
                         last_image=last_url,
                         move=spec["move"],
+                        elements=elements,
                     )
                     entry["prediction_id"] = prediction_id
                     job.clips = clips
@@ -176,15 +200,9 @@ def _run(app, job_id):
                         error=clips[0].get("error") if clips else "no clips were generated")
                 return
 
-            # One clip is already a video. Several are only a video when they
-            # share their joins -- the aerial's legs do, by construction: leg
-            # one ENDS on the exact photograph leg two BEGINS on, so
-            # concatenating them is one continuous take with no visible seam.
-            # A walkthrough's clips share nothing at the join and are left as
-            # they are; gluing those would be a jump cut wearing one filename.
+            # One clip is the video. Several are several: nothing here joins
+            # them, and a run that wants one video is built as one render.
             output = done[0]["video_url"] if len(done) == 1 else None
-            if output is None and job.style == "aerial" and len(done) == len(clips):
-                output = stitch(job.id, [c["video_url"] for c in done])
             _update(db, job, status="completed", output_url=output)
 
             log.info("video job %s finished: %s of %s clips", job_id, len(done), len(clips))
@@ -201,107 +219,6 @@ def _run(app, job_id):
             pass
     finally:
         _lock.release()
-
-
-def _duration(ffmpeg, path):
-    """Seconds of video in a file, read off ffmpeg's own header dump.
-
-    ffprobe would be the tool, but the bundled binary is ffmpeg alone, and
-    `ffmpeg -i` prints the same Duration line to stderr before refusing to
-    do anything without an output. Zero when it cannot be read, which the
-    caller treats as "do not trust the join".
-    """
-    import re
-    import subprocess
-
-    try:
-        out = subprocess.run([ffmpeg, "-i", path], capture_output=True,
-                             timeout=60).stderr.decode("utf-8", "replace")
-    except Exception:  # noqa: BLE001 -- unreadable is zero, and zero is refused
-        return 0.0
-    found = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", out)
-    if not found:
-        return 0.0
-    hours, minutes, seconds = found.groups()
-    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
-
-
-def stitch(job_id, urls):
-    """Join clips that share their frames into one file. Returns its URL.
-
-    Always a re-encode, never a stream copy: the legs come from the same
-    model at the same settings and still do not share a frame size, so they
-    are scaled to one before the join (see below). A minute of encoding is
-    the price. If anything fails, or the result is not as long as its parts,
-    the job keeps its separate clips and says so in the log rather than
-    failing a render that already cost money.
-    """
-    import subprocess
-
-    try:
-        import imageio_ffmpeg
-        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception as exc:  # noqa: BLE001 -- no ffmpeg is "no stitch", not "no job"
-        log.warning("job %s: no ffmpeg available to stitch (%s)", job_id, exc)
-        return None
-
-    paths = []
-    for url in urls:
-        name = url.rsplit("/", 1)[-1]
-        path = os.path.abspath(os.path.join(CLIPS_DIRNAME, name))
-        if not os.path.exists(path):
-            log.warning("job %s: cannot stitch, %s is not on disk", job_id, name)
-            return None
-        paths.append(path)
-
-    out_name = f"job{job_id}-stitched.mp4"
-    out_path = os.path.abspath(os.path.join(CLIPS_DIRNAME, out_name))
-
-    try:
-        # The concat FILTER, with every input scaled to one frame size first,
-        # rather than the concat demuxer. The model does not return a fixed
-        # size -- two legs came back 1928x1072 and 1936x1080 -- and the
-        # demuxer, fed a size change mid-stream, produced a 47-second file
-        # from two 12-second clips whether copying or re-encoding. The filter
-        # rebuilds the timeline from scratch and cannot be fed mismatched
-        # frames, because the scale in front of it makes them match.
-        w, h = 1920, 1080
-        chain = []
-        for i in range(len(paths)):
-            chain.append(
-                "[%d:v]scale=%d:%d:force_original_aspect_ratio=decrease,"
-                "pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24[v%d]"
-                % (i, w, h, w, h, i))
-        graph = ";".join(chain) + ";" + "".join("[v%d]" % i for i in range(len(paths))) \
-            + "concat=n=%d:v=1:a=0[v]" % len(paths)
-        cmd = [ffmpeg, "-y"]
-        for path in paths:
-            cmd += ["-i", path]
-        cmd += ["-filter_complex", graph, "-map", "[v]",
-                "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-                "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", out_path]
-        done = subprocess.run(cmd, capture_output=True, timeout=900)
-        if done.returncode != 0 or not os.path.exists(out_path):
-            log.warning("job %s: stitch failed: %s", job_id,
-                        done.stderr.decode("utf-8", "replace")[-300:])
-            return None
-
-        # The one check that catches a bad join: the result should be as long
-        # as its parts, near enough. Anything else is padding or a dropped
-        # leg, and either is worse than two honest clips.
-        expected = sum(_duration(ffmpeg, p) for p in paths)
-        actual = _duration(ffmpeg, out_path)
-        if not expected or abs(actual - expected) > 1.0:
-            log.warning("job %s: stitched length %.1fs but parts total %.1fs; "
-                        "keeping the separate clips", job_id, actual, expected)
-            os.unlink(out_path)
-            return None
-
-        log.info("job %s: stitched %d clips into %.1fs", job_id, len(paths), actual)
-        return f"{CLIPS_URL_PREFIX}/{out_name}"
-    except Exception as exc:  # noqa: BLE001 -- see docstring
-        log.warning("job %s: stitch crashed: %s", job_id, exc)
-    return None
 
 
 def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
