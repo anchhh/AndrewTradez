@@ -34,11 +34,19 @@ function esc(value) {
 
 const nameOf = (url) => labels[url] || "Listing photo";
 const seconds = () => Number(el("ae-secs").value) || 5;
+const resolution = () => el("ae-res").value || "1080p";
 
 function cost() {
-  const rate = rates["1080p"] || rates["*"];
+  const rate = rates[resolution()] || rates["*"];
   return rate ? rate * seconds() : null;
 }
+
+/* Pictures shorter than the video they would make. Said here rather than
+   discovered afterwards: a soft clip looks like the model's fault and is
+   usually the photograph's. They are enlarged before the render, once, and
+   the enlarged copy is kept. */
+const small = window.__SMALL__ || [];
+const smallPicks = () => picks.filter((url) => small.includes(url));
 
 /* ---------- choosing the two ---------- */
 
@@ -75,6 +83,13 @@ function paintCost() {
   const dollars = cost();
   el("ae-cost").textContent = "One clip, " + seconds() + " seconds"
     + (dollars != null ? " — about $" + dollars.toFixed(2) : "") + ".";
+
+  const soft = smallPicks();
+  el("ae-small").textContent = soft.length
+    ? (soft.length === 1 ? "One of these pictures is" : "Both pictures are")
+      + " smaller than the video they make, so " + (soft.length === 1 ? "it is" : "they are")
+      + " enlarged first — once, then the bigger copy is kept and reused."
+    : "";
 }
 
 function paintAll() {
@@ -84,6 +99,7 @@ function paintAll() {
 }
 
 el("ae-secs").addEventListener("change", paintCost);
+el("ae-res").addEventListener("change", paintCost);
 
 /* Remembered, so leaving the page does not throw the choices away. */
 async function save() {
@@ -133,10 +149,12 @@ function review(body) {
     "</figcaption></figure>").join("");
 
   const dollars = cost();
+  const label = resolution() === "1440p-sr" ? "1440p super-res" : resolution();
   el("ae-review-specs").textContent =
-    "One clip · " + seconds() + " seconds · 1080p · "
+    "One clip · " + seconds() + " seconds · " + label + " · "
     + (body.model || "the video model")
-    + (dollars != null ? " · about $" + dollars.toFixed(2) : "");
+    + (dollars != null ? " · about $" + dollars.toFixed(2) : "")
+    + (smallPicks().length ? " · frames enlarged first" : "");
 
   el("ae-review").hidden = false;
 }
@@ -177,6 +195,7 @@ async function generate() {
         start: picks[0],
         end: picks[1],
         duration: seconds(),
+        resolution: resolution(),
         // Sent every time, edited or not: "what I saw" and "what ran" are
         // the same string or the confirmation was theatre.
         prompt: promptNow(),

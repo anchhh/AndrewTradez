@@ -38,13 +38,19 @@ CONFIG_PATH = os.path.join(
 #
 #   rates       $/second, by resolution. A single value under "*" means flat.
 #   resolutions what the UI may offer, best last.
+#   api_res     what this model calls those, when it differs from our label.
 #   last_frame  the field name for an end frame, or None if unsupported.
 #   negative    whether a negative prompt is accepted.
 MODELS = {
     "kwaivgi/kling-v3.0-pro/image-to-video": {
         "label": "Kling 3.0 Pro",
         "rates": {"*": 0.095},
-        "resolutions": ["1080p"],
+        # 1440p-SR is Kling's own FlashVSR pass over its native 1080p
+        # output. The catalogue lists one base price for the model and no
+        # separate tier for it, so it is priced the same here -- watch a
+        # real invoice before trusting that for anything large.
+        "resolutions": ["1080p", "1440p-sr"],
+        "api_res": {"1080p": "1080P", "1440p-sr": "1440P-SR"},
         "durations": [3, 4, 5, 6, 7, 8, 9, 10, 12, 15],
         "last_frame": "end_image",
         "negative": True,
@@ -428,7 +434,10 @@ AERIAL_MOVES = [
         "for a beat before anything happens. Then accelerate hard and rush "
         "forward, heavy motion blur and streaking welcome, then slow down "
         "and pan gently to come to rest exactly on the final frame. The "
-        "only thing that moves is the camera: every car stays parked, "
+        "light never changes: same sun, same shadows, same sky, same "
+        "white balance and exposure from the first frame to the last, as "
+        "though the whole shot were flown in one pass on one afternoon. "
+        "The only thing that moves is the camera: every car stays parked, "
         "nobody is walking, nothing is driving. Buildings, streets, cars "
         "and trees keep their shape and their places the whole way -- any "
         "blur comes from the speed of the camera, never from things "
@@ -467,6 +476,8 @@ AERIAL_NEGATIVE = (
     # model redrawing the neighbourhood rather than travelling across it.
     "smeared rooftops, mushy buildings, dissolving streets, "
     "wobbling houses, drifting trees, sliding cars, "
+    "changing light, shifting shadows, sun moving, colour shift, "
+    "exposure change, white balance shift, sky changing, clouds racing, "
     "cut, jump cut, dissolve, crossfade, slideshow, frozen frame, "
     "letterboxing, black bars"
 )
@@ -1094,9 +1105,13 @@ def submit_clip(image_url, prompt=None, cfg=None, duration=5, resolution="1080p"
         # Their field is "image", not "image_url" -- an easy and silent mistake.
         "image": image_url,
         "duration": duration,
-        "resolution": resolution,
     }
     info = model_info(cfg)
+    # Our labels are lowercase; Kling wants "1080P" and "1440P-SR", and a
+    # resolution it does not recognise is ignored rather than refused --
+    # which reads as "the super-resolution tier did nothing".
+    payload["resolution"] = (info.get("api_res") or {}).get(
+        (resolution or "").strip().lower(), resolution)
     # Audio off, under whatever this model calls it. A listing video gets music
     # laid over it later, and audio costs about 50% more.
     payload[info.get("audio_field", "generate_audio")] = generate_audio

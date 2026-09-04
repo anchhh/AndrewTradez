@@ -43,6 +43,52 @@ def is_busy():
     return _lock.locked()
 
 
+# Below this, a frame is smaller than the video made from it and the clip
+# comes back soft however good the model is. Both of one listing's aerial
+# photographs were 1280x848 -- shorter than 1080p -- so Kling was enlarging
+# a small picture and then being blamed for the result.
+SHARP_ENOUGH = 1800
+SHARPEN_BY = 2.0
+
+
+def enlarged(path):
+    """A bigger, sharper copy of a small frame, made once and kept.
+
+    The upscaler costs a few cents and half a minute, so the result is
+    written next to the original and reused: the same photograph is the
+    start of one clip and the end of another, and paying twice for the same
+    pixels would be silly.
+
+    Best-effort throughout -- every failure returns the original path,
+    because a sharpening step that fails must not lose the render behind
+    it.
+    """
+    from PIL import Image
+
+    try:
+        if max(Image.open(path).size) >= SHARP_ENOUGH:
+            return path
+    except Exception:  # noqa: BLE001 -- unreadable here means unreadable later
+        return path
+
+    stem = os.path.splitext(path)[0]
+    bigger = "%s-x%d.png" % (stem, int(SHARPEN_BY))
+    if os.path.exists(bigger):
+        return bigger
+
+    try:
+        from services import atlas_image
+
+        blob = atlas_image.upscale(path, percent=SHARPEN_BY)
+        with open(bigger, "wb") as handle:
+            handle.write(blob)
+        log.info("enlarged %s for the render", os.path.basename(path))
+        return bigger
+    except Exception as exc:  # noqa: BLE001 -- see docstring
+        log.warning("could not enlarge %s: %s", os.path.basename(path), exc)
+        return path
+
+
 def local_path_for(photo_url):
     """The file on disk behind a stored photo URL."""
     name = os.path.basename((photo_url or "").split("?")[0])
@@ -97,11 +143,13 @@ def _run(app, job_id):
                     if not os.path.exists(path):
                         raise VideoError(f"photo missing on disk: {os.path.basename(path)}")
 
+                    spec = job.spec_for(index)
+                    if spec.get("sharpen"):
+                        path = enlarged(path)
                     image_url = upload_frame(path, cfg)
                     # Move, length and resolution are all per clip now, so the
                     # prompt is too. job.prompt is used only when one was typed
                     # by hand for the whole run.
-                    spec = job.spec_for(index)
                     entry["move"] = spec["move"]
                     entry["duration"] = spec["duration"]
                     entry["resolution"] = spec["resolution"]
@@ -116,6 +164,8 @@ def _run(app, job_id):
                     if anchor:
                         anchor_path = local_path_for(anchor)
                         if os.path.exists(anchor_path):
+                            if spec.get("sharpen"):
+                                anchor_path = enlarged(anchor_path)
                             last_url = upload_frame(anchor_path, cfg)
                             entry["anchor"] = anchor
 

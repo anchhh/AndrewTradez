@@ -77,7 +77,7 @@
   </section>
 
   <section class="card">
-    <h2>Length</h2>
+    <h2>Length and quality</h2>
     <div class="rn-setall">
       <span class="rn-setall-label">The clip</span>
       <select id="ae-secs" class="rn-select">
@@ -85,8 +85,16 @@
           <option value="{{ seconds }}"{{ ' selected' if seconds == 5 }}>{{ seconds }} seconds</option>
         {% endfor %}
       </select>
+      <span class="rn-setall-label">Quality</span>
+      <select id="ae-res" class="rn-select">
+        {% for res in resolutions %}
+          <option value="{{ res }}"{{ ' selected' if res == '1440p-sr' }}>{{
+            '1440p (super-res)' if res == '1440p-sr' else res }}</option>
+        {% endfor %}
+      </select>
       <span class="hint" id="ae-cost"></span>
     </div>
+    <p class="hint" id="ae-small"></p>
   </section>
 
   <div class="row action-row ge-actions">
@@ -143,6 +151,7 @@
   window.__PICKS__ = {{ picks | tojson }};
   window.__LABELS__ = {{ labels | tojson }};
   window.__RATES__ = {{ rates | tojson }};
+  window.__SMALL__ = {{ small | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_aerial.js') }}"></script>
 </body>

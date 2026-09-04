@@ -1559,6 +1559,26 @@ def create_flight():
         crumbs=_create_crumbs("flight", style="drone", project_id=project_id))
 
 
+def _small_pictures(urls):
+    """Which of these are smaller than the video they would make.
+
+    Said on the page rather than discovered afterwards: a soft clip looks
+    like the model's fault, and it is usually the photograph's.
+    """
+    from PIL import Image
+
+    from services.video_jobs import SHARP_ENOUGH, local_path_for
+
+    small = set()
+    for url in urls:
+        try:
+            if max(Image.open(local_path_for(url)).size) < SHARP_ENOUGH:
+                small.add(url)
+        except Exception:  # noqa: BLE001 -- unmeasurable is not small
+            pass
+    return small
+
+
 # What a picture is called under the aerial's pickers. The room labels are
 # machine keys; these are what a person would say.
 ROOM_LABELS = {
@@ -1640,6 +1660,8 @@ def create_aerial():
         picks=picks,
         labels={u: ROOM_LABELS.get(room_of(u), "Listing photo") for u in wide},
         durations=video.model_info(cfg).get("durations") or [3, 4, 5, 6, 8, 10],
+        resolutions=video.model_info(cfg).get("resolutions") or ["1080p"],
+        small=sorted(_small_pictures(wide)),
         rates=video.resolved_rates(cfg),
         configured=bool(cfg.get("api_key")),
         config_error=cfg.get("config_error"),
@@ -4539,21 +4561,28 @@ def api_video_drone():
         if seconds not in info["durations"]:
             return jsonify({"error": "%s doesn't do %s-second clips."
                             % (info["label"], seconds)}), 400
+        resolution = (data.get("resolution") or "1080p").strip().lower()
+        if resolution not in info["resolutions"]:
+            return jsonify({"error": "%s doesn't offer %s."
+                            % (info["label"], resolution)}), 400
 
         typed = data.get("prompt")
         typed = typed.strip() if isinstance(typed, str) else ""
         if len(typed) > 6000:
             return jsonify({"error": "That prompt is too long to send."}), 400
 
+        # sharpen: both ends of this shot are whatever the agent uploaded,
+        # and a listing's aerial photograph is often smaller than the video
+        # made from it. The worker enlarges those once and keeps the copy.
         spec = {"move": dronepath.AERIAL_WARP, "duration": seconds,
-                "resolution": "1080p", "anchor": picks[1]}
+                "resolution": resolution, "anchor": picks[1], "sharpen": True}
         if typed:
             spec["prompt"] = typed
         try:
             job = start_job(current_app._get_current_object(), session["user_id"],
                             picks[:1], lead_id=lead.id, duration=seconds,
                             prompt=typed or None, style="aerial",
-                            resolution="1080p", specs=[spec])
+                            resolution=resolution, specs=[spec])
         except VideoJobBusy as exc:
             return jsonify({"error": str(exc)}), 409
         return jsonify({"job_id": job.id, "estimated_cost": job.estimated_cost})

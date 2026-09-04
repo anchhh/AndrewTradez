@@ -134,6 +134,10 @@ def main():
          "the opening beat. Without it the wide aerial starts moving and "
          "softening immediately, and the shot has no clean frame to leave "
          "from"),
+        ("The light never changes",
+         "the lighting. The two ends are different photographs taken at "
+         "different moments, and without this the clip drifts from one's "
+         "light to the other's mid-flight"),
         ("any blur comes from the speed of the camera",
          "the distinction the whole shot turns on. Blur is the subject; "
          "objects deforming is the fault, and one sentence has to say which "
