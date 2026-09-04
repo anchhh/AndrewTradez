@@ -424,6 +424,25 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
+    # One shot of the aerial reel (services/whip.py). Each photograph is
+    # rendered on its own with this, and the reel's cuts are whips built
+    # from the clips' frames -- so this asks for motion inside the frame
+    # and nothing that would carry the camera somewhere the photograph
+    # does not show. The reference reel's shots are exactly this: a drone
+    # easing forward over what it is already looking at.
+    (
+        "aerial_push",
+        "Aerial push",
+        "A slow, steady forward drone push over exactly what the photograph "
+        "shows",
+        "MOVEMENT: a slow, steady forward push from a hovering drone, single "
+        "take, height held. Ease gently ahead toward the centre of the "
+        "photograph, gaining only a little closeness, so the scene stays "
+        "exactly this scene from a few metres nearer. No descent onto "
+        "anything, no rotation, no orbit, no tilt, no speed change, and do "
+        "not travel far enough to reveal what the photograph does not show. "
+        "Invent nothing.",
+    ),
     (
         # The drone flow's only move. The menu below it is a menu of legs --
         # rise, cross, orbit, pull back -- and picking one was picking a

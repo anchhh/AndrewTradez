@@ -100,7 +100,25 @@ def main():
                     failures.append(("%s / %s" % (shape, label),
                                      'missing "%s" -- %s' % (clause, why)))
 
-    cases = len(SHAPES) * len(SITES)
+    # The aerial reel's one move. No route, no ramp, no reveal -- but it
+    # still has to fit and still has to carry the house number, and a
+    # refactor of the ladder is how it would quietly stop doing either.
+    for label, facts in SITES.items():
+        prompt = video.exterior_prompt("aerial_push", cfg, site=dict(facts, flight_path=None))
+        longest = max(longest, len(prompt))
+        where = "aerial_push / %s" % label
+        if len(prompt) > limit:
+            failures.append((where, "prompt is %d characters, over the %d limit"
+                             % (len(prompt), limit)))
+        for clause, why in (
+            ("height held", "the push itself -- without it the model descends "
+                            "onto the nearest roof"),
+            ("It must read exactly", "the house number, same reason as above"),
+        ):
+            if clause not in prompt:
+                failures.append((where, 'missing "%s" -- %s' % (clause, why)))
+
+    cases = len(SHAPES) * len(SITES) + len(SITES)
     if failures:
         print("FAILED: %d problem(s) across %d cases\n" % (len(failures), cases))
         for where, what in failures:

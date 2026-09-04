@@ -77,15 +77,6 @@ def _run(app, job_id):
 
             cfg = load_config()
 
-            # The aerial reel is not a render. It is the photographs, moved
-            # and cut with whips, built by ffmpeg in seconds for nothing --
-            # but it lives on a job row like everything else so the waiting
-            # page, the lead profile and the shelf all find it the same way.
-            if (job.spec_for(0) if job.photos else {}).get("reel"):
-                _update(db, job, status="running", model="estly/whip-reel")
-                _reel(db, job)
-                return
-
             _update(db, job, status="running", model=cfg["model"])
 
             clips = []
@@ -189,6 +180,22 @@ def _run(app, job_id):
             # One clip is the video. Several are several: nothing here joins
             # them, and a run that wants one video is built as one render.
             output = done[0]["video_url"] if len(done) == 1 else None
+
+            # Except the aerial, which is a reel: its clips are the shots,
+            # and the finished video is those clips cut together with whips
+            # (services/whip.py). Only when every shot landed -- a reel with
+            # a hole in it is not the reel that was confirmed. The clips
+            # stay on the job as they came back; if the cut fails, the log
+            # says why and the shots are the result.
+            if job.style == "aerial" and len(done) == len(clips) and len(done) > 1:
+                from services import whip
+
+                out_name = f"job{job.id}-reel.mp4"
+                each = job.spec_for(0).get("each") or clips[0].get("duration") or 3
+                if whip.reel([os.path.join(CLIPS_DIRNAME, c["video_url"].rsplit("/", 1)[-1])
+                              for c in done],
+                             os.path.join(CLIPS_DIRNAME, out_name), each):
+                    output = f"{CLIPS_URL_PREFIX}/{out_name}"
             _update(db, job, status="completed", output_url=output)
 
             log.info("video job %s finished: %s of %s clips", job_id, len(done), len(clips))
@@ -205,33 +212,6 @@ def _run(app, job_id):
             pass
     finally:
         _lock.release()
-
-
-def _reel(db, job):
-    """Build the aerial reel for this job and record it as its one clip."""
-    from services import whip
-
-    spec = job.spec_for(0)
-    frames = spec.get("frames") or job.photos
-    entry = {"photo": frames[0], "index": 0, "status": "running",
-             "move": "aerial_reel", "duration": spec.get("duration"),
-             "resolution": "1080p", "frames": frames}
-    job.clips = [entry]
-    db.session.commit()
-
-    filename = f"job{job.id}-clip0-reel.mp4"
-    dest = os.path.join(CLIPS_DIRNAME, filename)
-    if whip.reel([local_path_for(u) for u in frames], dest):
-        entry["status"] = "completed"
-        entry["video_url"] = f"{CLIPS_URL_PREFIX}/{filename}"
-        job.clips = [entry]
-        _update(db, job, status="completed", output_url=entry["video_url"])
-        log.info("video job %s finished: reel of %d shots", job.id, len(frames))
-    else:
-        entry["status"] = "failed"
-        entry["error"] = "The reel couldn't be built. Check the server log."
-        job.clips = [entry]
-        _update(db, job, status="failed", error=entry["error"])
 
 
 def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
@@ -253,10 +233,8 @@ def start_job(app, owner_id, photos, lead_id=None, prompt=None, duration=5,
         prompt=prompt or None,
         duration=duration,
         resolution=resolution,
-        # A reel is built, not rendered, and costs nothing.
         estimated_cost=round(
-            sum(0 if (s or {}).get("reel") else
-                estimate_cost((s or {}).get("duration") or duration, cfg,
+            sum(estimate_cost((s or {}).get("duration") or duration, cfg,
                               (s or {}).get("resolution") or resolution)
                 for s in (specs or [{}] * len(photos))),
             2,

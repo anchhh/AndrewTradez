@@ -1574,7 +1574,7 @@ def create_aerial():
     come from stage 2, the front shot from stage 4; what is chosen here is
     which wide view it opens on and how long it runs.
     """
-    from services import dronepath, whip
+    from services import dronepath, video, whip
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1584,6 +1584,7 @@ def create_aerial():
     path = lead.drone_path or {}
     project_id = request.args.get("project")
     tail = "&project=%s" % quote(project_id) if project_id else ""
+    cfg = video.load_config()
     made = dronepath.generated_of(path)
 
     # What it can open on: the LISTING's own aerial photographs.
@@ -1623,7 +1624,11 @@ def create_aerial():
         shot_labels=dronepath.SHOT_LABELS,
         slots=slots,
         slot_order=dronepath.CAPTURE_SLOTS,
-        timing={"drift": whip.DRIFT, "whip": whip.WHIP, "land": whip.LAND},
+        timing={"rush": whip.RUSH, "land": whip.LAND, "min_render": whip.MIN_RENDER},
+        shot_choices=list(whip.SHOT_CHOICES),
+        rates=video.resolved_rates(cfg),
+        configured=bool(cfg.get("api_key")),
+        config_error=cfg.get("config_error"),
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
         generate_href="/studio/create/video/generate?lead_id=%s&style=drone%s" % (lead.id, tail),
         clips_href="/studio/create/video/clips?lead_id=%s&style=drone%s" % (lead.id, tail),
@@ -4493,10 +4498,12 @@ def api_video_drone():
         return jsonify({"error": "A shot can't end on the frame it starts "
                                  "from."}), 400
 
-    # The aerial is a reel, not a render: the photographs, each a short
-    # moving shot, cut together with speed whips (services/whip.py). No
-    # model, no prompt, no cost. It is a job all the same, so the waiting
-    # page and the shelf treat it like anything else that was made.
+    # The aerial is a reel: one short clip per photograph, each a slow
+    # forward push rendered on its own, cut together with speed whips when
+    # they have all landed (services/whip.py). Nothing between two
+    # photographs is generated -- the one time it was, the model invented a
+    # different suburb on the way -- so the shots need no anchors, and
+    # every one carries the same instruction.
     if (data.get("shot") or "").strip().lower() == "aerial":
         from services import whip
 
@@ -4510,17 +4517,37 @@ def api_video_drone():
         if not end:
             return jsonify({"error": "The reel needs the front shot to end "
                                      "on."}), 400
+        try:
+            each = int(data.get("each") or 2)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Shot length must be a number."}), 400
+        if each not in whip.SHOT_CHOICES:
+            return jsonify({"error": "Shots can be %s seconds." % ", ".join(
+                str(s) for s in whip.SHOT_CHOICES)}), 400
+        info = video.model_info(cfg)
+        # Rendered at the model's shortest length at least, and trimmed to
+        # the shot on the cut. Priced at what is rendered.
+        rendered = max(each, whip.MIN_RENDER)
+        if rendered not in info["durations"]:
+            rendered = min(d for d in info["durations"] if d >= rendered)
+        typed = data.get("prompt")
+        typed = typed.strip() if isinstance(typed, str) else ""
+        if len(typed) > 6000:
+            return jsonify({"error": "That prompt is too long to send."}), 400
+        site = dict(exterior_site_facts(lead, {}), flight_path=None)
         frames = [start] + ([middle] if middle else []) + [end]
-        seconds = whip.total_seconds(len(frames))
-        specs = [{"reel": True, "frames": frames, "move": "aerial_reel",
-                  "duration": seconds, "resolution": "1080p"}]
+        specs = [{"move": dronepath.AERIAL_MOVE, "duration": rendered, "each": each,
+                  "resolution": "1080p", "site": site,
+                  **({"prompt": typed} if typed else {})}
+                 for _ in frames]
         try:
             job = start_job(current_app._get_current_object(), session["user_id"],
-                            [start], lead_id=lead.id, duration=int(round(seconds)),
-                            style="aerial", resolution="1080p", specs=specs)
+                            frames, lead_id=lead.id, duration=rendered,
+                            prompt=typed or None, style="aerial",
+                            resolution="1080p", specs=specs)
         except VideoJobBusy as exc:
             return jsonify({"error": str(exc)}), 409
-        return jsonify({"job_id": job.id, "estimated_cost": 0})
+        return jsonify({"job_id": job.id, "estimated_cost": job.estimated_cost})
 
     aerial = False
     move = dronepath.MOVE
@@ -4597,9 +4624,8 @@ def api_video_drone_preview():
     cfg = video.load_config()
     from services import dronepath
 
-    # The aerial is built, not rendered, and has no prompt to preview.
-    aerial = False
-    move = dronepath.MOVE
+    aerial = (data.get("shot") or "").strip().lower() == "aerial"
+    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)

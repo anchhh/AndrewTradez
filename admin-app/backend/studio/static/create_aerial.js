@@ -1,18 +1,14 @@
 /* The aerial reel.
 
-   Two or three photographs, each a short moving shot, joined by speed-blur
-   whips: the wide view of the neighbourhood, optionally a closer one, and
-   the front of the house -- which is exactly the frame the flyover opens
-   on, so the two cut together with no seam.
+   Two or three shots, each a short drone push the model renders from one
+   photograph, cut together with speed-blur whips: the wide view of the
+   neighbourhood, optionally a closer one, and the front of the house. The
+   whips are built on the server from the clips' own frames -- nothing
+   between two photographs is ever generated, because the one time it was
+   the model invented a different suburb on the way.
 
-   Nothing is generated. The one time the model was asked to fly from the
-   wide shot to the closer one it invented a different suburb on the way,
-   and the reference reel this copies does not fly that stretch either: it
-   holds, rushes to a streak, cuts, and the next shot is just there. That is
-   built from the photographs on the server, for nothing.
-
-   Only two things are chosen here: what it opens on, and whether there is a
-   closer view in between. Where it ends was decided at stage 4. */
+   What is chosen here: what it opens on, whether there is a closer view in
+   between, and how long each shot holds. */
 
 const lead = window.__LEAD__;
 const wide = window.__WIDE__ || [];
@@ -20,7 +16,8 @@ const front = window.__FRONT__ || "";
 const slots = window.__SLOTS__ || {};
 const slotOrder = window.__SLOT_ORDER__ || Object.keys(slots);
 const shotLabels = window.__SHOT_LABELS__ || {};
-const timing = window.__TIMING__ || { drift: 1.5, whip: 0.4, land: 0.35 };
+const rates = window.__RATES__ || {};
+const timing = window.__TIMING__ || { rush: 0.35, land: 0.3, min_render: 3 };
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || ""; };
@@ -28,6 +25,10 @@ const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || 
 let opening = window.__OPENING__ || wide[0] || "";
 /* Optional, and never the same picture as either end. */
 let middle = window.__MIDDLE__ || "";
+/* The standard wording, shared by every shot, and the edit to it if any. */
+let standard = "";
+let edit = null;
+const promptNow = () => (edit === null ? standard : edit);
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -35,9 +36,6 @@ function esc(value) {
   }[c]));
 }
 
-/* What a picture is. These are the listing's own photographs, so the
-   board's labels usually have nothing to say about them -- but the slot
-   lookup stays for the case where somebody's saved choice predates that. */
 function nameOf(url) {
   const key = slotOrder.find((k) => (slots[k] || []).includes(url));
   if (key) return shotLabels[key] || "Capture";
@@ -45,13 +43,20 @@ function nameOf(url) {
 }
 
 const frames = () => (middle ? [opening, middle, front] : [opening, front]);
+const each = () => Number(el("ae-each").value) || 3;
 
-/* How long the reel runs: each shot drifts, and every cut costs a whip out
-   and a landing in. The same arithmetic as the server's, so the number
-   here is the number the file comes back with. */
+/* The model renders at least three seconds a shot; a shorter shot is
+   rendered at three and trimmed, and is priced at three. */
+const rendered = () => Math.max(each(), timing.min_render);
+
 function seconds() {
   const n = frames().length;
-  return n * timing.drift + (n - 1) * (timing.whip + timing.land);
+  return n * each() + (n - 1) * (timing.rush + timing.land);
+}
+
+function cost() {
+  const rate = rates["1080p"] || rates["*"];
+  return rate ? rate * rendered() * frames().length : null;
 }
 
 /* ---------- what it opens on ---------- */
@@ -68,8 +73,6 @@ function paintViews() {
   views.querySelectorAll(".fp-view").forEach((button) =>
     button.addEventListener("click", () => {
       opening = button.dataset.url;
-      // The two cannot be the same picture. Dropping it from the middle is
-      // less surprising than refusing the click.
       if (middle === opening) middle = "";
       el("ae-open-img").src = opening;
       el("ae-open-name").textContent = nameOf(opening);
@@ -81,8 +84,7 @@ function paintViews() {
 }
 
 /* The optional closer view in between. Clicking the chosen one again
-   removes it, which is how a single-select-or-none behaves everywhere else
-   here. */
+   removes it. */
 function paintMiddles() {
   const box = el("ae-mids");
   if (!box) return;
@@ -109,18 +111,23 @@ function paintMiddles() {
   if (arrow) arrow.hidden = !middle;
 }
 
-function paintLength() {
+function paintCost() {
   const n = frames().length;
+  const dollars = cost();
   el("ae-cost").textContent =
-    n + " shots, about " + seconds().toFixed(1) + " seconds. Free — built from "
-    + "the photos, nothing is generated.";
+    n + " shots of " + each() + " s, about " + seconds().toFixed(1) + " seconds"
+    + (dollars != null ? " — about $" + dollars.toFixed(2) : "")
+    + " (" + n + " clips of " + rendered() + " s rendered"
+    + (each() < timing.min_render ? ", trimmed" : "") + ").";
 }
 
 function paintAll() {
   paintViews();
   paintMiddles();
-  paintLength();
+  paintCost();
 }
+
+el("ae-each").addEventListener("change", paintCost);
 
 /* Remembered, so leaving the page does not throw the choice away. */
 async function save() {
@@ -145,13 +152,28 @@ if (el("ae-mid-clear")) {
 
 /* ---------- the confirmation ---------- */
 
-el("ae-go").addEventListener("click", () => {
+el("ae-go").addEventListener("click", async () => {
   if (!opening) { note("Pick what it opens on."); return; }
-  note("");
-  review();
+  note("Reading the prompt…");
+  try {
+    const res = await fetch("/studio/api/video/drone/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lead_id: lead, shot: "aerial" }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || "couldn't read the prompt");
+    standard = body.prompt || "";
+    note("");
+    review(body);
+  } catch (err) {
+    note(err.message);
+  }
 });
 
-function review() {
+function review(body) {
+  el("ae-review-prompt").value = promptNow();
+
   const labels = middle
     ? [["Opens on", nameOf(opening)], ["Whips into", nameOf(middle)],
        ["Ends on", "The front"]]
@@ -163,9 +185,11 @@ function review() {
     '<span class="gn-review-also">' + esc(labels[i][1]) + "</span>" +
     "</figcaption></figure>").join("");
 
+  const dollars = cost();
   el("ae-review-specs").textContent =
-    frames().length + " shots · about " + seconds().toFixed(1) + " seconds · 1080p · "
-    + "built from the photos, no render";
+    frames().length + " shots of " + each() + " s · about " + seconds().toFixed(1)
+    + " seconds · 1080p · " + (body.model || "the video model")
+    + (dollars != null ? " · about $" + dollars.toFixed(2) : "");
 
   el("ae-review").hidden = false;
 }
@@ -173,6 +197,10 @@ function review() {
 function closeReview() { el("ae-review").hidden = true; }
 
 el("ae-review-cancel").addEventListener("click", closeReview);
+el("ae-review-reset").addEventListener("click", () => {
+  edit = null;
+  el("ae-review-prompt").value = promptNow();
+});
 el("ae-review").addEventListener("click", (e) => {
   if (e.target.id === "ae-review") closeReview();
 });
@@ -181,15 +209,17 @@ window.addEventListener("keydown", (e) => {
 });
 
 el("ae-review-go").addEventListener("click", () => {
+  const typed = (el("ae-review-prompt").value || "").trim();
+  edit = typed && typed !== standard ? typed : null;
   closeReview();
   generate();
 });
 
-/* ---------- building it ---------- */
+/* ---------- rendering ---------- */
 
 async function generate() {
   el("ae-go").disabled = true;
-  note("Building the reel…");
+  note("Starting the render…");
   try {
     const res = await fetch("/studio/api/video/drone", {
       method: "POST",
@@ -200,6 +230,10 @@ async function generate() {
         start: opening,
         middle: middle,
         end: front,
+        each: each(),
+        // Sent every time, edited or not: "what I saw" and "what ran" are
+        // the same string or the confirmation was theatre.
+        prompt: promptNow(),
       }),
     });
     const body = await res.json();

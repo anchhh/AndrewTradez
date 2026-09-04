@@ -19,9 +19,15 @@
 
   {% include "_drone_tabs.html" %}
 
+  {% if not configured %}
+    <p class="rn-scope-note is-warn">{{ config_error or
+      "The video generator isn't connected. Add an Atlas Cloud key to
+       studio/atlascloud.json." }}</p>
+  {% endif %}
+
   {% if not made.front %}
     <section class="card">
-      <h2>The last frame is missing</h2>
+      <h2>The last shot is missing</h2>
       <p class="hint">This reel ends on the front of the house &mdash; the
         same frame the flyover opens on &mdash; so that has to exist first.
         <a href="{{ generate_href }}">Generate it at stage 4</a>.</p>
@@ -40,12 +46,12 @@
     <div class="en-head">
       <div>
         <h2>Wide, whip, closer, whip, the front</h2>
-        <p class="hint">Each photo is a short moving shot &mdash; a slow
-          push &mdash; and every cut is a speed whip: the shot rushes into
-          a streak and the next one is just there, settling. It ends on
-          exactly the frame the flyover begins with, so the two cut together
-          with no seam. Nothing is generated; it is built from the photos,
-          so nothing in them can change.</p>
+        <p class="hint">Each photo becomes a short drone push &mdash; a real
+          clip, rendered from that one picture &mdash; and every cut is a
+          speed whip: the shot rushes into a streak and the next one is just
+          there, settling. The whips are built from the clips' own frames,
+          so nothing between two photos is ever generated and the
+          surroundings cannot change.</p>
       </div>
     </div>
 
@@ -91,50 +97,66 @@
     <p class="gn-inputs-label hint">Whip into &mdash; optional. A closer view
       of the same neighbourhood for a third shot in between.</p>
     <div class="fp-views" id="ae-mids"></div>
+  </section>
 
-    <p class="hint" id="ae-cost"></p>
+  <section class="card">
+    <h2>Length</h2>
+    <div class="rn-setall">
+      <span class="rn-setall-label">Each shot</span>
+      <select id="ae-each" class="rn-select">
+        {% for seconds in shot_choices %}
+          <option value="{{ seconds }}"{{ ' selected' if seconds == 2 }}>{{ seconds }} seconds</option>
+        {% endfor %}
+      </select>
+      <span class="hint" id="ae-cost"></span>
+    </div>
+    <p class="hint">Every cut adds a {{ timing.rush }}-second whip out and a
+      {{ timing.land }}-second landing in. The model's shortest clip is
+      {{ timing.min_render }} seconds; a shorter shot is rendered at that and
+      trimmed.</p>
   </section>
 
   <div class="row action-row ge-actions">
     <a class="btn-secondary" href="{{ earth_href }}">Back</a>
-    <button type="button" class="cta-btn is-accent" id="ae-go">Build the aerial</button>
+    <button type="button" class="cta-btn is-accent" id="ae-go">Generate the aerial</button>
     <a class="btn-secondary" href="{{ clips_href }}">All videos</a>
     <span class="hint" id="ae-note"></span>
   </div>
 
-  {# The same confirmation the other generators use, without a prompt:
-     there is no model to instruct. What is confirmed is the order of the
-     shots. #}
+  {# The same confirmation the other generators use. #}
   <div class="gn-review" id="ae-review" hidden>
     <div class="en-crop-panel gn-review-panel">
       <div class="en-crop-head">
-        <strong>Build the aerial</strong>
-        <span>These shots, in this order. Nothing runs until you confirm.</span>
+        <strong>Generate the aerial</strong>
+        <span>This is exactly what gets sent. Nothing runs until you confirm.</span>
       </div>
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          <h4 class="gn-review-h">The shots</h4>
-          <p class="hint">Each one drifts for {{ timing.drift }} seconds; each
-            cut is a {{ timing.whip }}-second whip out and a {{ timing.land }}-second
-            landing in. It ends on the front, still, so the flyover picks up
-            from it.</p>
-          <div class="gn-review-shots" id="ae-review-frames"></div>
+          <h4 class="gn-review-h">The prompt, for every shot</h4>
+          <p class="hint">Each photo is rendered with this same instruction:
+            a slow forward push and nothing else. Editable, for this run.</p>
+          <textarea id="ae-review-prompt" class="gn-review-prompt"
+                    spellcheck="false" rows="12"></textarea>
+
+          <button type="button" class="btn-secondary btn-tiny gn-review-reset"
+                  id="ae-review-reset">Back to the default wording</button>
         </div>
 
         <div class="gn-review-col">
+          <h4 class="gn-review-h">The shots</h4>
+          <p class="hint">In this order, each whipping into the next.</p>
+          <div class="gn-review-shots" id="ae-review-frames"></div>
+
           <h4 class="gn-review-h">The settings</h4>
           <p class="hint" id="ae-review-specs"></p>
-          <p class="hint">No AI render. The file is made from the photographs
-            with a zoom and motion blur, the way an editor cuts a drone reel,
-            so it costs nothing and the surroundings cannot change.</p>
         </div>
       </div>
 
       <div class="en-crop-actions">
         <span class="en-crop-spacer"></span>
         <button type="button" class="btn-secondary" id="ae-review-cancel">Cancel</button>
-        <button type="button" class="btn-send" id="ae-review-go">Build</button>
+        <button type="button" class="btn-send" id="ae-review-go">Generate</button>
       </div>
     </div>
   </div>
@@ -150,6 +172,7 @@
   window.__SLOTS__ = {{ slots | tojson }};
   window.__SLOT_ORDER__ = {{ slot_order | tojson }};
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
+  window.__RATES__ = {{ rates | tojson }};
   window.__TIMING__ = {{ timing | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_aerial.js') }}"></script>
