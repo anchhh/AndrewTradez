@@ -373,37 +373,6 @@ EXT_TEMPORAL = (
     "last."
 )
 
-# The aerial legs are the one place a speed ramp is the point rather than a
-# fault, so they get a temporal rule that permits it and a look that does not
-# forbid acceleration. Everything else in those rules stays: no cuts, no
-# dissolves, no geometry morphing, same light throughout. "Almost a morph"
-# means the FEEL of the transition -- a rush through the middle frame -- not
-# the house changing shape.
-EXT_TEMPORAL_RAMP = (
-    "One continuous shot from one moving camera. Do NOT dissolve, crossfade, "
-    "blend or cut between the first and last frames -- the camera travels the "
-    "whole way, and every frame between them is a real view from a point on "
-    "that path. The SPEED is meant to change: a smooth ramp, not a jump. "
-    "Nothing may warp, melt, stretch, flicker or swap between frames -- "
-    "motion blur from speed is fine, buildings changing shape is not. "
-    "Straight lines -- rooflines, walls, fences, kerbs -- must stay straight. "
-    "Keep the lighting, shadows, weather, sky, season, white balance and "
-    "exposure identical throughout: the same time of day from first frame to "
-    "last."
-)
-
-EXT_LOOK_RAMP = (
-    "Photorealistic real-estate drone footage, shot on a professional "
-    "cinema drone: crisp and high-resolution, with fine detail resolved in "
-    "roofing, brick, render and planting. Motion is smooth with no jerks and "
-    "no handheld shake; its speed ramps deliberately. Keep the photograph's "
-    "own exposure, white balance and colour exactly as they are -- do not "
-    "grade, warm, cool or add glow, flare or vignette. No people, no pets, no "
-    "moving vehicles, no text, no captions, no watermark, no logos."
-)
-
-RAMP_MOVES = ("aerial_approach",)
-
 EXT_LOOK = (
     "Photorealistic real-estate drone footage, shot on a professional "
     "cinema drone: crisp and high-resolution, with fine detail resolved in "
@@ -455,27 +424,6 @@ EXT_NEGATIVE = (
 
 # (key, name, description, movement instruction)
 EXTERIOR_MOVES = [
-    # The aerial. It begins already moving because the cut into it is a
-    # whip (services/whip.py): a wide photograph rushes to a streak and
-    # this clip is simply there, settling. Nothing between the wide shot
-    # and this clip's first frame is generated -- asking the model to fly
-    # that stretch had it inventing a different suburb on the way.
-    (
-        "aerial_approach",
-        "Aerial approach",
-        "Arrives at speed over the neighbourhood and brakes down onto the "
-        "front of the house",
-        "MOVEMENT: one continuous drone descent, single take. Begin exactly "
-        "on the first photograph, ALREADY MOVING FAST -- this is the second "
-        "half of a flight that was accelerating into that frame -- and fly "
-        "DOWN and FORWARD toward the subject property, DECELERATING smoothly "
-        "the whole way so you settle gently and exactly onto the final "
-        "photograph. The house in the final photograph is the one you are "
-        "descending onto; it is somewhere in the first frame already. Lose "
-        "height and width together so the streets leave the frame steadily. "
-        "Do not rotate, do not orbit, do not pass the property. Invent "
-        "nothing in between.",
-    ),
     (
         # The drone flow's only move. The menu below it is a menu of legs --
         # rise, cross, orbit, pull back -- and picking one was picking a
@@ -679,10 +627,7 @@ def exterior_prompt(move, cfg=None, site=None):
     address = address_rule(site)
     flight = flight_rule(site)
 
-    # The aerial legs ramp on purpose; every other exterior move holds an
-    # even speed. Same ladder below, different temporal and look rules.
-    temporal = EXT_TEMPORAL_RAMP if key in RAMP_MOVES else EXT_TEMPORAL
-    look = EXT_LOOK_RAMP if key in RAMP_MOVES else EXT_LOOK
+    temporal, look = EXT_TEMPORAL, EXT_LOOK
 
     # A ladder, shortening from the least load-bearing end. What never goes:
     # the opening constraint, a "never change" of some length, no-invention

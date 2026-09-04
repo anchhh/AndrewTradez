@@ -1,13 +1,18 @@
-/* The establishing shot.
+/* The aerial reel.
 
-   A descent from a wide view of the neighbourhood onto the front of the
-   house, ending on exactly the frame the flyover opens with. Another handsome
-   wide shot is easy; one that lands on a frame you already have is what makes
-   the two into a sequence.
+   Two or three photographs, each a short moving shot, joined by speed-blur
+   whips: the wide view of the neighbourhood, optionally a closer one, and
+   the front of the house -- which is exactly the frame the flyover opens
+   on, so the two cut together with no seam.
 
-   Only one thing is chosen here -- what it opens on. Where it lands was
-   decided at stage 4 by generating the front, and saying so is cheaper than
-   offering a choice that has one right answer. */
+   Nothing is generated. The one time the model was asked to fly from the
+   wide shot to the closer one it invented a different suburb on the way,
+   and the reference reel this copies does not fly that stretch either: it
+   holds, rushes to a streak, cuts, and the next shot is just there. That is
+   built from the photographs on the server, for nothing.
+
+   Only two things are chosen here: what it opens on, and whether there is a
+   closer view in between. Where it ends was decided at stage 4. */
 
 const lead = window.__LEAD__;
 const wide = window.__WIDE__ || [];
@@ -15,8 +20,7 @@ const front = window.__FRONT__ || "";
 const slots = window.__SLOTS__ || {};
 const slotOrder = window.__SLOT_ORDER__ || Object.keys(slots);
 const shotLabels = window.__SHOT_LABELS__ || {};
-const rates = window.__RATES__ || {};
-const moveName = window.__MOVE_NAME__ || "Aerial approach";
+const timing = window.__TIMING__ || { drift: 1.5, whip: 0.4, land: 0.35 };
 
 const el = (id) => document.getElementById(id);
 const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || ""; };
@@ -24,13 +28,6 @@ const note = (text) => { if (el("ae-note")) el("ae-note").textContent = text || 
 let opening = window.__OPENING__ || wide[0] || "";
 /* Optional, and never the same picture as either end. */
 let middle = window.__MIDDLE__ || "";
-/* The standard wording, and the edit to it if any. One render whatever is
-   chosen: with a middle frame the model flies only from it down to the
-   house, and the whip from the opening photograph is built afterwards. */
-let standards = [];
-let edits = [null];
-
-const promptNow = (i) => (edits[i] === null ? (standards[i] || "") : edits[i]);
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -38,14 +35,23 @@ function esc(value) {
   }[c]));
 }
 
-/* What a picture is. These are the listing's own photographs now rather
-   than Earth captures, so the board's labels usually have nothing to say
-   about them -- but the slot lookup stays for the case where somebody's
-   saved choice predates that. */
+/* What a picture is. These are the listing's own photographs, so the
+   board's labels usually have nothing to say about them -- but the slot
+   lookup stays for the case where somebody's saved choice predates that. */
 function nameOf(url) {
   const key = slotOrder.find((k) => (slots[k] || []).includes(url));
   if (key) return shotLabels[key] || "Capture";
   return "Listing photo";
+}
+
+const frames = () => (middle ? [opening, middle, front] : [opening, front]);
+
+/* How long the reel runs: each shot drifts, and every cut costs a whip out
+   and a landing in. The same arithmetic as the server's, so the number
+   here is the number the file comes back with. */
+function seconds() {
+  const n = frames().length;
+  return n * timing.drift + (n - 1) * (timing.whip + timing.land);
 }
 
 /* ---------- what it opens on ---------- */
@@ -74,8 +80,9 @@ function paintViews() {
   if (opening) el("ae-open-name").textContent = nameOf(opening);
 }
 
-/* The optional frame in between. Clicking the chosen one again removes it,
-   which is how a single-select-or-none behaves everywhere else here. */
+/* The optional closer view in between. Clicking the chosen one again
+   removes it, which is how a single-select-or-none behaves everywhere else
+   here. */
 function paintMiddles() {
   const box = el("ae-mids");
   if (!box) return;
@@ -102,10 +109,17 @@ function paintMiddles() {
   if (arrow) arrow.hidden = !middle;
 }
 
+function paintLength() {
+  const n = frames().length;
+  el("ae-cost").textContent =
+    n + " shots, about " + seconds().toFixed(1) + " seconds. Free — built from "
+    + "the photos, nothing is generated.";
+}
+
 function paintAll() {
   paintViews();
   paintMiddles();
-  renderCost();
+  paintLength();
 }
 
 /* Remembered, so leaving the page does not throw the choice away. */
@@ -121,70 +135,37 @@ async function save() {
   }
 }
 
-/* ---------- what it costs ---------- */
-
-function renderCost() {
-  const seconds = Number(el("ae-duration").value);
-  const rate = rates[el("ae-resolution").value] || rates["*"];
-  el("ae-cost").textContent = (rate
-    ? "About $" + (rate * seconds).toFixed(2) + " for " + seconds + " seconds"
-    : seconds + " seconds")
-    + (middle ? " — plus a free 1.4 s whip from the first photo." : ".");
+if (el("ae-mid-clear")) {
+  el("ae-mid-clear").addEventListener("click", () => {
+    middle = "";
+    paintAll();
+    save();
+  });
 }
 
 /* ---------- the confirmation ---------- */
 
-el("ae-go").addEventListener("click", async () => {
+el("ae-go").addEventListener("click", () => {
   if (!opening) { note("Pick what it opens on."); return; }
-  note("Reading the prompt…");
-  try {
-    const res = await fetch("/studio/api/video/drone/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        lead_id: lead, shot: "aerial", middle: middle,
-        duration: Number(el("ae-duration").value),
-        resolution: el("ae-resolution").value,
-      }),
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || "couldn't read the prompt");
-    // Fetched rather than rebuilt here: a preview assembled its own way is
-    // a preview of something else.
-    standards = [body.prompt || ""];
-    note("");
-    review(body);
-  } catch (err) {
-    note(err.message);
-  }
+  note("");
+  review();
 });
 
-function review(body) {
-  el("ae-review-prompt").value = promptNow(0);
-  el("ae-review-hint1").textContent = middle
-    ? "Editable, for this run. This is the flight from the second photo "
-      + "down; the whip from the first is added after, not generated."
-    : "Editable, for this run.";
-
-  const ends = middle
-    ? [[opening, "Whips from", nameOf(opening)],
-       [middle, "Flight opens on", nameOf(middle)],
-       [front, "Lands on", "The front"]]
-    : [[opening, "Opens on", nameOf(opening)],
-       [front, "Lands on", "The front"]];
-  el("ae-review-frames").innerHTML = ends.map((end, i) =>
+function review() {
+  const labels = middle
+    ? [["Opens on", nameOf(opening)], ["Whips into", nameOf(middle)],
+       ["Ends on", "The front"]]
+    : [["Opens on", nameOf(opening)], ["Ends on", "The front"]];
+  el("ae-review-frames").innerHTML = frames().map((url, i) =>
     '<figure class="gn-review-shot' + (i === 0 ? " is-base" : "") + '">' +
-    '<img src="' + esc(end[0]) + '" alt="">' +
-    '<figcaption><b>' + (i + 1) + "</b> " + end[1] +
-    '<span class="gn-review-also">' + esc(end[2]) + "</span>" +
+    '<img src="' + esc(url) + '" alt="">' +
+    '<figcaption><b>' + (i + 1) + "</b> " + labels[i][0] +
+    '<span class="gn-review-also">' + esc(labels[i][1]) + "</span>" +
     "</figcaption></figure>").join("");
 
-  const seconds = Number(el("ae-duration").value);
   el("ae-review-specs").textContent =
-    moveName + " · " +
-    seconds + " seconds" + (middle ? " plus a 1.4 s whip" : "") +
-    " · " + el("ae-resolution").value +
-    " · " + (body.model || "the video model");
+    frames().length + " shots · about " + seconds().toFixed(1) + " seconds · 1080p · "
+    + "built from the photos, no render";
 
   el("ae-review").hidden = false;
 }
@@ -192,10 +173,6 @@ function review(body) {
 function closeReview() { el("ae-review").hidden = true; }
 
 el("ae-review-cancel").addEventListener("click", closeReview);
-el("ae-review-reset").addEventListener("click", () => {
-  edits = [null];
-  el("ae-review-prompt").value = promptNow(0);
-});
 el("ae-review").addEventListener("click", (e) => {
   if (e.target.id === "ae-review") closeReview();
 });
@@ -204,18 +181,15 @@ window.addEventListener("keydown", (e) => {
 });
 
 el("ae-review-go").addEventListener("click", () => {
-  // Remembered, so a second confirmation opens on what just ran.
-  const typed = (el("ae-review-prompt").value || "").trim();
-  edits[0] = typed && typed !== (standards[0] || "") ? typed : null;
   closeReview();
   generate();
 });
 
-/* ---------- generating ---------- */
+/* ---------- building it ---------- */
 
 async function generate() {
   el("ae-go").disabled = true;
-  note("Starting the render…");
+  note("Building the reel…");
   try {
     const res = await fetch("/studio/api/video/drone", {
       method: "POST",
@@ -226,15 +200,10 @@ async function generate() {
         start: opening,
         middle: middle,
         end: front,
-        duration: Number(el("ae-duration").value),
-        resolution: el("ae-resolution").value,
-        // Sent every time, edited or not: "what I saw" and "what ran" are
-        // the same string or the confirmation was theatre.
-        prompts: [promptNow(0)],
       }),
     });
     const body = await res.json();
-    if (!res.ok) throw new Error(body.error || "the shot couldn't be started");
+    if (!res.ok) throw new Error(body.error || "the reel couldn't be started");
     window.location.href = "/studio/create/video/rendering?job=" + body.job_id
       + "&style=drone";
   } catch (err) {
@@ -243,14 +212,4 @@ async function generate() {
   }
 }
 
-/* ---------- go ---------- */
-
-if (el("ae-views")) {
-  paintAll();
-  const clear = el("ae-mid-clear");
-  if (clear) {
-    clear.addEventListener("click", () => { middle = ""; paintAll(); save(); });
-  }
-  el("ae-duration").addEventListener("change", renderCost);
-  el("ae-resolution").addEventListener("change", renderCost);
-}
+paintAll();

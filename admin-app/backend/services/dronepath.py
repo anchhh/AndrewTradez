@@ -273,11 +273,8 @@ def group_of(slot):
 # a different shot than the one the flow is building.
 MOVE = "drone_flight"
 
-# The establishing shot, made on the drone flow's second tab. A separate
-# move, a separate style on the job row, and its own section in a property's
-# videos -- it is a different shot of a different subject that happens to end
-# where the flyover starts.
-AERIAL_MOVE = "aerial_approach"
+# The establishing shot on the drone flow's second tab is not a move at
+# all: it is a reel of photographs cut with whips (services/whip.py).
 
 # The two shots a flight is built from. One picture of the front and one of
 # the back: a flyover starts on one and lands on the other, and everything

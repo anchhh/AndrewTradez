@@ -1574,7 +1574,7 @@ def create_aerial():
     come from stage 2, the front shot from stage 4; what is chosen here is
     which wide view it opens on and how long it runs.
     """
-    from services import dronepath, video
+    from services import dronepath, whip
 
     lead_id = request.args.get("lead_id")
     lead = get_owned_lead(int(lead_id)) if (lead_id or "").isdigit() else None
@@ -1584,7 +1584,6 @@ def create_aerial():
     path = lead.drone_path or {}
     project_id = request.args.get("project")
     tail = "&project=%s" % quote(project_id) if project_id else ""
-    cfg = video.load_config()
     made = dronepath.generated_of(path)
 
     # What it can open on: the LISTING's own aerial photographs.
@@ -1621,15 +1620,10 @@ def create_aerial():
                  if dronepath.aerial_opening_of(path) in wide
                  else (wide[0] if wide else None)),
         made=made,
-        move=video.MOVE_NAMES.get(dronepath.AERIAL_MOVE),
         shot_labels=dronepath.SHOT_LABELS,
         slots=slots,
         slot_order=dronepath.CAPTURE_SLOTS,
-        durations=video.model_info(cfg).get("durations") or [5, 8, 10],
-        resolutions=video.model_info(cfg).get("resolutions") or ["1080p"],
-        rates=video.model_info(cfg).get("rates") or {},
-        configured=bool(cfg.get("api_key")),
-        config_error=cfg.get("config_error"),
+        timing={"drift": whip.DRIFT, "whip": whip.WHIP, "land": whip.LAND},
         earth_href="/studio/create/video/earth?lead_id=%s%s" % (lead.id, tail),
         generate_href="/studio/create/video/generate?lead_id=%s&style=drone%s" % (lead.id, tail),
         clips_href="/studio/create/video/clips?lead_id=%s&style=drone%s" % (lead.id, tail),
@@ -4499,11 +4493,37 @@ def api_video_drone():
         return jsonify({"error": "A shot can't end on the frame it starts "
                                  "from."}), 400
 
-    # One move per shot, not the caller's. The flyover crosses the property
-    # along the drawn route; the aerial descends onto its front. Anything
-    # else the menu used to offer was a fragment of one of those.
-    aerial = (data.get("shot") or "").strip().lower() == "aerial"
-    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
+    # The aerial is a reel, not a render: the photographs, each a short
+    # moving shot, cut together with speed whips (services/whip.py). No
+    # model, no prompt, no cost. It is a job all the same, so the waiting
+    # page and the shelf treat it like anything else that was made.
+    if (data.get("shot") or "").strip().lower() == "aerial":
+        from services import whip
+
+        middle = (data.get("middle") or "").strip()
+        if middle and middle not in captures:
+            return jsonify({"error": "That closer view is not one of this "
+                                     "property's pictures."}), 400
+        if middle and middle in (start, end):
+            return jsonify({"error": "The closer view has to be different "
+                                     "from the two ends."}), 400
+        if not end:
+            return jsonify({"error": "The reel needs the front shot to end "
+                                     "on."}), 400
+        frames = [start] + ([middle] if middle else []) + [end]
+        seconds = whip.total_seconds(len(frames))
+        specs = [{"reel": True, "frames": frames, "move": "aerial_reel",
+                  "duration": seconds, "resolution": "1080p"}]
+        try:
+            job = start_job(current_app._get_current_object(), session["user_id"],
+                            [start], lead_id=lead.id, duration=int(round(seconds)),
+                            style="aerial", resolution="1080p", specs=specs)
+        except VideoJobBusy as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify({"job_id": job.id, "estimated_cost": 0})
+
+    aerial = False
+    move = dronepath.MOVE
 
     info = video.model_info(cfg)
     try:
@@ -4521,24 +4541,6 @@ def api_video_drone():
     # House number, plot geometry and the drawn flight, the same facts the
     # exterior clips carry.
     site = exterior_site_facts(lead, {})
-    # The drawn route belongs to the flyover. The aerial is a descent onto
-    # the house from outside the plot, so a heading across it is at best
-    # noise and at worst a second instruction pulling the other way.
-    if aerial:
-        site = dict(site, flight_path=None)
-    # A closer view to whip INTO. With one, the model flies only from it
-    # down to the house, and the jump from the opening photograph is a
-    # speed blur built from the photograph after the render. One render
-    # either way; nothing between the two wide shots is ever generated,
-    # because generating it turned the neighbourhood into another one.
-    middle = (data.get("middle") or "").strip() if aerial else ""
-    if middle and middle not in captures:
-        return jsonify({"error": "That middle frame is not one of this "
-                                 "property's pictures."}), 400
-    if middle and middle in (start, end):
-        return jsonify({"error": "The middle frame has to be different from "
-                                 "the two ends."}), 400
-
     # Whatever was on screen when it was confirmed, per clip. Empty means
     # "the standard wording", which the worker builds from the clip's move.
     # `prompts` is the per-leg form the aerial sends; `prompt` is the single
@@ -4559,13 +4561,8 @@ def api_video_drone():
             spec["prompt"] = typed[index]
         return spec
 
-    if middle:
-        photos = [middle]
-        specs = [leg(0, end, move)]
-        specs[0]["whip_from"] = start
-    else:
-        photos = [start]
-        specs = [leg(0, end, move)]
+    photos = [start]
+    specs = [leg(0, end, move)]
     wording = typed[0] if len(typed) == 1 else ""
 
     try:
@@ -4600,10 +4597,9 @@ def api_video_drone_preview():
     cfg = video.load_config()
     from services import dronepath
 
-    aerial = (data.get("shot") or "").strip().lower() == "aerial"
-    # One move for the aerial whatever is chosen: a whip into it is added
-    # after the render and changes nothing the model is told.
-    move = dronepath.AERIAL_MOVE if aerial else dronepath.MOVE
+    # The aerial is built, not rendered, and has no prompt to preview.
+    aerial = False
+    move = dronepath.MOVE
 
     try:
         seconds = int(data.get("duration") or 10)

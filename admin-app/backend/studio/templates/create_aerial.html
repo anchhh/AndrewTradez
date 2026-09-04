@@ -19,23 +19,17 @@
 
   {% include "_drone_tabs.html" %}
 
-  {% if not configured %}
-    <p class="rn-scope-note is-warn">{{ config_error or
-      "The video generator isn't connected. Add an Atlas Cloud key to
-       studio/atlascloud.json." }}</p>
-  {% endif %}
-
   {% if not made.front %}
     <section class="card">
-      <h2>The landing frame is missing</h2>
-      <p class="hint">This shot descends onto the front of the house &mdash;
-        the same frame the flyover opens on &mdash; so that has to exist
-        first. <a href="{{ generate_href }}">Generate it at stage 4</a>.</p>
+      <h2>The last frame is missing</h2>
+      <p class="hint">This reel ends on the front of the house &mdash; the
+        same frame the flyover opens on &mdash; so that has to exist first.
+        <a href="{{ generate_href }}">Generate it at stage 4</a>.</p>
     </section>
   {% elif not wide %}
     <section class="card">
       <h2>Nothing to open on</h2>
-      <p class="hint">This shot opens on one of the listing's own aerial
+      <p class="hint">This reel opens on one of the listing's own aerial
         photographs &mdash; a drone shot of the street or the plot from above
         &mdash; and this listing has none, nor any other outdoor photograph.
         Add some at the listing step.</p>
@@ -45,12 +39,13 @@
   <section class="card">
     <div class="en-head">
       <div>
-        <h2>Open wide, land on the front</h2>
-        <p class="hint">One continuous descent from a view of the
-          neighbourhood onto the front of this house &mdash; ending on
+        <h2>Wide, whip, closer, whip, the front</h2>
+        <p class="hint">Each photo is a short moving shot &mdash; a slow
+          push &mdash; and every cut is a speed whip: the shot rushes into
+          a streak and the next one is just there, settling. It ends on
           exactly the frame the flyover begins with, so the two cut together
-          with no seam. Pick what it opens on; where it lands is already
-          decided.</p>
+          with no seam. Nothing is generated; it is built from the photos,
+          so nothing in them can change.</p>
       </div>
     </div>
 
@@ -63,15 +58,11 @@
 
       <div class="dr-recap-arrow" aria-hidden="true">&rarr;</div>
 
-      {# Optional. With one, the model flies only from it down to the
-         house; the jump from the opening photograph into it is a whip --
-         a speed blur built from the photograph after the render. Nothing
-         between the two wide shots is generated: generating it turned the
-         neighbourhood into a different one on the way. #}
+      {# Optional: a closer view between the wide shot and the front. #}
       <figure class="ae-end" id="ae-mid-wrap" hidden>
         <span class="dr-recap-tag">Whips into</span>
-        <img id="ae-mid-img" alt="The frame it passes through">
-        <figcaption>Middle
+        <img id="ae-mid-img" alt="The closer view in between">
+        <figcaption>Closer
           <button type="button" class="btn-tiny" id="ae-mid-clear">Remove</button>
         </figcaption>
       </figure>
@@ -79,7 +70,7 @@
       <div class="dr-recap-arrow" id="ae-mid-arrow" aria-hidden="true" hidden>&rarr;</div>
 
       <figure class="ae-end">
-        <span class="dr-recap-tag">Lands on</span>
+        <span class="dr-recap-tag">Ends on</span>
         <img src="{{ made.front }}" alt="The generated front shot">
         <figcaption>The front
           <a class="btn-tiny" href="{{ generate_href }}">Change</a>
@@ -97,78 +88,53 @@
     </p>
     <div class="fp-views" id="ae-views"></div>
 
-    <p class="gn-inputs-label hint">Whip into &mdash; optional. A closer
-      view. The flight is rendered from here down to the house, and the
-      jump from the first photo into it is a half-second speed whip made
-      from the photo, so the surroundings can't change on the way.</p>
+    <p class="gn-inputs-label hint">Whip into &mdash; optional. A closer view
+      of the same neighbourhood for a third shot in between.</p>
     <div class="fp-views" id="ae-mids"></div>
 
-    <p class="hint"><b>{{ move }}.</b> It loses height and width together, so
-      the streets and rooftops leave the frame gradually rather than jumping,
-      and it does not rotate or pass the property.</p>
-  </section>
-
-  <section class="card">
-    <h2>Length and size</h2>
-    <div class="rn-setall">
-      <span class="rn-setall-label">Length</span>
-      <select id="ae-duration" class="rn-select">
-        {% for seconds in durations %}
-          <option value="{{ seconds }}"{{ ' selected' if seconds == 8 }}>{{ seconds }} seconds</option>
-        {% endfor %}
-      </select>
-      <span class="rn-setall-label">Resolution</span>
-      <select id="ae-resolution" class="rn-select">
-        {% for res in resolutions %}<option value="{{ res }}">{{ res }}</option>{% endfor %}
-      </select>
-      <span class="hint" id="ae-cost"></span>
-    </div>
+    <p class="hint" id="ae-cost"></p>
   </section>
 
   <div class="row action-row ge-actions">
     <a class="btn-secondary" href="{{ earth_href }}">Back</a>
-    <button type="button" class="cta-btn is-accent" id="ae-go">Generate the aerial</button>
+    <button type="button" class="cta-btn is-accent" id="ae-go">Build the aerial</button>
     <a class="btn-secondary" href="{{ clips_href }}">All videos</a>
     <span class="hint" id="ae-note"></span>
   </div>
 
-  {# The same confirmation both other generators use. #}
+  {# The same confirmation the other generators use, without a prompt:
+     there is no model to instruct. What is confirmed is the order of the
+     shots. #}
   <div class="gn-review" id="ae-review" hidden>
     <div class="en-crop-panel gn-review-panel">
       <div class="en-crop-head">
-        <strong>Generate the aerial</strong>
-        <span>This is exactly what gets sent. Nothing runs until you confirm.</span>
+        <strong>Build the aerial</strong>
+        <span>These shots, in this order. Nothing runs until you confirm.</span>
       </div>
 
       <div class="gn-review-body">
         <div class="gn-review-col">
-          {# The whole point of this box is that what you read is what
-             runs. The whip is not in it: that is built from the photo
-             after the render, and the model is never told about it. #}
-          <h4 class="gn-review-h" id="ae-review-h1">The prompt</h4>
-          <p class="hint" id="ae-review-hint1">Editable, for this run.</p>
-          <textarea id="ae-review-prompt" class="gn-review-prompt"
-                    spellcheck="false" rows="12"></textarea>
-
-          <button type="button" class="btn-secondary btn-tiny gn-review-reset"
-                  id="ae-review-reset">Back to the default wording</button>
+          <h4 class="gn-review-h">The shots</h4>
+          <p class="hint">Each one drifts for {{ timing.drift }} seconds; each
+            cut is a {{ timing.whip }}-second whip out and a {{ timing.land }}-second
+            landing in. It ends on the front, still, so the flyover picks up
+            from it.</p>
+          <div class="gn-review-shots" id="ae-review-frames"></div>
         </div>
 
         <div class="gn-review-col">
-          <h4 class="gn-review-h">The frames</h4>
-          <p class="hint">It lands on the last. With three, the first
-            whips into the second and the flight is rendered from there.</p>
-          <div class="gn-review-shots" id="ae-review-frames"></div>
-
           <h4 class="gn-review-h">The settings</h4>
           <p class="hint" id="ae-review-specs"></p>
+          <p class="hint">No AI render. The file is made from the photographs
+            with a zoom and motion blur, the way an editor cuts a drone reel,
+            so it costs nothing and the surroundings cannot change.</p>
         </div>
       </div>
 
       <div class="en-crop-actions">
         <span class="en-crop-spacer"></span>
         <button type="button" class="btn-secondary" id="ae-review-cancel">Cancel</button>
-        <button type="button" class="btn-send" id="ae-review-go">Generate</button>
+        <button type="button" class="btn-send" id="ae-review-go">Build</button>
       </div>
     </div>
   </div>
@@ -184,8 +150,7 @@
   window.__SLOTS__ = {{ slots | tojson }};
   window.__SLOT_ORDER__ = {{ slot_order | tojson }};
   window.__SHOT_LABELS__ = {{ shot_labels | tojson }};
-  window.__RATES__ = {{ rates | tojson }};
-  window.__MOVE_NAME__ = {{ (move or "") | tojson }};
+  window.__TIMING__ = {{ timing | tojson }};
 </script>
 <script src="{{ url_for('studio.static', filename='create_aerial.js') }}"></script>
 </body>
